@@ -140,4 +140,15 @@ if (hostArch === "aarch64") {
   }
 }
 
+// 3. Create a Universal sidecar binary using macOS lipo tool (combines aarch64 and x86_64)
+const universalPath = path.join(binariesDir, "server-universal-apple-darwin");
+try {
+  if (existsSync(universalPath)) rmSync(universalPath, { force: true });
+  execSync(`lipo -create -output "${universalPath}" "${aarch64Path}" "${x86_64Path}"`);
+  chmodSync(universalPath, 0o755);
+  console.log(`Created universal Node.js sidecar binary → ${universalPath}`);
+} catch (err) {
+  console.warn("Could not create universal sidecar binary using lipo:", err.message);
+}
+
 console.log("\nZero-dependency universal sidecars ready!");
