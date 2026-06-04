@@ -135,6 +135,18 @@ To package a standalone `.dmg` installer containing the zero-dependency Node sid
 The compiled outputs will be available under:
 `apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/` (Universal) or `target/release/bundle/dmg/` (Native).
 
+### ⚠️ macOS Gatekeeper Warning ("Developer cannot be verified")
+
+Because the compiled app is self-signed, macOS Gatekeeper will block it on first launch. 
+
+**To open it:**
+1. **Right-click** (or Control-click) **Finwise.app** in your **Applications** folder and select **Open**.
+2. Click **Open** on the confirmation dialog. 
+3. *Alternatively*, open your terminal and run:
+   ```bash
+   xattr -cr /Applications/Finwise.app
+   ```
+
 ---
 
 ## Project Structure
