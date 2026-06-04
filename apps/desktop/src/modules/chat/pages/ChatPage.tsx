@@ -135,6 +135,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
+  const [inFlightUserMessage, setInFlightUserMessage] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<{
     toolCalls: Array<{ name: string; params: any; result: string }>;
   } | null>(null);
@@ -283,6 +284,7 @@ export default function ChatPage() {
     setInput("");
     setStreaming(true);
     setStreamText("");
+    setInFlightUserMessage(text);
     setActiveTask(null);
 
     const controller = chatApi.streamChat(
@@ -309,18 +311,20 @@ export default function ChatPage() {
             return { toolCalls: [...prev.toolCalls, tc] };
           });
         },
-        onDone: () => {
+        onDone: async () => {
+          await refetch();
           setStreaming(false);
           setStreamText("");
           setActiveTask(null);
-          refetch();
+          setInFlightUserMessage(null);
         },
-        onError: (error) => {
+        onError: async (error) => {
           toast.error(error);
+          await refetch();
           setStreaming(false);
           setStreamText("");
           setActiveTask(null);
-          refetch();
+          setInFlightUserMessage(null);
           checkStatus();
         },
       },
@@ -418,7 +422,10 @@ export default function ChatPage() {
           disabled={clearing || messages.length === 0}
           onClick={() =>
             clearChat(undefined, {
-              onSuccess: () => toast.success("Chat cleared"),
+              onSuccess: () => {
+                setInFlightUserMessage(null);
+                toast.success("Chat cleared");
+              },
             })
           }
         >
@@ -539,6 +546,16 @@ export default function ChatPage() {
             {messages.map((m) => (
               <MessageBubble key={m.id} msg={m} />
             ))}
+
+            {inFlightUserMessage && (
+              <MessageBubble
+                msg={{
+                  id: "inflight-user",
+                  role: "user",
+                  content: inFlightUserMessage,
+                }}
+              />
+            )}
 
             {activeTask && activeTask.toolCalls.length > 0 && (
               <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900 rounded-2xl p-4 space-y-3 max-w-3xl mx-auto shadow-sm backdrop-blur-sm">

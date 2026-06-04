@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { BASE_URL, getToken } from "@/lib/api";
 import { formatCurrency } from "@finwise/shared/utils";
+import { isTauri } from "@/lib/utils";
 
 export default function DocumentsPage() {
   const { data: docsData, isLoading: loadingDocs } = useDocumentsList();
@@ -35,6 +36,21 @@ export default function DocumentsPage() {
 
   const { mutate: uploadDoc, isPending: uploading } = useUploadDocumentMutation();
   const { mutate: deleteDoc, isPending: deleting } = useDeleteDocumentMutation();
+
+  const handleOpenFile = async (docId: string) => {
+    const url = `${BASE_URL}/api/documents/${docId}?token=${encodeURIComponent(getToken() || "")}`;
+    if (isTauri()) {
+      try {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        await openUrl(url);
+      } catch (err) {
+        console.error("Failed to open file via Tauri opener:", err);
+        toast.error("Failed to open file. Make sure your system has a default app for this file type.");
+      }
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
@@ -520,16 +536,10 @@ export default function DocumentsPage() {
                       variant="outline"
                       size="sm"
                       className="h-8 text-xs gap-1.5"
-                      asChild
+                      onClick={() => handleOpenFile(doc.id)}
                     >
-                      <a
-                        href={`${BASE_URL}/api/documents/${doc.id}?token=${encodeURIComponent(getToken() || "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        Open File
-                      </a>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open File
                     </Button>
                     <Button
                       variant="ghost"

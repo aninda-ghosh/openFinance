@@ -73,7 +73,8 @@ fn spawn_server(
 }
 
 #[tauri::command]
-fn wipe_database(state: tauri::State<Mutex<AppState>>) -> Result<(), String> {
+#[allow(unreachable_code)]
+fn wipe_database(state: tauri::State<Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
     let db_path = state.lock().unwrap().db_path.clone();
 
     // Delete database files
@@ -89,6 +90,9 @@ fn wipe_database(state: tauri::State<Mutex<AppState>>) -> Result<(), String> {
         let _ = std::fs::remove_dir_all(&uploads_dir);
         let _ = std::fs::remove_dir_all(&memories_dir);
     }
+
+    // Restart the application to kill the sidecar and start fresh
+    app.restart();
 
     Ok(())
 }
