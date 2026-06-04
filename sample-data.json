@@ -1,0 +1,1019 @@
+{
+  "version": "1",
+  "exported_at": "2026-05-28T23:04:34.081Z",
+  "data": {
+    "accounts": [
+      {
+        "id": "chase-checking",
+        "name": "Chase Checking",
+        "type": "checking",
+        "currency": "USD",
+        "balance": 3106.1,
+        "institution": "Chase",
+        "is_active": true,
+        "off_budget": false,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "ally-hysa",
+        "name": "Ally HYSA",
+        "type": "savings",
+        "currency": "USD",
+        "balance": 15500,
+        "institution": "Ally",
+        "is_active": true,
+        "off_budget": true,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "amex-gold",
+        "name": "Amex Gold",
+        "type": "credit",
+        "currency": "USD",
+        "balance": -103.6,
+        "institution": "American Express",
+        "is_active": true,
+        "off_budget": false,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "hdfc-checking-inr",
+        "name": "HDFC Savings",
+        "type": "savings",
+        "currency": "INR",
+        "balance": 118800,
+        "institution": "HDFC Bank",
+        "is_active": true,
+        "off_budget": false,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "fidelity-brokerage",
+        "name": "Fidelity Brokerage",
+        "type": "investment",
+        "currency": "USD",
+        "balance": 9500,
+        "institution": "Fidelity",
+        "is_active": true,
+        "off_budget": true,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "policy-acc-hdfc",
+        "name": "HDFC Life policy GCAP",
+        "type": "policy",
+        "currency": "INR",
+        "balance": 200000,
+        "institution": "HDFC Life",
+        "is_active": true,
+        "off_budget": true,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      }
+    ],
+    "envelope_groups": [
+      {
+        "id": "group-needs",
+        "name": "Needs",
+        "sort_order": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "group-wants",
+        "name": "Wants",
+        "sort_order": 1,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "group-savings",
+        "name": "Savings",
+        "sort_order": 2,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "group-misc",
+        "name": "Misc",
+        "sort_order": 3,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      }
+    ],
+    "envelopes": [
+      {
+        "id": "env-2026-04-1",
+        "group_id": "group-needs",
+        "name": "Rent",
+        "budgeted": 1180,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-2",
+        "group_id": "group-needs",
+        "name": "Groceries",
+        "budgeted": 280,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-3",
+        "group_id": "group-needs",
+        "name": "Utilities",
+        "budgeted": 130,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-4",
+        "group_id": "group-needs",
+        "name": "Car Fuel",
+        "budgeted": 80,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-5",
+        "group_id": "group-wants",
+        "name": "Dining Out",
+        "budgeted": 130,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-6",
+        "group_id": "group-wants",
+        "name": "Personal & Fun",
+        "budgeted": 80,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-7",
+        "group_id": "group-wants",
+        "name": "Family Trip",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-8",
+        "group_id": "group-savings",
+        "name": "Emergency Fund",
+        "budgeted": 480,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-9",
+        "group_id": "group-savings",
+        "name": "Investments",
+        "budgeted": 280,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-10",
+        "group_id": "group-misc",
+        "name": "Taxes",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-04-11",
+        "group_id": "group-misc",
+        "name": "Car Maintenance",
+        "budgeted": 80,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-04",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-12",
+        "group_id": "group-needs",
+        "name": "Rent",
+        "budgeted": 1200,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-13",
+        "group_id": "group-needs",
+        "name": "Groceries",
+        "budgeted": 300,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-14",
+        "group_id": "group-needs",
+        "name": "Utilities",
+        "budgeted": 150,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-15",
+        "group_id": "group-needs",
+        "name": "Car Fuel",
+        "budgeted": 100,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-16",
+        "group_id": "group-wants",
+        "name": "Dining Out",
+        "budgeted": 150,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-17",
+        "group_id": "group-wants",
+        "name": "Personal & Fun",
+        "budgeted": 100,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-18",
+        "group_id": "group-wants",
+        "name": "Family Trip",
+        "budgeted": 15000,
+        "budget_currency": "INR",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-19",
+        "group_id": "group-savings",
+        "name": "Emergency Fund",
+        "budgeted": 500,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-20",
+        "group_id": "group-savings",
+        "name": "Investments",
+        "budgeted": 300,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-21",
+        "group_id": "group-misc",
+        "name": "Taxes",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-05-22",
+        "group_id": "group-misc",
+        "name": "Car Maintenance",
+        "budgeted": 100,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-05",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-23",
+        "group_id": "group-needs",
+        "name": "Rent",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-24",
+        "group_id": "group-needs",
+        "name": "Groceries",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-25",
+        "group_id": "group-needs",
+        "name": "Utilities",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-26",
+        "group_id": "group-needs",
+        "name": "Car Fuel",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-27",
+        "group_id": "group-wants",
+        "name": "Dining Out",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-28",
+        "group_id": "group-wants",
+        "name": "Personal & Fun",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-29",
+        "group_id": "group-wants",
+        "name": "Family Trip",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-30",
+        "group_id": "group-savings",
+        "name": "Emergency Fund",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-31",
+        "group_id": "group-savings",
+        "name": "Investments",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-32",
+        "group_id": "group-misc",
+        "name": "Taxes",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-06-33",
+        "group_id": "group-misc",
+        "name": "Car Maintenance",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-06",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-34",
+        "group_id": "group-needs",
+        "name": "Rent",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-35",
+        "group_id": "group-needs",
+        "name": "Groceries",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-36",
+        "group_id": "group-needs",
+        "name": "Utilities",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-37",
+        "group_id": "group-needs",
+        "name": "Car Fuel",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-38",
+        "group_id": "group-wants",
+        "name": "Dining Out",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-39",
+        "group_id": "group-wants",
+        "name": "Personal & Fun",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-40",
+        "group_id": "group-wants",
+        "name": "Family Trip",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-41",
+        "group_id": "group-savings",
+        "name": "Emergency Fund",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-42",
+        "group_id": "group-savings",
+        "name": "Investments",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-43",
+        "group_id": "group-misc",
+        "name": "Taxes",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "env-2026-07-44",
+        "group_id": "group-misc",
+        "name": "Car Maintenance",
+        "budgeted": 0,
+        "budget_currency": "USD",
+        "spent": 0,
+        "month": "2026-07",
+        "rollover_type": "none",
+        "rollover_amount": 0,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "txn-salary-usd",
+        "account_id": "chase-checking",
+        "envelope_id": null,
+        "payee": "Google Direct Deposit",
+        "amount": 5000,
+        "type": "income",
+        "date": "2026-05-01",
+        "notes": "Monthly Paycheck",
+        "import_hash": null,
+        "income_category": "income",
+        "transfer_pair_id": null,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "txn-salary-inr",
+        "account_id": "hdfc-checking-inr",
+        "envelope_id": null,
+        "payee": "Consulting Fee",
+        "amount": 120000,
+        "type": "income",
+        "date": "2026-05-01",
+        "notes": "Contract Project Payment",
+        "import_hash": null,
+        "income_category": "income",
+        "transfer_pair_id": null,
+        "created_at": "2026-05-01T00:00:00.000Z"
+      },
+      {
+        "id": "txn-rent",
+        "account_id": "chase-checking",
+        "envelope_id": "env-2026-05-12",
+        "payee": "Apt Complex Landlord",
+        "amount": 1200,
+        "type": "expense",
+        "date": "2026-05-02",
+        "notes": "May Rent Payment",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-02T00:00:00.000Z"
+      },
+      {
+        "id": "txn-groceries-1",
+        "account_id": "chase-checking",
+        "envelope_id": "env-2026-05-13",
+        "payee": "Whole Foods",
+        "amount": 125.5,
+        "type": "expense",
+        "date": "2026-05-10",
+        "notes": "Weekly essentials",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-10T00:00:00.000Z"
+      },
+      {
+        "id": "txn-groceries-2",
+        "account_id": "amex-gold",
+        "envelope_id": "env-2026-05-13",
+        "payee": "Trader Joe's",
+        "amount": 88.4,
+        "type": "expense",
+        "date": "2026-05-20",
+        "notes": "Mid-month restocking",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-20T00:00:00.000Z"
+      },
+      {
+        "id": "txn-utilities",
+        "account_id": "chase-checking",
+        "envelope_id": "env-2026-05-14",
+        "payee": "PG&E Electric",
+        "amount": 85,
+        "type": "expense",
+        "date": "2026-05-12",
+        "notes": "Electric bill",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-12T00:00:00.000Z"
+      },
+      {
+        "id": "txn-dining",
+        "account_id": "amex-gold",
+        "envelope_id": "env-2026-05-16",
+        "payee": "Sushi Restaurant",
+        "amount": 65.2,
+        "type": "expense",
+        "date": "2026-05-15",
+        "notes": "Friday dinner date",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-15T00:00:00.000Z"
+      },
+      {
+        "id": "txn-treats-inr",
+        "account_id": "hdfc-checking-inr",
+        "envelope_id": "env-2026-05-17",
+        "payee": "Starbucks Coffee",
+        "amount": 1200,
+        "type": "expense",
+        "date": "2026-05-24",
+        "notes": "INR treats",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": null,
+        "created_at": "2026-05-24T00:00:00.000Z"
+      },
+      {
+        "id": "txn-transfer-savings-out",
+        "account_id": "chase-checking",
+        "envelope_id": null,
+        "payee": "Transfer out",
+        "amount": 500,
+        "type": "transfer",
+        "date": "2026-05-25",
+        "notes": "To HYSA Emergency Fund",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": "txn-transfer-savings-in",
+        "created_at": "2026-05-25T00:00:00.000Z"
+      },
+      {
+        "id": "txn-transfer-savings-in",
+        "account_id": "ally-hysa",
+        "envelope_id": null,
+        "payee": "Transfer in",
+        "amount": 500,
+        "type": "transfer",
+        "date": "2026-05-25",
+        "notes": "To HYSA Emergency Fund",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": "txn-transfer-savings-out",
+        "created_at": "2026-05-25T00:00:00.000Z"
+      },
+      {
+        "id": "txn-transfer-cc-out",
+        "account_id": "chase-checking",
+        "envelope_id": null,
+        "payee": "Transfer out",
+        "amount": 150,
+        "type": "transfer",
+        "date": "2026-05-26",
+        "notes": "Credit card payment",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": "txn-transfer-cc-in",
+        "created_at": "2026-05-26T00:00:00.000Z"
+      },
+      {
+        "id": "txn-transfer-cc-in",
+        "account_id": "amex-gold",
+        "envelope_id": null,
+        "payee": "Transfer in",
+        "amount": 150,
+        "type": "transfer",
+        "date": "2026-05-26",
+        "notes": "Credit card payment",
+        "import_hash": null,
+        "income_category": null,
+        "transfer_pair_id": "txn-transfer-cc-out",
+        "created_at": "2026-05-26T00:00:00.000Z"
+      }
+    ],
+    "budget_alerts": [],
+    "recurring_transactions": [
+      {
+        "id": "rec-netflix",
+        "account_id": "amex-gold",
+        "envelope_id": null,
+        "payee": "Netflix Subscription",
+        "amount": 15.49,
+        "type": "expense",
+        "frequency": "monthly",
+        "next_date": "2026-06-01",
+        "notes": "Automatic monthly subscription fee",
+        "created_at": "2026-05-01T00:00:00.000Z"
+      }
+    ],
+    "investments": [
+      {
+        "id": "inv-aapl",
+        "name": "Apple Inc.",
+        "asset_type": "stock",
+        "currency": "USD",
+        "purchase_value": 8500,
+        "units": 50,
+        "purchase_date": "2025-10-15",
+        "current_value": 9500,
+        "current_value_source": "manual",
+        "current_value_at": "2026-05-28T00:00:00.000Z",
+        "notes": "Fidelity brokerage holding",
+        "account_id": "fidelity-brokerage",
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "inv-voo",
+        "name": "Vanguard S&P 500 ETF (Standalone)",
+        "asset_type": "etf",
+        "currency": "USD",
+        "purchase_value": 4200,
+        "units": 10,
+        "purchase_date": "2025-11-20",
+        "current_value": 4700,
+        "current_value_source": "manual",
+        "current_value_at": "2026-05-28T00:00:00.000Z",
+        "notes": "Standalone long-term ETF holdings",
+        "account_id": null,
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      }
+    ],
+    "price_history": [
+      {
+        "id": "ph-aapl-1",
+        "investment_id": "inv-aapl",
+        "price": 170,
+        "date": "2025-10-15T00:00:00.000Z"
+      },
+      {
+        "id": "ph-aapl-2",
+        "investment_id": "inv-aapl",
+        "price": 182.5,
+        "date": "2026-01-15T00:00:00.000Z"
+      },
+      {
+        "id": "ph-aapl-3",
+        "investment_id": "inv-aapl",
+        "price": 190,
+        "date": "2026-05-28T00:00:00.000Z"
+      },
+      {
+        "id": "ph-voo-1",
+        "investment_id": "inv-voo",
+        "price": 420,
+        "date": "2025-11-20T00:00:00.000Z"
+      },
+      {
+        "id": "ph-voo-2",
+        "investment_id": "inv-voo",
+        "price": 450,
+        "date": "2026-02-20T00:00:00.000Z"
+      },
+      {
+        "id": "ph-voo-3",
+        "investment_id": "inv-voo",
+        "price": 470,
+        "date": "2026-05-28T00:00:00.000Z"
+      }
+    ],
+    "policies": [
+      {
+        "id": "policy-hdfc",
+        "name": "GCAP Term Life Insurance",
+        "provider": "HDFC Life",
+        "policy_number": "HDFC-LIFE-GCAP-8821A",
+        "currency": "INR",
+        "start_date": "2024-01-15",
+        "premium_amount": 100000,
+        "premium_frequency": "annual",
+        "premium_term_years": 10,
+        "policy_term_years": 20,
+        "maturity_date": "2044-01-15",
+        "sum_assured": 1000000,
+        "maturity_value": 1400000,
+        "surrender_value": 200000,
+        "notes": "Linked to HDFC Savings account",
+        "account_id": "policy-acc-hdfc",
+        "created_at": "2026-05-01T00:00:00.000Z",
+        "updated_at": "2026-05-28T23:04:34.081Z"
+      }
+    ],
+    "policy_payouts": [],
+    "exchange_rates": [
+      {
+        "id": "rate-inr",
+        "from_currency": "INR",
+        "rate_to_base": 0.012,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-usd",
+        "from_currency": "USD",
+        "rate_to_base": 1,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-sgd",
+        "from_currency": "SGD",
+        "rate_to_base": 0.74,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-gbp",
+        "from_currency": "GBP",
+        "rate_to_base": 1.28,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-eur",
+        "from_currency": "EUR",
+        "rate_to_base": 1.09,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-jpy",
+        "from_currency": "JPY",
+        "rate_to_base": 0.0064,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      },
+      {
+        "id": "rate-ntd",
+        "from_currency": "NTD",
+        "rate_to_base": 0.031,
+        "fetched_at": "2026-05-28T23:04:34.081Z"
+      }
+    ],
+    "ai_conversations": [],
+    "ai_messages": [],
+    "ai_tool_calls": [],
+    "investment_value_history": [
+      {
+        "id": "vh-aapl-1",
+        "investment_id": "inv-aapl",
+        "previous_value": null,
+        "new_value": 8500,
+        "source": "manual",
+        "notes": "Initial purchase",
+        "changed_at": "2025-10-15T00:00:00.000Z"
+      },
+      {
+        "id": "vh-aapl-2",
+        "investment_id": "inv-aapl",
+        "previous_value": 8500,
+        "new_value": 9125,
+        "source": "price_refresh",
+        "notes": "Price history refresh",
+        "changed_at": "2026-01-15T00:00:00.000Z"
+      },
+      {
+        "id": "vh-aapl-3",
+        "investment_id": "inv-aapl",
+        "previous_value": 9125,
+        "new_value": 9500,
+        "source": "price_refresh",
+        "notes": "Price history refresh",
+        "changed_at": "2026-05-28T00:00:00.000Z"
+      },
+      {
+        "id": "vh-voo-1",
+        "investment_id": "inv-voo",
+        "previous_value": null,
+        "new_value": 4200,
+        "source": "manual",
+        "notes": "Initial purchase",
+        "changed_at": "2025-11-20T00:00:00.000Z"
+      },
+      {
+        "id": "vh-voo-2",
+        "investment_id": "inv-voo",
+        "previous_value": 4200,
+        "new_value": 4500,
+        "source": "price_refresh",
+        "notes": "Price history refresh",
+        "changed_at": "2026-02-20T00:00:00.000Z"
+      },
+      {
+        "id": "vh-voo-3",
+        "investment_id": "inv-voo",
+        "previous_value": 4500,
+        "new_value": 4700,
+        "source": "price_refresh",
+        "notes": "Price history refresh",
+        "changed_at": "2026-05-28T00:00:00.000Z"
+      }
+    ]
+  }
+}

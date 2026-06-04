@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <!-- Deep indigo background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <!-- Subtle top-light gloss -->
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.12"/>
+      <stop offset="60%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- Gloss overlay -->
+  <rect width="1024" height="1024" fill="url(#gloss)"/>
+
+  <!--
+    Three ascending bar-chart bars (left = short, right = tall).
+    All bars share the same baseline at y=880.
+    Opacity decreases left-to-right to create depth.
+  -->
+  <!-- Bar 1 — short -->
+  <rect x="162" y="636" width="186" height="244" rx="26" fill="white" opacity="0.32"/>
+  <!-- Bar 2 — medium -->
+  <rect x="419" y="436" width="186" height="444" rx="26" fill="white" opacity="0.60"/>
+  <!-- Bar 3 — tall, full white -->
+  <rect x="676" y="196" width="186" height="684" rx="26" fill="white" opacity="1"/>
+
+  <!-- Trend line through the tops of the bars -->
+  <path d="M 255 616 L 512 415 L 769 174"
+        stroke="white" stroke-width="22" stroke-linecap="round"
+        stroke-linejoin="round" fill="none" opacity="0.28"/>
+
+  <!-- Accent dot at the peak -->
+  <circle cx="769" cy="174" r="34" fill="white" opacity="0.72"/>
+</svg>

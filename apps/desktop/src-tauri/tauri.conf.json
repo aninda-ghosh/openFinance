@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Finwise",
+  "version": "3.0.2",
+  "identifier": "com.anindaghosh.finwise-desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Finwise",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/server"
+    ],
+    "resources": [
+      "binaries/server-bundle/**/*"
+    ],
+    "macOS": {
+      "dmg": {
+        "windowSize": {
+          "width": 540,
+          "height": 380
+        },
+        "appPosition": {
+          "x": 150,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 390,
+          "y": 170
+        }
+      }
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": false
+    }
+  }
+}

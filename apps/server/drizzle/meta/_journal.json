@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776124099521,
+      "tag": "0000_sleepy_lady_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1745280000000,
+      "tag": "0001_add_off_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1746201600000,
+      "tag": "0002_add_income_category",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.turbo/
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.local
+
+# Uploads & User Documents
+apps/server/uploads/
+uploads/
+
+# Tauri Compiled Sidecars & Binaries
+apps/desktop/src-tauri/binaries/
+
+# OS-specific files
+.DS_Store
+**/.DS_Store

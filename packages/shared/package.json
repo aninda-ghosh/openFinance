@@ -1,0 +1,19 @@
+{
+  "name": "@finwise/shared",
+  "version": "3.0.1",
+  "type": "module",
+  "exports": {
+    "./types": "./src/types/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./api-contracts": "./src/api-contracts/index.ts",
+    "./utils": "./src/utils/index.ts",
+    "./utils/hash": "./src/utils/hash.ts"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2"
+  }
+}

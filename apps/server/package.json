@@ -1,0 +1,37 @@
+{
+  "name": "@finwise/server",
+  "version": "3.0.2",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "bundle": "node scripts/bundle.mjs",
+    "bundle:sidecar": "pnpm bundle && node scripts/copy-sidecar.mjs",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@finwise/shared": "workspace:*",
+    "@hono/node-server": "latest",
+    "@hono/zod-validator": "latest",
+    "adm-zip": "^0.5.14",
+    "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.10.0",
+    "better-sqlite3-multiple-ciphers": "^12.10.0",
+    "csv-parse": "latest",
+    "drizzle-orm": "latest",
+    "hono": "latest",
+    "nanoid": "latest",
+    "node-cron": "latest",
+    "postgres": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "latest",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "latest",
+    "esbuild": "latest",
+    "drizzle-kit": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
