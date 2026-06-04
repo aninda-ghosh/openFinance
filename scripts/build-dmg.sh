@@ -4,6 +4,12 @@ set -e
 # Change directory to the repository root
 cd "$(dirname "$0")/.."
 
+# Check if node_modules exists, otherwise install dependencies
+if [ ! -d "node_modules" ]; then
+  echo "node_modules is missing. Running pnpm install..."
+  pnpm install
+fi
+
 # Read the current version from the root package.json
 VERSION=$(node -p "require('./package.json').version")
 echo "Project version is $VERSION. Syncing to configuration files..."
