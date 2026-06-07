@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useResolvedTheme } from "@/hooks/useResolvedTheme";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app.store";
 
@@ -55,7 +54,6 @@ const NAV_GROUPS = [
 
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
-  const resolvedTheme = useResolvedTheme();
 
   return (
     <aside
@@ -67,16 +65,12 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2 px-3 py-4 border-b border-sidebar-border">
         <img
-          src={
-            resolvedTheme === "dark"
-              ? "/Finwise-Dark.png"
-              : "/Finwise-Light.png"
-          }
-          alt="Finwise"
+          src="/OpenFinance.png"
+          alt="openFinance"
           className="w-7 h-7 rounded-md object-contain flex-shrink-0"
         />
         {!sidebarCollapsed && (
-          <span className="font-semibold text-sidebar-foreground">Finwise</span>
+          <span className="font-semibold text-sidebar-foreground">openFinance</span>
         )}
       </div>
 

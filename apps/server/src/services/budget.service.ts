@@ -13,12 +13,12 @@ import type {
   UpdateAccountRequest,
   UpdateEnvelopeRequest,
   UpdateTransactionRequest,
-} from "@finwise/shared/api-contracts";
-import { hashRow } from "@finwise/shared/utils/hash";
+} from "@openfinance/shared/api-contracts";
+import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
 import { and, desc, eq, gte, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getDb } from "../db/index";
+import { getDb, runTransaction } from "../db/index";
 import {
   accounts,
   envelope_groups,
@@ -241,7 +241,7 @@ export async function updateAccount(
 
 export async function deleteAccount(id: string): Promise<void> {
   const db = getDb();
-  await db.transaction(async (tx) => {
+  await runTransaction(async (tx) => {
     // Reverse envelope charges before deleting transactions so envelopes stay accurate.
     const acctTxns = await tx
       .select()
@@ -287,7 +287,7 @@ async function seedMonthFromTemplate(
   }
 
   const promise = (async () => {
-    await db.transaction(async (tx) => {
+    await runTransaction(async (tx) => {
       // 1. Prevent race condition by double checking inside transaction
       const existing = await tx
         .select({ id: envelopes.id })
@@ -320,7 +320,7 @@ async function seedMonthFromTemplate(
 
       // 3. Insert and copy the previous month's budgeted amount and budget currency
       await tx.insert(envelopes).values(
-        srcRows.map((r) => ({
+        srcRows.map((r: any) => ({
           group_id: r.group_id,
           name: r.name,
           month,
@@ -806,7 +806,7 @@ export async function createTransaction(
     if (existing.length > 0) return null;
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await runTransaction(async (tx) => {
     const [row] = await tx.insert(transactions).values(data).returning();
 
     // Keep envelope.spent in sync atomically.
@@ -838,7 +838,7 @@ export async function updateTransaction(
 ): Promise<TransactionResponse> {
   const db = getDb();
 
-  const result = await db.transaction(async (tx) => {
+  const result = await runTransaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(transactions)
@@ -916,7 +916,7 @@ export async function updateTransaction(
 export async function deleteTransaction(id: string): Promise<void> {
   const db = getDb();
 
-  await db.transaction(async (tx) => {
+  await runTransaction(async (tx) => {
     const [existing] = await tx
       .select()
       .from(transactions)
@@ -1025,7 +1025,7 @@ export async function createTransfer(data: {
     if (existing.length > 0) return null;
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await runTransaction(async (tx) => {
     const pairId = nanoid();
 
     const [from] = await tx
@@ -1110,7 +1110,7 @@ export async function importCSV(
     return { imported: 0, skipped: 0, errors: ["Failed to parse CSV file"] };
   }
 
-  await db.transaction(async (tx) => {
+  await runTransaction(async (tx) => {
     for (const row of rows) {
       const rawString = JSON.stringify(row);
       const importHash = hashRow(rawString);
@@ -1392,7 +1392,7 @@ export async function copyPreviousMonthBudget(
   let count = 0;
 
   // Perform updates inside a transaction
-  await db.transaction(async (tx) => {
+  await runTransaction(async (tx) => {
     for (const prev of prevEnvs) {
       // Find matching current envelope by group_id and name
       const matchingCurrent = updatedCurrentEnvs.find(

@@ -21,7 +21,7 @@ import {
   useTransactions,
 } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
-import { formatCurrency } from "@finwise/shared/utils";
+import { formatCurrency } from "@openfinance/shared/utils";
 
 const getCurrencySymbol = (currencyCode: string): string => {
   const map: Record<string, string> = {

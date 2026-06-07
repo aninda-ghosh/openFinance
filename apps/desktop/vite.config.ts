@@ -20,7 +20,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@finwise/shared": path.resolve(__dirname, "../../packages/shared/src"),
+      "@openfinance/shared": path.resolve(__dirname, "../../packages/shared/src"),
     },
   },
 });

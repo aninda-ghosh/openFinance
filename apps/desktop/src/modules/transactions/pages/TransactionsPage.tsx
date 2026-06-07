@@ -540,14 +540,25 @@ export default function TransactionsPage() {
   function formatDateLabel(dateStr: string) {
     if (!dateStr) return "";
     try {
-      const d = new Date(dateStr);
+      const parts = dateStr.slice(0, 10).split("-").map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
       if (isNaN(d.getTime())) return dateStr;
       
-      const today = new Date().toISOString().slice(0, 10);
-      if (dateStr === today) return "Today";
-      
-      const yest = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      if (dateStr === yest) return "Yesterday";
+      const formatKey = (date: Date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+      };
+
+      const today = formatKey(new Date());
+      const yesterdayDate = new Date();
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yest = formatKey(yesterdayDate);
+
+      const targetKey = dateStr.slice(0, 10);
+      if (targetKey === today) return "Today";
+      if (targetKey === yest) return "Yesterday";
 
       return d.toLocaleDateString("en-US", {
         weekday: "short",

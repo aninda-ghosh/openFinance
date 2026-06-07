@@ -11,7 +11,7 @@
  *   - Exchange rates:      open.er-api.com  (free, no key)
  */
 
-import type { InvestmentResponse } from "@finwise/shared/api-contracts";
+import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
 import { getLatestRates } from "./exchange-rate.service";
 
 export interface PriceResult {

@@ -65,8 +65,7 @@ function ThemeSync() {
       "link[rel~='icon']"
     ) as HTMLLinkElement | null;
     if (favicon) {
-      favicon.href =
-        isDark ? "/Finwise-Dark.png" : "/Finwise-Light.png";
+      favicon.href = "/OpenFinance.png";
     }
 
     // Dynamic meta theme-color to blend status bar & safe areas on mobile devices
@@ -153,15 +152,15 @@ export default function App() {
 
     // Track last activity time
     let lastActivity = Date.now();
-    localStorage.setItem("finwise_last_activity", String(lastActivity));
+    localStorage.setItem("openfinance_last_activity", String(lastActivity));
 
     const handleActivity = () => {
       lastActivity = Date.now();
-      localStorage.setItem("finwise_last_activity", String(lastActivity));
+      localStorage.setItem("openfinance_last_activity", String(lastActivity));
     };
 
     const checkTimeout = () => {
-      const stored = localStorage.getItem("finwise_last_activity");
+      const stored = localStorage.getItem("openfinance_last_activity");
       const last = stored ? parseInt(stored, 10) : lastActivity;
       if (Date.now() - last > INACTIVITY_TIMEOUT) {
         clearToken();

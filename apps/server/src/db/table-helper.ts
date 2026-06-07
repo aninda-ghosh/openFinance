@@ -16,7 +16,7 @@ import {
 const isSqlite =
   process.env.DB_DIALECT === "sqlite" ||
   !process.env.DATABASE_URL ||
-  process.env.FINWISE_DESKTOP === "true";
+  process.env.OPENFINANCE_DESKTOP === "true";
 
 export const pgTable = (name: string, columns: any): any => {
   return isSqlite ? sqliteTableReal(name, columns) : pgTableReal(name, columns);

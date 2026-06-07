@@ -4,5 +4,5 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "sqlite",
-  dbCredentials: { url: process.env.DB_PATH ?? "./finwise.db" },
+  dbCredentials: { url: process.env.DB_PATH ?? "./openfinance.db" },
 });

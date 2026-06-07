@@ -6,7 +6,7 @@ import {
   UpdateAccountSchema,
   UpdateEnvelopeSchema,
   UpdateTransactionSchema,
-} from "@finwise/shared/schemas";
+} from "@openfinance/shared/schemas";
 import { type Context, Hono } from "hono";
 import * as budgetService from "../services/budget.service";
 import * as recurringService from "../services/recurring.service";

@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   Coins,
   Landmark,
@@ -55,7 +55,8 @@ const LIQUID_TYPES = ["checking", "savings", "cash"];
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
   try {
-    const d = new Date(dateStr);
+    const parts = dateStr.slice(0, 10).split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString("en-US", {
       weekday: "short",

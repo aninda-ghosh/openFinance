@@ -18,13 +18,15 @@ import {
   recurring_transactions,
   transactions,
   investment_documents,
+  users,
 } from "../db/schema";
 import * as rateService from "../services/exchange-rate.service";
 import AdmZip from "adm-zip";
 import * as fs from "fs";
 import * as path from "path";
 import { UPLOADS_DIR } from "../services/document.service";
-import { encryptBuffer, decryptBuffer } from "../utils/crypto";
+import { encryptBuffer, decryptBuffer, encryptBackup, decryptBackup } from "../utils/crypto";
+import { deriveBackupKey } from "../services/auth.service";
 
 export const backupRouter = new Hono();
 
@@ -101,7 +103,7 @@ backupRouter.get("/export", async (c) => {
         const filePath = path.join(docsDir, file);
         if (fs.statSync(filePath).isFile()) {
           let fileData: any = fs.readFileSync(filePath);
-          const key = process.env.FINWISE_DB_KEY;
+          const key = process.env.OPENFINANCE_DB_KEY;
           fileData = decryptBuffer(fileData, key);
           zip.addFile(path.join("documents", file), fileData);
         }
@@ -109,9 +111,22 @@ backupRouter.get("/export", async (c) => {
     }
 
     const zipBuffer = zip.toBuffer();
-    return c.body(new Uint8Array(zipBuffer), 200, {
-      "Content-Type": "application/zip",
-      "Content-Disposition": 'attachment; filename="finwise-backup.zip"',
+
+    // ── Seamless encryption: look up the user's backup_key ─────────────────
+    let backupKey: string | null = null;
+    const [userRow] = await db.select({ backup_key: users.backup_key }).from(users).limit(1);
+    if (userRow?.backup_key) {
+      backupKey = userRow.backup_key;
+    } else if (process.env.OPENFINANCE_DESKTOP === "true" && process.env.OPENFINANCE_DB_KEY) {
+      // Desktop fallback: derive from the DB key if backup_key not yet saved
+      backupKey = deriveBackupKey(process.env.OPENFINANCE_DB_KEY, "desktop");
+    }
+
+    const outputBuffer = backupKey ? encryptBackup(zipBuffer, backupKey) : zipBuffer;
+
+    return c.body(new Uint8Array(outputBuffer), 200, {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": 'attachment; filename="openfinance-backup.ofb"',
     });
   } catch (err) {
     console.error("Export failed:", err);
@@ -123,8 +138,61 @@ backupRouter.post("/import", async (c) => {
   const db = getDb();
   try {
     const arrayBuffer = await c.req.arrayBuffer();
-    const zipBuffer = Buffer.from(arrayBuffer);
-    const zip = new AdmZip(zipBuffer);
+    let rawBuffer = Buffer.from(arrayBuffer);
+
+    // ── Seamless decryption ────────────────────────────────────────────────
+    // Check for the FWB1 magic header that marks an encrypted backup.
+    const MAGIC = Buffer.from("FWB1");
+    if (rawBuffer.subarray(0, 4).equals(MAGIC)) {
+      let decrypted: Buffer | null = null;
+
+      // 1. Try the stored backup_key for the current user first.
+      const [userRow] = await db.select({ backup_key: users.backup_key }).from(users).limit(1);
+      if (userRow?.backup_key) {
+        try {
+          decrypted = decryptBackup(rawBuffer, userRow.backup_key);
+        } catch {
+          decrypted = null;
+        }
+      }
+
+      // 2. Fallback: try a password supplied in the request header (different-user backup).
+      if (!decrypted) {
+        const headerPassword = c.req.header("x-backup-password");
+        if (headerPassword) {
+          const headerUsername = c.req.header("x-backup-username");
+          const [u] = await db.select({ username: users.username }).from(users).limit(1);
+
+          // Build a list of usernames to try (deduplicated)
+          const usernamesToTry = new Set<string>();
+          if (headerUsername) usernamesToTry.add(headerUsername);
+          if (u?.username) usernamesToTry.add(u.username);
+          usernamesToTry.add("desktop"); // last-resort fallback
+
+          for (const uname of usernamesToTry) {
+            if (decrypted) break;
+            const fallbackKey = deriveBackupKey(headerPassword, uname);
+            try {
+              decrypted = decryptBackup(rawBuffer, fallbackKey);
+            } catch {
+              decrypted = null;
+            }
+          }
+        }
+      }
+
+      if (!decrypted) {
+        return c.json(
+          { error: "DECRYPTION_REQUIRED", message: "This backup is encrypted. Provide the password used to create it via the x-backup-password header." },
+          400
+        );
+      }
+
+      rawBuffer = decrypted as Buffer<ArrayBuffer>;
+    }
+    // Legacy unencrypted ZIP — use rawBuffer as-is
+
+    const zip = new AdmZip(rawBuffer);
 
     const jsonEntry = zip.getEntry("backup-data.json");
     if (!jsonEntry) {
@@ -285,7 +353,7 @@ backupRouter.post("/import", async (c) => {
         const fileName = path.basename(entry.entryName);
         if (fileName) {
           let fileData = entry.getData();
-          const key = process.env.FINWISE_DB_KEY;
+          const key = process.env.OPENFINANCE_DB_KEY;
           fileData = encryptBuffer(fileData, key);
           fs.writeFileSync(path.join(docsDir, fileName), fileData);
         }
@@ -310,6 +378,11 @@ backupRouter.post("/import", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.error("Import failed:", err);
+    try {
+      fs.writeFileSync("/Users/anindaghosh/Projects/FinWise-Desktop-App/import-error.log", (err as Error).stack || String(err));
+    } catch (logErr) {
+      console.error("Failed to write error log:", logErr);
+    }
     return c.json({ error: "Import failed" }, 500);
   }
 });

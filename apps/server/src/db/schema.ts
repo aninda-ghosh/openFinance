@@ -326,6 +326,9 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password_hash: text("password_hash").notNull(),
   salt: text("salt").notNull(),
+  // Stable AES-256 key (64-char hex) derived from the user's login password.
+  // Used to transparently encrypt and decrypt ZIP backups without re-prompting.
+  backup_key: text("backup_key"),
   created_at: text("created_at").$defaultFn(now),
 });
 

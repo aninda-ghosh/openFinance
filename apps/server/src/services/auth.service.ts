@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { users } from "../db/schema";
 
-const JWT_SECRET = process.env.JWT_SECRET || (process.env.FINWISE_DESKTOP === "true" ? "desktop-fallback-secret-key-12345" : undefined);
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.OPENFINANCE_DESKTOP === "true" ? "desktop-fallback-secret-key-12345" : undefined);
 if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
 const TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
@@ -16,6 +16,17 @@ function generateSalt(): string {
 function hashPassword(password: string, salt: string): string {
   return crypto
     .pbkdf2Sync(password, salt, 100_000, 64, "sha512")
+    .toString("hex");
+}
+
+/**
+ * Derives a stable 256-bit (64-char hex) AES key from the user's credentials.
+ * Used to encrypt/decrypt backup ZIPs transparently — never prompts the user again.
+ * The salt is the username so the key is unique per user but always reproducible.
+ */
+export function deriveBackupKey(password: string, username: string): string {
+  return crypto
+    .pbkdf2Sync(password, `finwise-backup-${username}`, 200_000, 32, "sha256")
     .toString("hex");
 }
 
@@ -81,9 +92,10 @@ export async function register(
   const db = getDb();
   const salt = generateSalt();
   const hash = hashPassword(password, salt);
+  const backupKey = deriveBackupKey(password, username);
   const [user] = await db
     .insert(users)
-    .values({ username, password_hash: hash, salt })
+    .values({ username, password_hash: hash, salt, backup_key: backupKey })
     .returning();
   return signToken({ sub: user.id, username: user.username });
 }
@@ -103,6 +115,15 @@ export async function login(
   const hash = hashPassword(password, user.salt);
   if (hash !== user.password_hash)
     throw Object.assign(new Error("Invalid credentials"), { status: 401 });
+
+  // Migrate existing users: derive and save backup_key if not yet stored.
+  if (!user.backup_key) {
+    const backupKey = deriveBackupKey(password, user.username);
+    await db
+      .update(users)
+      .set({ backup_key: backupKey })
+      .where(eq(users.id, user.id));
+  }
 
   return signToken({ sub: user.id, username: user.username });
 }

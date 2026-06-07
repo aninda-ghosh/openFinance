@@ -5,7 +5,7 @@ import type {
   PolicyResponse,
   UpdatePayoutRequest,
   UpdatePolicyRequest,
-} from "@finwise/shared/api-contracts";
+} from "@openfinance/shared/api-contracts";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/index";

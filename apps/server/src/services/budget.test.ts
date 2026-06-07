@@ -9,6 +9,7 @@ vi.mock("../db/index", () => {
   };
   return {
     getDb: () => mockDb,
+    runTransaction: (cb: any) => mockDb.transaction(cb),
   };
 });
 

@@ -46,12 +46,12 @@ echo "Version successfully synced to $VERSION."
 echo "---------------------------------------------------------"
 echo "Step 1: Bundling Node.js backend server sidecar..."
 echo "---------------------------------------------------------"
-pnpm --filter @finwise/server bundle:sidecar
+pnpm --filter @openfinance/server bundle:sidecar
 
 echo "---------------------------------------------------------"
 echo "Step 2: Building desktop React frontend client..."
 echo "---------------------------------------------------------"
-pnpm --filter finwise-desktop build
+pnpm --filter openfinance-desktop build
 
 echo "---------------------------------------------------------"
 echo "Step 3: Building standalone macOS DMG installer..."
@@ -66,17 +66,17 @@ if command -v rustup &> /dev/null; then
   rustup target add aarch64-apple-darwin || true
   rustup target add x86_64-apple-darwin || true
   
-  CI=true pnpm --filter finwise-desktop tauri build --target universal-apple-darwin --bundles dmg
-  DMG_PATH="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/Finwise_${CUR_VERSION}_universal.dmg"
+  CI=true pnpm --filter openfinance-desktop tauri build --target universal-apple-darwin --bundles dmg
+  DMG_PATH="apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/openFinance_${CUR_VERSION}_universal.dmg"
 else
   echo "rustup not found (running via system/Homebrew rustc). Building native host DMG..."
-  CI=true pnpm --filter finwise-desktop tauri build --bundles dmg
+  CI=true pnpm --filter openfinance-desktop tauri build --bundles dmg
   # Detect host architecture for the output path
   HOST_ARCH=$(uname -m)
   if [ "$HOST_ARCH" = "arm64" ]; then
     HOST_ARCH="aarch64"
   fi
-  DMG_PATH="apps/desktop/src-tauri/target/release/bundle/dmg/Finwise_${CUR_VERSION}_${HOST_ARCH}.dmg"
+  DMG_PATH="apps/desktop/src-tauri/target/release/bundle/dmg/openFinance_${CUR_VERSION}_${HOST_ARCH}.dmg"
 fi
 
 echo "========================================================="

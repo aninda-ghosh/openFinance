@@ -22,7 +22,7 @@ export async function readMemory(
 ): Promise<string | null> {
   try {
     const raw = await fs.readFile(filePath(conversationId), "utf-8");
-    const content = decryptString(raw, process.env.FINWISE_DB_KEY);
+    const content = decryptString(raw, process.env.OPENFINANCE_DB_KEY);
     return content.trim() || null;
   } catch {
     return null;
@@ -42,7 +42,7 @@ export async function appendExchange(
   let existing = "";
   try {
     const raw = await fs.readFile(fp, "utf-8");
-    existing = decryptString(raw, process.env.FINWISE_DB_KEY);
+    existing = decryptString(raw, process.env.OPENFINANCE_DB_KEY);
   } catch {
     // File doesn't exist yet — start fresh
     existing = `# Chat Memory: ${conversationId}\n\n`;
@@ -58,7 +58,7 @@ export async function appendExchange(
   ].join("\n");
 
   const updated = existing + exchange;
-  const encrypted = encryptString(updated, process.env.FINWISE_DB_KEY);
+  const encrypted = encryptString(updated, process.env.OPENFINANCE_DB_KEY);
   await fs.writeFile(fp, encrypted, "utf-8");
 }
 

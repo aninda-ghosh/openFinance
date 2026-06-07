@@ -24,8 +24,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@finwise/shared": ["../../packages/shared/src/index.ts"],
-      "@finwise/shared/*": ["../../packages/shared/src/*/index.ts"]
+      "@openfinance/shared": ["../../packages/shared/src/index.ts"],
+      "@openfinance/shared/*": ["../../packages/shared/src/*/index.ts"]
     }
   },
   "include": ["src"],

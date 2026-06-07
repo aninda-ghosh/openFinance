@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    finwise_desktop_lib::run()
+    openfinance_desktop_lib::run()
 }

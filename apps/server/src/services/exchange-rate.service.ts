@@ -1,4 +1,4 @@
-import type { ExchangeRateResponse } from "@finwise/shared/api-contracts";
+import type { ExchangeRateResponse } from "@openfinance/shared/api-contracts";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { app_settings, exchange_rates } from "../db/schema";

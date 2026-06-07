@@ -9,18 +9,18 @@ import * as schema from "./schema";
 const isSqlite =
   process.env.DB_DIALECT === "sqlite" ||
   !process.env.DATABASE_URL ||
-  process.env.FINWISE_DESKTOP === "true";
+  process.env.OPENFINANCE_DESKTOP === "true";
 
 let db: PostgresJsDatabase<typeof schema>;
 let pgClient: any;
 let sqliteClient: any;
 
 if (isSqlite) {
-  const dbPath = process.env.DB_PATH ?? "./finwise.db";
+  const dbPath = process.env.DB_PATH ?? "./openfinance.db";
   sqliteClient = new Database(dbPath);
 
   // Apply encryption key if provided (e.g. from Tauri spawn_server env)
-  const dbKey = process.env.FINWISE_DB_KEY;
+  const dbKey = process.env.OPENFINANCE_DB_KEY;
   if (dbKey && dbKey.trim() !== "") {
     const escapedKey = dbKey.replace(/'/g, "''");
     sqliteClient.pragma(`key = '${escapedKey}'`);
@@ -38,9 +38,9 @@ if (isSqlite) {
 
   db = sqliteDrizzle(sqliteClient, { schema }) as any;
 } else {
-  const user = process.env.POSTGRES_USER ?? "finwise";
-  const password = process.env.POSTGRES_PASSWORD ?? "finwise";
-  const dbName = process.env.POSTGRES_DB ?? "finwise";
+  const user = process.env.POSTGRES_USER ?? "openfinance";
+  const password = process.env.POSTGRES_PASSWORD ?? "openfinance";
+  const dbName = process.env.POSTGRES_DB ?? "openfinance";
   const DATABASE_URL =
     process.env.DATABASE_URL ??
     `postgres://${user}:${password}@localhost:5432/${dbName}`;
@@ -55,6 +55,23 @@ export function getDb() {
 
 export function isSqliteDb() {
   return isSqlite;
+}
+
+export async function runTransaction<T>(cb: (tx: any) => Promise<T>): Promise<T> {
+  if (isSqlite) {
+    const sql = getSql();
+    await sql`BEGIN TRANSACTION`;
+    try {
+      const result = await cb(db);
+      await sql`COMMIT`;
+      return result;
+    } catch (err) {
+      await sql`ROLLBACK`;
+      throw err;
+    }
+  } else {
+    return await db.transaction(cb) as T;
+  }
 }
 
 function cleanQueryForSqlite(query: string): string | null {

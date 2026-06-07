@@ -3,7 +3,7 @@ import type {
   InvestmentResponse,
   PriceHistoryEntry,
   UpdateInvestmentRequest,
-} from "@finwise/shared/api-contracts";
+} from "@openfinance/shared/api-contracts";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../db/index";
 import {

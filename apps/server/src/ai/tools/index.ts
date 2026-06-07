@@ -1,4 +1,4 @@
-import { TransactionFiltersSchema } from "@finwise/shared/schemas";
+import { TransactionFiltersSchema } from "@openfinance/shared/schemas";
 import {
   getMonthlySummary,
   listAccounts,

@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [3.1.0] — 2026-06-07
+
+### Added
+
+- **Full Project Rebrand to openFinance.** Renamed the project and updated all user-facing branding names (window titles, sidebar labels, chatbot names, and help dialogs) to use `openFinance`.
+- **New Universal Logo Integration.** Updated browser favicons, sidebar, PWA descriptors, and generated platform-specific application icons (macOS `.icns`, Windows `.ico`, Android, and iOS formats) from the new `OpenFinance.png` logo asset.
+- **Improved Backup and Restore support.** Exported backup files now default to the new `.ofb` (openFinance backup) extension, while the restore file dialog is updated to accept both `.ofb` and legacy `.fwb` files for seamless backwards compatibility.
+
+## [3.0.5] — 2026-06-07
+
+### Fixed
+
+- **Timezone-Shift Date Formatting Bug.** Resolved the timezone-shift date formatting bug across all account detail, transaction, debt, and investment feeds. The dates now parse component-by-component in the system's local timezone instead of defaulting to UTC, preventing dates from displaying shifted by one day behind in UTC-negative zones.
+
+## [3.0.4] — 2026-06-07
+
+### Added
+
+- **Tauri Single-Instance Window Focusing.** Registered the `tauri-plugin-single-instance` plugin to focus the existing application window and exit immediately when a second copy of the app is opened.
+- **Idempotent Developer Sidecar Server.** Programmed a fast TCP probe on port `3001` before spawning the sidecar server, skipping spawning if the dev server is already running concurrently.
+- **Unified Cross-Dialect Transaction Runner.** Created a new database transaction helper that automatically routes transaction queries. On PostgreSQL (production/web) it executes using native async transactions, and on SQLite (desktop sidecar) it runs manual SQL commands (`BEGIN TRANSACTION`, `COMMIT`, `ROLLBACK`) directly on the connection, resolving the synchronous promise constraints of the `better-sqlite3` driver.
+
+## [3.0.3] — 2026-06-06
+
+### Added
+
+- **Encrypted Backup Export and Import.** Implemented full backup encryption where data is encrypted using AES-256-GCM via a key derived from the user's password, ensuring exported ZIP files are unreadable without the passcode and automatically decrypted on import.
+
 ## [3.0.2] — 2026-06-03
 
 ### Added

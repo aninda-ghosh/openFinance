@@ -137,7 +137,7 @@ export function PasswordGate({ onUnlocked }: Props) {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm">Starting Finwise…</p>
+          <p className="text-sm">Starting openFinance…</p>
         </div>
       </div>
     );
@@ -148,7 +148,7 @@ export function PasswordGate({ onUnlocked }: Props) {
       <div className="w-full max-w-xs space-y-6 p-8">
         <div>
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-lg mb-4">
-            FW
+            OF
           </div>
           <h1 className="text-xl font-semibold text-foreground">
             {isNew ? "Set a password" : "Welcome back"}
@@ -156,7 +156,7 @@ export function PasswordGate({ onUnlocked }: Props) {
           <p className="text-muted-foreground text-sm mt-1">
             {isNew
               ? "Your financial data will be encrypted with this password."
-              : "Enter your password to unlock Finwise."}
+              : "Enter your password to unlock openFinance."}
           </p>
         </div>
 

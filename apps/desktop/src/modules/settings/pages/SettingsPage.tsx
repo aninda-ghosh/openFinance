@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  KeyRound,
+  Lock,
   RefreshCw,
   ScrollText,
   Server,
@@ -633,7 +635,7 @@ const CHANGELOG: {
         label: "Removed",
         items: [
           "better-sqlite3-multiple-ciphers and related dependencies.",
-          "FINWISE_DB_KEY and DB_PATH environment variables.",
+          "OPENFINANCE_DB_KEY and DB_PATH environment variables.",
           "db/key-manager.ts — DB key derivation from macOS Keychain.",
         ],
       },
@@ -898,6 +900,12 @@ function DataBackupCard() {
   const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
 
+  // Password fallback — only shown when importing a backup from a different user/instance
+  const [decryptionRequired, setDecryptionRequired] = useState(false);
+  const [fallbackPassword, setFallbackPassword] = useState("");
+  const [fallbackUsername, setFallbackUsername] = useState("");
+  const [fallbackError, setFallbackError] = useState("");
+
   const exportBackup = async () => {
     setExporting(true);
     try {
@@ -911,10 +919,12 @@ function DataBackupCard() {
       const a = document.createElement("a");
       const date = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = `finwise-backup-${date}.zip`;
+      a.download = `openfinance-backup-${date}.ofb`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success("Backup downloaded successfully");
+      toast.success("Encrypted backup downloaded", {
+        description: "Your backup is secured with your account password.",
+      });
     } catch {
       toast.error("Export failed — check the server logs");
     } finally {
@@ -926,27 +936,50 @@ function DataBackupCard() {
     const file = e.target.files?.[0];
     if (!file) return;
     setPendingBackupFile(file);
+    setDecryptionRequired(false);
+    setFallbackPassword("");
+    setFallbackUsername("");
+    setFallbackError("");
     e.target.value = "";
   };
 
-  const importBackup = async () => {
+  const doImport = async (password?: string, username?: string) => {
     if (!pendingBackupFile) return;
     setImporting(true);
     try {
       const token = getToken();
       const arrayBuffer = await pendingBackupFile.arrayBuffer();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/octet-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(password ? { "x-backup-password": password } : {}),
+        ...(username ? { "x-backup-username": username } : {}),
+      };
       const res = await fetch(`${BASE_URL}/api/backup/import`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/zip",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers,
         body: arrayBuffer,
       });
+
+      if (res.status === 400) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.error === "DECRYPTION_REQUIRED") {
+          // Backup was made by a different user — ask for their password
+          setDecryptionRequired(true);
+          setFallbackError(password ? "Incorrect password — please try again." : "");
+          return;
+        }
+        throw new Error(body?.error ?? "Import failed");
+      }
+
       if (!res.ok) throw new Error("Import failed");
+
       queryClient.invalidateQueries();
       toast.success("Backup restored — all data replaced");
       setPendingBackupFile(null);
+      setDecryptionRequired(false);
+      setFallbackPassword("");
+      setFallbackUsername("");
     } catch {
       toast.error("Import failed — check the server logs");
     } finally {
@@ -954,13 +987,21 @@ function DataBackupCard() {
     }
   };
 
+  const importBackup = () => doImport();
+  const importWithPassword = () => {
+    if (!fallbackPassword.trim() || !fallbackUsername.trim()) return;
+    doImport(fallbackPassword, fallbackUsername);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Backup & Restore</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Lock className="w-4 h-4 text-positive" />
+          Backup &amp; Restore
+        </CardTitle>
         <CardDescription>
-          Export all your data as a compressed ZIP file, or restore from a previous
-          backup. Import replaces all existing data.
+          Exports are automatically encrypted with your account password. Import replaces all existing data.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
@@ -978,13 +1019,14 @@ function DataBackupCard() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".zip"
+          accept=".ofb,.fwb,.zip"
           className="hidden"
           onChange={onFileChange}
         />
 
+        {/* ── Confirm restore dialog ─────────────────────────────────── */}
         <Dialog
-          open={!!pendingBackupFile}
+          open={!!pendingBackupFile && !decryptionRequired}
           onOpenChange={(o) => {
             if (!o) setPendingBackupFile(null);
           }}
@@ -1008,7 +1050,7 @@ function DataBackupCard() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground text-left leading-relaxed">
-                This will <strong>replace all existing data</strong> (including accounts, transactions, envelopes, and secure documents) with the contents of the backup ZIP file. This cannot be undone.
+                This will <strong>replace all existing data</strong> (including accounts, transactions, envelopes, and secure documents) with the contents of the backup file. This cannot be undone.
               </p>
               {pendingBackupFile && (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 text-xs font-semibold text-muted-foreground flex items-center justify-between shadow-sm">
@@ -1022,6 +1064,72 @@ function DataBackupCard() {
                 onClick={importBackup}
               >
                 {importing ? "Restoring…" : "Restore Backup"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ── Decryption fallback dialog ─────────────────────────────── */}
+        <Dialog
+          open={decryptionRequired}
+          onOpenChange={(o) => {
+            if (!o) {
+              setDecryptionRequired(false);
+              setPendingBackupFile(null);
+              setFallbackPassword("");
+              setFallbackUsername("");
+              setFallbackError("");
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-amber-500" />
+                Backup Password Required
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                This backup was encrypted with a <strong>different account</strong>. Enter the credentials that were used when this backup was created.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="backup-fallback-user" className="text-sm">Username</Label>
+                <Input
+                  id="backup-fallback-user"
+                  type="text"
+                  placeholder="Enter backup username"
+                  value={fallbackUsername}
+                  onChange={(e) => {
+                    setFallbackUsername(e.target.value);
+                    setFallbackError("");
+                  }}
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="backup-fallback-pw" className="text-sm">Password</Label>
+                <Input
+                  id="backup-fallback-pw"
+                  type="password"
+                  placeholder="Enter backup password"
+                  value={fallbackPassword}
+                  onChange={(e) => {
+                    setFallbackPassword(e.target.value);
+                    setFallbackError("");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && importWithPassword()}
+                />
+                {fallbackError && (
+                  <p className="text-xs text-destructive">{fallbackError}</p>
+                )}
+              </div>
+              <Button
+                className="w-full"
+                disabled={importing || !fallbackPassword.trim() || !fallbackUsername.trim()}
+                onClick={importWithPassword}
+              >
+                {importing ? "Decrypting & Restoring…" : "Unlock & Restore"}
               </Button>
             </div>
           </DialogContent>
@@ -1356,7 +1464,7 @@ export default function SettingsPage() {
       {/* About */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">About Finwise</CardTitle>
+          <CardTitle className="text-base">About openFinance</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           <div className="flex items-center justify-between">

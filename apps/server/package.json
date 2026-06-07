@@ -1,6 +1,6 @@
 {
-  "name": "@finwise/server",
-  "version": "3.0.3",
+  "name": "@openfinance/server",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -10,7 +10,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@finwise/shared": "workspace:*",
+    "@openfinance/shared": "workspace:*",
     "@hono/node-server": "latest",
     "@hono/zod-validator": "latest",
     "adm-zip": "^0.5.14",

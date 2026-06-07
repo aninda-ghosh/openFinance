@@ -1,8 +1,8 @@
-# 🦉 FinWise (v3.0.2) — Your Money. Your Rules. 💸
+# 🦉 openFinance (v3.1.0) — Your Money. Your Rules. 💸
 
 A standalone personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards, local SQLCipher database encryption, AES-256-GCM local document vault storage, and secure offline AI chat running 100% locally on your machine.
 
-Finwise runs as a native macOS desktop application wrapped in Tauri, combining a React frontend, a Node.js Hono backend sidecar, and SQLCipher. 🚀
+openFinance runs as a native macOS desktop application wrapped in Tauri, combining a React frontend, a Node.js Hono backend sidecar, and SQLCipher. 🚀
 
 ---
 
@@ -99,7 +99,7 @@ To customize or compile the codebase, make sure your build machine has:
 
 ## Local Development
 
-Finwise uses Turborepo to orchestrate development tasks. Install dependencies and start the development servers:
+openFinance uses Turborepo to orchestrate development tasks. Install dependencies and start the development servers:
 
 ```bash
 # 1. Install workspace dependencies
@@ -129,7 +129,7 @@ To package a standalone `.dmg` installer containing the zero-dependency Node sid
 2. **Bundles Server Sidecar**: Compiles the backend into an ESM bundle with a CommonJS require bridge, and copies all binary native dependencies (like SQLCipher ciphers).
 3. **Bundles Node Runtimes**: Copies the host Node binary and pulls the opposite architecture's Node binary directly from `nodejs.org`, preparing both sidecar slots.
 4. **Compiles Tauri Client**:
-   - If `rustup` is installed with both architectures, it automatically cross-compiles and creates a **Universal macOS DMG** (`Finwise_3.0.2_universal.dmg`).
+   - If `rustup` is installed with both architectures, it automatically cross-compiles and creates a **Universal macOS DMG** (`openFinance_3.1.0_universal.dmg`).
    - If `rustup` is missing (Homebrew), it gracefully builds a native package for the host CPU architecture.
 
 The compiled outputs will be available under:
@@ -140,11 +140,11 @@ The compiled outputs will be available under:
 Because the compiled app is self-signed, macOS Gatekeeper will block it on first launch. 
 
 **To open it:**
-1. **Right-click** (or Control-click) **Finwise.app** in your **Applications** folder and select **Open**.
+1. **Right-click** (or Control-click) **openFinance.app** in your **Applications** folder and select **Open**.
 2. Click **Open** on the confirmation dialog. 
 3. *Alternatively*, open your terminal and run:
    ```bash
-   xattr -cr /Applications/Finwise.app
+   xattr -cr /Applications/openFinance.app
    ```
 
 ---
@@ -152,7 +152,7 @@ Because the compiled app is self-signed, macOS Gatekeeper will block it on first
 ## Project Structure
 
 ```
-FinWise/
+openFinance/
 ├── apps/
 │   ├── server/               # Hono backend API server (TypeScript)
 │   │   ├── src/

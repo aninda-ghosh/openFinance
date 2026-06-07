@@ -1,4 +1,4 @@
-import type { DashboardResponse } from "@finwise/shared/api-contracts";
+import type { DashboardResponse } from "@openfinance/shared/api-contracts";
 import { and, eq, gte, lte, or } from "drizzle-orm";
 import { getDb } from "../db/index";
 import {

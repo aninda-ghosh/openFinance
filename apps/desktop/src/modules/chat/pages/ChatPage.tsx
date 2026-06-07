@@ -371,7 +371,7 @@ export default function ChatPage() {
             <Sparkles className="w-4 h-4 text-indigo-500" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-tight">Finwise AI</p>
+            <p className="text-sm font-semibold leading-tight">openFinance AI</p>
             {availableModels.length > 1 ? (
               <div className="relative">
                 <select
@@ -570,7 +570,7 @@ export default function ChatPage() {
                 </div>
 
                 <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 leading-normal">
-                  FinWise AI is analyzing your data locally and performing necessary calculations. You can safely navigate away or close the app; the completed analysis will be saved here automatically.
+                  openFinance AI is analyzing your data locally and performing necessary calculations. You can safely navigate away or close the app; the completed analysis will be saved here automatically.
                 </p>
 
                 <div className="border-t border-indigo-100/50 dark:border-indigo-900/50 pt-2.5 space-y-2">

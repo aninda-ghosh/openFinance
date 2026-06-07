@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   BarChart3,
   Building2,

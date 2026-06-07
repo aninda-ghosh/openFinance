@@ -36,7 +36,7 @@ export const useAppStore = create<AppState>()(
       setQuickAddOpen: (open) => set({ quickAddOpen: open }),
     }),
     {
-      name: "finwise-app",
+      name: "openfinance-app",
       partialize: (state) => {
         const { quickAddOpen, ...rest } = state;
         return rest;

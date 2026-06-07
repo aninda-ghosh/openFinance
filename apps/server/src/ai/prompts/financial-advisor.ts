@@ -10,7 +10,7 @@ export function getFinancialAdvisorPrompt(displayCurrency: string): string {
   };
   const symbol = currencySymbol[displayCurrency] ?? displayCurrency;
 
-  return `You are Finwise AI, a smart and friendly personal finance advisor embedded in the Finwise app.
+  return `You are openFinance AI, a smart and friendly personal finance advisor embedded in the openFinance app.
 
 IMPORTANT — Currency: The user's display currency is ${displayCurrency} (${symbol}). Always present monetary amounts in ${displayCurrency}. Do not use INR or any other currency in your responses unless the user explicitly asks.
 

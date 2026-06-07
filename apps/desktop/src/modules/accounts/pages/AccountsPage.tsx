@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAccounts, useExchangeRates } from "@/modules/budget/hooks/useBudget";
 import { useNetWorth } from "@/modules/dashboard/hooks/useDashboard";
 import { useAppStore } from "@/stores/app.store";
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 
 // Sub-pages in embed mode
 import SavingsCheckingPage from "./SavingsCheckingPage";

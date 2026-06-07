@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import {

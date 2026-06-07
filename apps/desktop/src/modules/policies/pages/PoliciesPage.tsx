@@ -1,5 +1,5 @@
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
-import { SUPPORTED_CURRENCIES } from "@finwise/shared/schemas";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
+import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
 import {
   AlertTriangle,
   CalendarRange,

@@ -36,9 +36,9 @@ fn spawn_server(
             .sidecar("server")
             .map_err(|e| e.to_string())?
             .arg(&index_js_str)
-            .env("FINWISE_DB_KEY", &password)
+            .env("OPENFINANCE_DB_KEY", &password)
             .env("DB_PATH", &db_path_str)
-            .env("FINWISE_DESKTOP", "true")
+            .env("OPENFINANCE_DESKTOP", "true")
             .env("NODE_ENV", "production")
             .env("PORT", "3001")
             .spawn()
@@ -47,6 +47,17 @@ fn spawn_server(
 
     #[cfg(dev)]
     {
+        // If the server is already running (started by dev:all concurrently), skip spawning.
+        // PasswordGate's health-poll loop will detect it and unlock automatically.
+        let already_running = std::net::TcpStream::connect_timeout(
+            &"127.0.0.1:3001".parse().unwrap(),
+            std::time::Duration::from_millis(300),
+        ).is_ok();
+
+        if already_running {
+            return Ok(());
+        }
+
         // CARGO_MANIFEST_DIR = apps/desktop/src-tauri
         // Go up 3 levels to reach the monorepo root, then into apps/server.
         let server_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -61,9 +72,9 @@ fn spawn_server(
         app.shell()
             .command("bash")
             .args(["-c", &script])
-            .env("FINWISE_DB_KEY", &password)
+            .env("OPENFINANCE_DB_KEY", &password)
             .env("DB_PATH", &db_path_str)
-            .env("FINWISE_DESKTOP", "true")
+            .env("OPENFINANCE_DESKTOP", "true")
             .env("PORT", "3001")
             .spawn()
             .map_err(|e| e.to_string())?;
@@ -102,6 +113,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // A second instance was launched — focus the existing window and let the new process exit
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -110,7 +128,7 @@ pub fn run() {
             std::fs::create_dir_all(&app_data_dir)
                 .expect("Failed to create app data directory");
 
-            let db_path = app_data_dir.join("finwise.db");
+            let db_path = app_data_dir.join("openfinance.db");
             app.manage(Mutex::new(AppState { db_path }));
             Ok(())
         })

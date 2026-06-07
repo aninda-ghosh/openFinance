@@ -19,12 +19,12 @@ const FAQ_SECTIONS: FAQSection[] = [
     icon: "🚀",
     items: [
       {
-        q: "What is Finwise and what does it do?",
-        a: "Finwise is a self-hosted personal finance app. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running within your own infrastructure.",
+        q: "What is openFinance and what does it do?",
+        a: "openFinance is a self-hosted personal finance app. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running within your own infrastructure.",
       },
       {
         q: "Where is my data stored?",
-        a: "All data is stored in a PostgreSQL database that runs as part of your local Finwise setup. Nothing is sent to any external cloud service — your data stays entirely within your own infrastructure.",
+        a: "All data is stored in a PostgreSQL database that runs as part of your local openFinance setup. Nothing is sent to any external cloud service — your data stays entirely within your own infrastructure.",
       },
       {
         q: "What currencies are supported?",
@@ -219,7 +219,7 @@ const FAQ_SECTIONS: FAQSection[] = [
         a: "Any insurance or savings policy with a premium schedule and a maturity/surrender value — term life, whole life, endowment, bonds, annuities, etc.",
       },
       {
-        q: "How does Finwise know when a premium is due?",
+        q: "How does openFinance know when a premium is due?",
         a: "It calculates due dates from the policy's start date and frequency (monthly / quarterly / annual). The Policies page shows an alert banner for any premium due within 30 days, and the Dashboard shows upcoming scheduled receipts (policy payouts) within 90 days.",
       },
       {
@@ -264,7 +264,7 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         q: "What AI model does the chat use?",
-        a: "Finwise uses Ollama to run a local language model on your machine. Your financial data and questions never leave your device. The default model is gemma4:e2b, but you can switch to any model you have pulled in Ollama from the model selector in the chat header.",
+        a: "openFinance uses Ollama to run a local language model on your machine. Your financial data and questions never leave your device. The default model is gemma4:e2b, but you can switch to any model you have pulled in Ollama from the model selector in the chat header.",
       },
       {
         q: "What can the AI advisor help with?",
@@ -367,7 +367,7 @@ export default function FAQPage() {
       <div>
         <h1 className="text-2xl font-bold">Help & FAQ</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Everything you need to know about using Finwise.
+          Everything you need to know about using openFinance.
         </p>
       </div>
 

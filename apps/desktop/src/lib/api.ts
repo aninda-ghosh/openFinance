@@ -3,15 +3,15 @@
 export const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export function getToken(): string | null {
-  return localStorage.getItem("finwise_token");
+  return localStorage.getItem("openfinance_token");
 }
 
 export function setToken(token: string) {
-  localStorage.setItem("finwise_token", token);
+  localStorage.setItem("openfinance_token", token);
 }
 
 export function clearToken() {
-  localStorage.removeItem("finwise_token");
+  localStorage.removeItem("openfinance_token");
 }
 
 export async function apiFetch<T>(

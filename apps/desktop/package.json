@@ -1,10 +1,11 @@
 {
-  "name": "finwise-desktop",
+  "name": "openfinance-desktop",
   "private": true,
-  "version": "3.0.3",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:all": "concurrently -k -n VITE,SERVER -c cyan,green \"vite\" \"pnpm --filter @openfinance/server dev\"",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
@@ -39,6 +40,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "concurrently": "^10.0.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitest": "^4.1.4"

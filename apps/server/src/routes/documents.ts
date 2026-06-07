@@ -71,7 +71,7 @@ documentsRouter.get("/:docId", async (c) => {
     }
 
     let fileBuffer: any = fs.readFileSync(filePath);
-    const key = process.env.FINWISE_DB_KEY;
+    const key = process.env.OPENFINANCE_DB_KEY;
     fileBuffer = decryptBuffer(fileBuffer, key);
     return c.body(new Uint8Array(fileBuffer), 200, {
       "Content-Type": doc.mime_type,

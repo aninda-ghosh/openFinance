@@ -33,7 +33,7 @@ export async function createDocument(
   const diskFileName = `doc_${uniqueId}${extension}`;
   const filePath = path.join(UPLOADS_DIR, diskFileName);
 
-  const key = process.env.FINWISE_DB_KEY;
+  const key = process.env.OPENFINANCE_DB_KEY;
   const bufferToWrite = encryptBuffer(fileBuffer, key);
   fs.writeFileSync(filePath, bufferToWrite);
 

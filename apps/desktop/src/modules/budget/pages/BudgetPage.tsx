@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   CalendarClock,
   ChevronDown,

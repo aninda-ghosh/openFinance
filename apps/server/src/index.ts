@@ -263,6 +263,7 @@ await sql`
 `;
 await sql`ALTER TABLE investment_documents ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE CASCADE`;
 await sql`ALTER TABLE investment_documents ALTER COLUMN investment_id DROP NOT NULL`;
+await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_key TEXT`;
 
 // Run base currency naming migration safely in PostgreSQL
 await sql`
@@ -338,7 +339,7 @@ setInterval(async () => {
 
 // ── Auth middleware — protects all /api/* except /api/auth/* ─────────────────
 app.use("/api/*", async (c, next) => {
-  if (process.env.FINWISE_DESKTOP === "true") return next();
+  if (process.env.OPENFINANCE_DESKTOP === "true") return next();
   if (c.req.path.startsWith("/api/auth/")) return next();
   
   let token = "";
@@ -375,5 +376,5 @@ app.route("/api/documents", documentsRouter);
 const PORT = Number(process.env.PORT ?? 3001);
 
 serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`Finwise server running on http://localhost:${PORT}`);
+  console.log(`openFinance server running on http://localhost:${PORT}`);
 });

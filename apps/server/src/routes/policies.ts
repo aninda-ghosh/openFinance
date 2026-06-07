@@ -3,7 +3,7 @@ import {
   CreatePolicySchema,
   UpdatePayoutSchema,
   UpdatePolicySchema,
-} from "@finwise/shared/schemas";
+} from "@openfinance/shared/schemas";
 import { Hono } from "hono";
 import * as policyService from "../services/policy.service";
 

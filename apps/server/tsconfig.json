@@ -4,13 +4,13 @@
     "outDir": "./dist",
     "rootDir": "../..",
     "paths": {
-      "@finwise/shared/types": ["../../packages/shared/src/types/index.ts"],
-      "@finwise/shared/schemas": ["../../packages/shared/src/schemas/index.ts"],
-      "@finwise/shared/api-contracts": [
+      "@openfinance/shared/types": ["../../packages/shared/src/types/index.ts"],
+      "@openfinance/shared/schemas": ["../../packages/shared/src/schemas/index.ts"],
+      "@openfinance/shared/api-contracts": [
         "../../packages/shared/src/api-contracts/index.ts"
       ],
-      "@finwise/shared/utils": ["../../packages/shared/src/utils/index.ts"],
-      "@finwise/shared/utils/hash": ["../../packages/shared/src/utils/hash.ts"]
+      "@openfinance/shared/utils": ["../../packages/shared/src/utils/index.ts"],
+      "@openfinance/shared/utils/hash": ["../../packages/shared/src/utils/hash.ts"]
     }
   },
   "include": ["src/**/*"]

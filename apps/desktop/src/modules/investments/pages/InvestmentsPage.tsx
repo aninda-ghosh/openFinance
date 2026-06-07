@@ -1,10 +1,10 @@
-import type { InvestmentResponse } from "@finwise/shared/api-contracts";
-import { SUPPORTED_CURRENCIES } from "@finwise/shared/schemas";
+import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
+import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
 import {
   convertFromINR,
   formatCurrency,
   formatINR,
-} from "@finwise/shared/utils";
+} from "@openfinance/shared/utils";
 import {
   ArrowUpDown,
   ChevronDown,
@@ -160,14 +160,20 @@ function GainLossCell({
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
   try {
-    const d = new Date(dateStr);
+    const parts = dateStr.slice(0, 10).split("-").map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
     if (Number.isNaN(d.getTime())) return dateStr;
     
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
     
-    const formatKey = (date: Date) => date.toISOString().slice(0, 10);
+    const formatKey = (date: Date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
     const targetKey = dateStr.slice(0, 10);
     
     if (targetKey === formatKey(today)) {

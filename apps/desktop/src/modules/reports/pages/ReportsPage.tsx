@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@finwise/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import { ChevronLeft, ChevronRight, GitMerge, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";

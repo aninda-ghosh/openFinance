@@ -4,7 +4,7 @@ import type {
   InvestmentResponse,
   PriceHistoryResponse,
   UpdateInvestmentRequest,
-} from "@finwise/shared/api-contracts";
+} from "@openfinance/shared/api-contracts";
 import { apiFetch } from "@/lib/api";
 
 const BASE = "/api/investments";

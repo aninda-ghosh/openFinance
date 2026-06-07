@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { BASE_URL, getToken } from "@/lib/api";
-import { formatCurrency } from "@finwise/shared/utils";
+import { formatCurrency } from "@openfinance/shared/utils";
 import { isTauri } from "@/lib/utils";
 
 export default function DocumentsPage() {

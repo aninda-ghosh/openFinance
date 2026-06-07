@@ -1,7 +1,7 @@
 import {
   ChatMessageSchema,
   CreateConversationSchema,
-} from "@finwise/shared/schemas";
+} from "@openfinance/shared/schemas";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";

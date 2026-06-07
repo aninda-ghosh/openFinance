@@ -1,5 +1,5 @@
 /**
- * esbuild bundler for the Finwise server sidecar.
+ * esbuild bundler for the openFinance server sidecar.
  * Replaces @vercel/ncc — esbuild is already available via drizzle-kit/tsx.
  *
  * Native modules (better-sqlite3) are marked external and must be present
@@ -25,17 +25,17 @@ await build({
   format: "esm",
   outfile: path.join(serverRoot, "dist/sidecar/index.js"),
   minify: true,
-  // Resolve @finwise/shared/* to the shared package source
+  // Resolve @openfinance/shared/* to the shared package source
   alias: {
-    "@finwise/shared/types": path.join(sharedRoot, "types/index.ts"),
-    "@finwise/shared/schemas": path.join(sharedRoot, "schemas/index.ts"),
-    "@finwise/shared/api-contracts": path.join(
+    "@openfinance/shared/types": path.join(sharedRoot, "types/index.ts"),
+    "@openfinance/shared/schemas": path.join(sharedRoot, "schemas/index.ts"),
+    "@openfinance/shared/api-contracts": path.join(
       sharedRoot,
       "api-contracts/index.ts"
     ),
-    "@finwise/shared/utils": path.join(sharedRoot, "utils/index.ts"),
-    "@finwise/shared/utils/hash": path.join(sharedRoot, "utils/hash.ts"),
-    "@finwise/shared": path.join(sharedRoot, "index.ts"),
+    "@openfinance/shared/utils": path.join(sharedRoot, "utils/index.ts"),
+    "@openfinance/shared/utils/hash": path.join(sharedRoot, "utils/hash.ts"),
+    "@openfinance/shared": path.join(sharedRoot, "index.ts"),
   },
   // Mark native modules, helper libraries, and Node.js built-ins as external
   external: [

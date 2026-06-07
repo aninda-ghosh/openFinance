@@ -1,6 +1,6 @@
 {
-  "name": "Finwise",
-  "short_name": "Finwise",
+  "name": "openFinance",
+  "short_name": "openFinance",
   "description": "Self-hosted personal finance manager",
   "start_url": "/",
   "scope": "/",
@@ -10,7 +10,7 @@
   "theme_color": "#f9f8f5",
   "icons": [
     {
-      "src": "/Finwise-Dark.png",
+      "src": "/OpenFinance.png",
       "sizes": "any",
       "type": "image/png",
       "purpose": "any maskable"
