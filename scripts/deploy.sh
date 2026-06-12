@@ -105,7 +105,7 @@ WEB_PORT=${WEB_PORT:-3002}
 
 printf "Waiting for the app to become healthy"
 for _ in $(seq 1 60); do
-  if curl -fsS "http://localhost:${WEB_PORT}/health" >/dev/null 2>&1; then
+  if curl -fsS --max-time 2 "http://localhost:${WEB_PORT}/health" >/dev/null 2>&1; then
     echo " ✓"
     echo
     echo "========================================================="
