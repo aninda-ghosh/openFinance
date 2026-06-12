@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.0] — 2026-06-12
+
+### Added
+
+- **Envelope category on every transfer.** The transfer form now always offers the budget envelope picker — required when the transfer crosses the YNAB boundary (On-Budget → Off-Budget), optional otherwise. Previously the picker only appeared for boundary-crossing transfers, and not at all in some views.
+- **Cross-currency transfers from Quick Add.** When the source and destination accounts use different currencies, the form now asks for the exact amount received on the destination side instead of assuming a 1:1 amount (previously only possible from the account detail sheet).
+
+### Changed
+
+- **One shared transaction form everywhere.** Expense, income, and transfer entry and editing previously used four divergent UIs — the Quick Add drawer, the mobile Quick Add page, the Transactions-page edit dialog (plain HTML selects), and the account detail sheet's inline forms. All of them now render a single `TransactionForm` component with the full Quick Add experience: segmented type tabs, large amount input, account card chips with balances, searchable envelope selector with budget progress bars, income category pills, predictive payees, and date/notes.
+- Off-budget accounts now appear as account choices in Quick Add, making transfers to off-budget accounts (and the boundary-crossing envelope rule) reachable from there.
+
+### Fixed
+
+- **Editing a transfer from the Transactions page silently failed.** The old edit dialog always sent payee/amount/envelope in the update, which the server rejects for transfer legs (HTTP 400). The unified edit form sends only date and notes for transfers and shows the other fields locked with an explanation (transfers must be deleted and recreated to change amounts, accounts, or envelopes).
+- Transfers can now be edited (date and notes) from the account detail sheet — the edit button was previously hidden for transfer rows.
+
 ## [4.0.1] — 2026-06-11
 
 ### Fixed
