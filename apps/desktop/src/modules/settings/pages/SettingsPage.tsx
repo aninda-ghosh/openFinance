@@ -43,7 +43,7 @@ const CHANGELOG: {
   sections: { label: string; items: string[] }[];
 }[] = [
   {
-    version: "4.0.1",
+    version: "4.1.0",
     date: "2026-06-11",
     sections: [
       {

@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,8 +18,9 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
+import TransactionForm from "@/components/TransactionForm";
 import { cn } from "@/lib/utils";
-import { useAccounts, useTransactions, useEnvelopes, useUpdateTransaction, useDeleteTransaction } from "@/modules/budget/hooks/useBudget";
+import { useAccounts, useTransactions, useEnvelopes, useDeleteTransaction } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -230,233 +230,33 @@ function ConfirmDialog({
 
 function EditTransactionDialog({
   txn,
-  accounts,
   open,
   onOpenChange,
 }: {
   txn: any;
-  accounts: any[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [payee, setPayee] = useState(txn?.payee ?? "");
-  const [amount, setAmount] = useState(String(txn?.amount ?? ""));
-  const [date, setDate] = useState(txn?.date ?? "");
-  const [envelopeId, setEnvelopeId] = useState(txn?.envelope_id ?? "");
-  const [accountId] = useState(txn?.account_id ?? "");
-  const [type, setType] = useState<"income" | "expense" | "transfer">(txn?.type ?? "expense");
-  const [notes, setNotes] = useState(txn?.notes ?? "");
-  const [incomeCategory, setIncomeCategory] = useState<"income" | "cashback" | "starting_balance">(txn?.income_category ?? "income");
-
-  // Determine transaction's own month dynamically to load correct envelopes
-  const txMonth = useMemo(() => {
-    if (date && date.match(/^\d{4}-\d{2}/)) {
-      return date.slice(0, 7);
-    }
-    return txn?.date ? txn.date.slice(0, 7) : new Date().toISOString().slice(0, 7);
-  }, [date, txn]);
-
-  const { data: envelopesData } = useEnvelopes(txMonth);
-
-  const allEnvelopes = useMemo(() => {
-    return envelopesData?.envelopes ?? [];
-  }, [envelopesData]);
-
-  const { mutate: updateTxn, isPending } = useUpdateTransaction();
-
-  const { mutate: deleteTxn } = useDeleteTransaction();
-
-  const handleSave = () => {
-    if (!txn || !payee.trim() || !amount || !accountId) return;
-
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      toast.error("Amount must be a positive number");
-      return;
-    }
-
-    let formattedDate = date;
-    if (date && date.includes("/")) {
-      const parts = date.split("/");
-      if (parts.length === 3) {
-        formattedDate = `${parts[2]}-${parts[0].padStart(2, "0")}-${parts[1].padStart(2, "0")}`;
-      }
-    }
-
-    const patch: any = {
-      payee: payee.trim(),
-      amount: parsedAmount,
-      date: formattedDate,
-      notes: notes.trim(),
-      envelope_id: type === "expense" && envelopeId ? envelopeId : null,
-      income_category: type === "income" && incomeCategory ? incomeCategory : null,
-    };
-
-    // Only include the type in the patch if the type was explicitly changed by the user.
-    // If the original type was "transfer" and remains "transfer", omitting the type parameter
-    // allows the request to pass Zod schema validation (which restricts type to income/expense)
-    // while successfully updating other fields in the database!
-    if (type !== txn.type) {
-      patch.type = type;
-    }
-
-    updateTxn(
-      { id: txn.id, data: patch },
-      {
-        onSuccess: () => {
-          toast.success("Transaction updated");
-          onOpenChange(false);
-        },
-        onError: (e) => toast.error(e.message),
-      }
-    );
-  };
-
-  const sel = "w-full border rounded-md px-3 py-2 text-sm mt-1 bg-background";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Edit Transaction</DialogTitle>
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-[500px] p-0 gap-0 overflow-hidden"
+      >
+        <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/20 flex-shrink-0">
+          <DialogTitle className="text-sm font-semibold tracking-tight">
+            Edit Transaction
+          </DialogTitle>
         </DialogHeader>
-
-        <div className="space-y-3 pt-1">
-          <div>
-            <Label>Account</Label>
-            <select
-              value={accountId}
-              disabled
-              className={cn(sel, "opacity-60 bg-muted/30 cursor-not-allowed")}
-            >
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <Label>Payee</Label>
-            <Input
-              value={payee}
-              onChange={(e) => setPayee(e.target.value)}
-              className="mt-1"
+        <div className="flex flex-col max-h-[80vh] min-h-0">
+          {txn && (
+            <TransactionForm
+              mode="edit"
+              transaction={txn}
+              onSuccess={() => onOpenChange(false)}
+              onDeleted={() => onOpenChange(false)}
             />
-          </div>
-
-          <div>
-            <Label>Amount</Label>
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <Label>Type</Label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as any)}
-              className={sel}
-            >
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-              {txn?.type === "transfer" && <option value="transfer">Transfer</option>}
-            </select>
-          </div>
-
-          {type === "expense" && (
-            <div>
-              <Label>Category (Envelope)</Label>
-              <select
-                value={envelopeId}
-                onChange={(e) => setEnvelopeId(e.target.value)}
-                className={sel}
-              >
-                <option value="">Uncategorised</option>
-                {allEnvelopes.map((env) => (
-                  <option key={env.id} value={env.id}>
-                    [{env.group_name ?? "Other"}] {env.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           )}
-
-          {type === "income" && (
-            <div>
-              <Label>Income Category</Label>
-              <select
-                value={incomeCategory}
-                onChange={(e) => setIncomeCategory(e.target.value as any)}
-                className={sel}
-              >
-                <option value="income">Regular Income</option>
-                <option value="cashback">Cashback / Refund</option>
-                <option value="starting_balance">Starting Balance</option>
-              </select>
-            </div>
-          )}
-
-          <div>
-            <Label>Notes / Memo</Label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add optional notes"
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <Label>Date</Label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-
-          <div className="flex gap-2.5 pt-2">
-            <ConfirmDialog
-              title="Delete Transaction?"
-              description={
-                txn?.type === "transfer"
-                  ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity."
-                  : "This transaction will be permanently removed. This will instantly adjust the account balance and any budgeted category."
-              }
-              onConfirm={() => {
-                deleteTxn(txn.id, {
-                  onSuccess: () => {
-                    toast.success("Transaction deleted");
-                    onOpenChange(false);
-                  },
-                  onError: (err) => toast.error(err.message),
-                });
-              }}
-              trigger={
-                <Button
-                  variant="destructive"
-                  className="flex-1 text-xs font-bold"
-                  disabled={isPending}
-                >
-                  Delete
-                </Button>
-              }
-            />
-            <Button
-              className="flex-[2] text-xs font-bold"
-              onClick={handleSave}
-              disabled={isPending || !payee.trim() || !amount || !accountId}
-            >
-              Save Changes
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -828,7 +628,6 @@ export default function TransactionsPage() {
       <EditTransactionDialog
         key={editingTxn?.id}
         txn={editingTxn}
-        accounts={accounts}
         open={editingTxn !== null}
         onOpenChange={(isOpen) => {
           if (!isOpen) setEditingTxn(null);
