@@ -59,14 +59,6 @@ function ThemeSync() {
     const isDark = resolved === "dark";
     document.documentElement.classList.toggle("dark", isDark);
 
-    // Dynamic favicon
-    const favicon = document.querySelector(
-      "link[rel~='icon']"
-    ) as HTMLLinkElement | null;
-    if (favicon) {
-      favicon.href = "/OpenFinance.png";
-    }
-
     // Dynamic meta theme-color to blend status bar & safe areas on mobile devices
     let metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (!metaThemeColor) {
@@ -85,7 +77,7 @@ function AppContent() {
 
   return (
     <div
-      className="flex h-[100dvh] bg-background text-foreground overflow-hidden relative"
+      className="app-shell flex bg-background text-foreground overflow-hidden relative"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingLeft: "env(safe-area-inset-left)",

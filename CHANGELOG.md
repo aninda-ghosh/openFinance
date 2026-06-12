@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.0.1] — 2026-06-11
+
+### Fixed
+
+- **iOS Home-Screen PWA bottom dead strip.** Recent iOS under-reports `100dvh` in standalone mode, leaving a blank band below the app. A `display-mode: standalone` media override now uses exact `100vh` heights for installed web apps while keeping dynamic `dvh` in Safari browser tabs.
+- **Favicon runtime regression.** The theme-sync effect was rewriting the icon link back to the raw 2000×2000 logo PNG on every theme change, overriding the proper multi-size favicons.
+- **Mobile dialog and sheet ergonomics.** Dialogs now cap at 85dvh and scroll internally (form fields could previously be pushed off-screen behind the iPhone keyboard), and side/bottom sheets pad for the notch and home-indicator safe areas instead of rendering under them.
+- **iOS Safari polish.** Removed the grey tap-highlight flash on every touch and stopped Safari from inflating font sizes when rotating to landscape.
+
 ## [4.0.0] — 2026-06-11
 
 ### Added

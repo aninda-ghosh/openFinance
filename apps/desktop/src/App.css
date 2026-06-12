@@ -169,12 +169,35 @@
     box-sizing: border-box;
   }
 
+  .app-shell {
+    height: 100dvh;
+  }
+
+  /* iOS Home-Screen (standalone) mode: recent iOS under-reports 100dvh by a
+     phantom toolbar height, leaving a dead strip at the bottom of the screen.
+     There are no browser toolbars in standalone, so plain 100vh is exact. */
+  @media (display-mode: standalone) {
+    html,
+    body,
+    #root,
+    .app-shell {
+      height: 100vh;
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
     font-size: 14px;
+    /* Keep font sizes stable when iOS Safari rotates to landscape */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* Remove the grey flash iOS Safari paints on every tap */
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
   @media (min-width: 768px) {
     html {

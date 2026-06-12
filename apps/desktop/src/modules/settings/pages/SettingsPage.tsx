@@ -43,6 +43,21 @@ const CHANGELOG: {
   sections: { label: string; items: string[] }[];
 }[] = [
   {
+    version: "4.0.1",
+    date: "2026-06-11",
+    sections: [
+      {
+        label: "Fixed",
+        items: [
+          "iOS Home-Screen app no longer shows a dead strip at the bottom — standalone mode now uses exact viewport heights instead of iOS's under-reported dynamic units.",
+          "Restored the proper multi-size favicons (a theme-change effect was overriding them with the raw logo image).",
+          "Mobile dialogs cap at 85% of the viewport and scroll internally so the keyboard can't push fields off-screen; side drawers respect the notch and home-indicator safe areas.",
+          "Removed iOS Safari's grey tap-highlight flash and landscape font-size inflation.",
+        ],
+      },
+    ],
+  },
+  {
     version: "4.0.0",
     date: "2026-06-11",
     sections: [

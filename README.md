@@ -1,4 +1,4 @@
-# 🦉 openFinance (v4.0.0) — Your Money. Your Rules. 💸
+# 🦉 openFinance (v4.0.1) — Your Money. Your Rules. 💸
 
 A self-hosted personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards and secure offline AI chat, running 100% on your own hardware.
 
