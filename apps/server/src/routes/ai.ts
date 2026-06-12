@@ -11,6 +11,7 @@ import { ChatHarness } from "../ai/chat-harness";
 import { AI_CONFIG } from "../config/ai.config";
 import { getDb } from "../db/index";
 import { ai_conversations, ai_messages, ai_tool_calls } from "../db/schema";
+import { getAiSettings, updateAiSettings } from "../services/settings.service";
 
 export const aiRouter = new Hono();
 const aiService = new AIService();
@@ -28,6 +29,33 @@ function handleError(c: any, err: unknown) {
   console.error(err);
   return c.json({ error: "Internal server error" }, 500);
 }
+
+// ─── Ollama settings ──────────────────────────────────────────────────────────
+
+aiRouter.get("/settings", (c) => c.json(getAiSettings()));
+
+aiRouter.put("/settings", async (c) => {
+  try {
+    const body = (await c.req.json()) as {
+      ollama_url?: string | null;
+      ollama_model?: string | null;
+    };
+    if (
+      body.ollama_url != null &&
+      body.ollama_url.trim() !== "" &&
+      !/^https?:\/\//i.test(body.ollama_url.trim())
+    ) {
+      return c.json(
+        { error: "Ollama URL must start with http:// or https://" },
+        400
+      );
+    }
+    const settings = await updateAiSettings(body);
+    return c.json(settings);
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
 
 // ─── Status ───────────────────────────────────────────────────────────────────
 

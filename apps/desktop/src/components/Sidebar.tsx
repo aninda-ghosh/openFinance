@@ -3,7 +3,6 @@ import {
   BarChart2,
   ChevronLeft,
   ChevronRight,
-  Flame,
   HelpCircle,
   Landmark,
   LayoutDashboard,
@@ -44,7 +43,6 @@ const NAV_GROUPS = [
   {
     title: "Utilities",
     items: [
-      { to: "/fire", label: "FIRE Calculator", icon: Flame },
       { to: "/chat", label: "AI Chat", icon: MessageSquare },
       { to: "/faq", label: "Help & FAQ", icon: HelpCircle },
       { to: "/settings", label: "Settings", icon: Settings },

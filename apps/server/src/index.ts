@@ -264,6 +264,8 @@ await sql`
 await sql`ALTER TABLE investment_documents ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id) ON DELETE CASCADE`;
 await sql`ALTER TABLE investment_documents ALTER COLUMN investment_id DROP NOT NULL`;
 await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_key TEXT`;
+await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS ollama_url TEXT`;
+await sql`ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS ollama_model TEXT`;
 
 // Run base currency naming migration safely in PostgreSQL
 await sql`
@@ -288,6 +290,27 @@ await sql`CREATE INDEX IF NOT EXISTS idx_msg_conversation ON ai_messages (conver
 await sql`CREATE INDEX IF NOT EXISTS idx_fx_currency ON exchange_rates (from_currency)`;
 
 console.log("[startup] Schema migrations complete.");
+
+// ── Load runtime AI settings (Ollama endpoint/model) from the database ───────
+import { loadAiSettings } from "./services/settings.service";
+
+try {
+  await loadAiSettings();
+} catch (err) {
+  console.warn("[startup] Could not load AI settings:", (err as Error).message);
+}
+
+// ── Encrypt any documents uploaded before at-rest encryption was enabled ─────
+import { migratePlaintextDocuments } from "./services/document.service";
+
+try {
+  const migrated = migratePlaintextDocuments();
+  if (migrated > 0) {
+    console.log(`[startup] Encrypted ${migrated} existing plaintext document(s) at rest.`);
+  }
+} catch (err) {
+  console.warn("[startup] Document encryption migration failed:", (err as Error).message);
+}
 
 // ── Apply due recurring transactions on startup ───────────────────────────────
 import { applyDueRecurring } from "./services/recurring.service";

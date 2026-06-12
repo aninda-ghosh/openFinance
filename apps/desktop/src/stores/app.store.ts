@@ -25,7 +25,8 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       theme: "system",
       defaultCurrency: "USD",
-      aiModel: "gemma4:e2b",
+      // Empty = use the server-configured default model (Settings → AI Assistant)
+      aiModel: "",
       quickAddOpen: false,
       setSelectedMonth: (month) => set({ selectedMonth: month }),
       toggleSidebar: () =>

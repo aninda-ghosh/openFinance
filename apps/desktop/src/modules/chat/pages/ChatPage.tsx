@@ -2,14 +2,15 @@ import {
   Bot,
   ChevronDown,
   Loader2,
-  Play,
   RotateCcw,
   Send,
+  Settings,
   Sparkles,
   User,
   WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,9 @@ export default function ChatPage() {
     "checking" | "available" | "no_model" | "unavailable"
   >("checking");
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [startingOllama, setStartingOllama] = useState(false);
+  // The server's configured default model (Settings → AI Assistant)
+  const [serverModel, setServerModel] = useState("");
+  const navigate = useNavigate();
   const aiModel = useAppStore((s) => s.aiModel);
   const setAiModel = useAppStore((s) => s.setAiModel);
   const defaultCurrency = useAppStore((s) => s.defaultCurrency);
@@ -166,14 +169,16 @@ export default function ChatPage() {
       .then((d) => {
         const models = d.available_models ?? [];
         setAvailableModels(models);
+        setServerModel(d.model ?? "");
         if (!d.connected) {
           setAiStatus("unavailable");
           return;
         }
-        // Check if the *user-selected* model is available
-        const modelOk = models.some(
-          (m) => m === aiModel || m.startsWith(aiModel)
-        );
+        // Check if the active model (user-selected, falling back to the
+        // server-configured default) is available
+        const active = aiModel || d.model;
+        const modelOk =
+          !!active && models.some((m) => m === active || m.startsWith(active));
         setAiStatus(modelOk ? "available" : "no_model");
       })
       .catch(() => setAiStatus("unavailable"));
@@ -341,25 +346,6 @@ export default function ChatPage() {
     }
   };
 
-  const startOllama = async () => {
-    setStartingOllama(true);
-    try {
-      const res = await chatApi.startOllama();
-      if (res.started) {
-        setAiStatus("available");
-        toast.success(res.message ?? "Ollama is running");
-      } else {
-        toast.error(res.message ?? "Could not start Ollama");
-        checkStatus();
-      }
-    } catch {
-      toast.error("Could not start Ollama — make sure it is installed");
-      checkStatus();
-    } finally {
-      setStartingOllama(false);
-    }
-  };
-
   const isUnavailable = aiStatus === "unavailable" || aiStatus === "no_model";
 
   return (
@@ -375,7 +361,7 @@ export default function ChatPage() {
             {availableModels.length > 1 ? (
               <div className="relative">
                 <select
-                  value={aiModel}
+                  value={aiModel || serverModel}
                   onChange={(e) => {
                     setAiModel(e.target.value);
                     setTimeout(checkStatus, 0);
@@ -392,7 +378,7 @@ export default function ChatPage() {
               </div>
             ) : (
               <p className="text-xs text-muted-foreground leading-tight">
-                {aiModel} · local
+                {aiModel || serverModel || "Ollama"}
               </p>
             )}
           </div>
@@ -444,11 +430,9 @@ export default function ChatPage() {
                 AI bot not available
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                Ollama is not running. Install from{" "}
-                <span className="font-mono">ollama.com</span>, then run:{" "}
-                <span className="font-mono font-medium">
-                  ollama pull gemma4:e2b
-                </span>
+                Cannot reach the configured Ollama server. Point openFinance at
+                a reachable Ollama instance under{" "}
+                <span className="font-medium">Settings → AI Assistant</span>.
               </p>
             </div>
           </div>
@@ -456,20 +440,10 @@ export default function ChatPage() {
             size="sm"
             variant="outline"
             className="border-amber-400 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900 flex-shrink-0 gap-1.5"
-            disabled={startingOllama}
-            onClick={startOllama}
+            onClick={() => navigate("/settings")}
           >
-            {startingOllama ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Starting…
-              </>
-            ) : (
-              <>
-                <Play className="w-3.5 h-3.5" />
-                Start Ollama
-              </>
-            )}
+            <Settings className="w-3.5 h-3.5" />
+            Configure
           </Button>
         </div>
       )}
@@ -483,11 +457,13 @@ export default function ChatPage() {
               </p>
               <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
                 Ollama is running but{" "}
-                <span className="font-mono font-medium">gemma4:e2b</span> is not
-                installed. Run this in your terminal:
+                <span className="font-mono font-medium">
+                  {aiModel || serverModel}
+                </span>{" "}
+                is not installed. Run this on the Ollama server:
               </p>
               <code className="block mt-1.5 text-xs bg-red-100 dark:bg-red-900/50 rounded px-2 py-1 font-mono text-red-800 dark:text-red-200">
-                ollama pull gemma4:e2b
+                ollama pull {aiModel || serverModel}
               </code>
               {availableModels.length > 0 && (
                 <p className="text-xs text-red-600 dark:text-red-400 mt-1.5">

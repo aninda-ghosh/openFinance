@@ -1,9 +1,7 @@
 /**
- * esbuild bundler for the openFinance server sidecar.
- * Replaces @vercel/ncc — esbuild is already available via drizzle-kit/tsx.
- *
- * Native modules (better-sqlite3) are marked external and must be present
- * alongside the bundle at runtime (copied by copy-sidecar.mjs).
+ * esbuild bundler for the openFinance server.
+ * Produces a fully self-contained dist/sidecar/index.js — only Node.js
+ * built-ins are external, so no node_modules is needed at runtime.
  */
 
 import { mkdirSync } from "node:fs";
@@ -37,12 +35,9 @@ await build({
     "@openfinance/shared/utils/hash": path.join(sharedRoot, "utils/hash.ts"),
     "@openfinance/shared": path.join(sharedRoot, "index.ts"),
   },
-  // Mark native modules, helper libraries, and Node.js built-ins as external
+  // Mark Node.js built-ins as external — everything else (all pure-JS) is
+  // bundled, so the output runs standalone with no node_modules.
   external: [
-    "better-sqlite3",
-    "better-sqlite3-multiple-ciphers",
-    "bindings",
-    "file-uri-to-path",
     "fs",
     "node:fs",
     "path",

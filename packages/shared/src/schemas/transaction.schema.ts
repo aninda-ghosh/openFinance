@@ -29,6 +29,19 @@ export const UpdateTransactionSchema = z.object({
   income_category: IncomeCategoryEnum.nullable().optional(),
 });
 
+export const CreateTransferSchema = z.object({
+  from_account_id: z.string().min(1),
+  to_account_id: z.string().min(1),
+  amount: z.coerce.number().positive(),
+  // Destination-side amount for cross-currency transfers; defaults to `amount`
+  to_amount: z.coerce.number().positive().optional(),
+  date: z.string().date("Date must be ISO format YYYY-MM-DD"),
+  notes: z.string().optional(),
+  import_hash: z.string().optional(),
+  envelope_id: z.string().min(1).optional(),
+  to_envelope_id: z.string().min(1).optional(),
+});
+
 export const TransactionFiltersSchema = z.object({
   account_id: z.string().optional(),
   envelope_id: z.string().optional(),

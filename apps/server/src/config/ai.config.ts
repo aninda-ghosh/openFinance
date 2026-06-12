@@ -1,6 +1,6 @@
+// The Ollama endpoint and model are runtime settings — see
+// services/settings.service.ts (in-app Settings page → env vars → localhost).
 export const AI_CONFIG = {
-  ollamaBaseUrl: process.env.OLLAMA_URL ?? "http://localhost:11434",
-  model: process.env.OLLAMA_MODEL ?? "gemma4:e2b",
   temperature: {
     analysis: 0.1,
     conversational: 0.4,

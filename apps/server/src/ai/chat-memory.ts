@@ -1,11 +1,8 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { encryptString, decryptString } from "../utils/crypto";
+import { encryptString, decryptString, getFileEncryptionKey } from "../utils/crypto";
 
-// Store memories inside the App Support folder next to DB_PATH if running in desktop mode
-const MEMORIES_DIR = process.env.DB_PATH
-  ? path.join(path.dirname(process.env.DB_PATH), "chat-memories")
-  : path.join(process.cwd(), "chat-memories");
+const MEMORIES_DIR = path.join(process.cwd(), "chat-memories");
 
 async function ensureDir() {
   await fs.mkdir(MEMORIES_DIR, { recursive: true });
@@ -22,7 +19,7 @@ export async function readMemory(
 ): Promise<string | null> {
   try {
     const raw = await fs.readFile(filePath(conversationId), "utf-8");
-    const content = decryptString(raw, process.env.OPENFINANCE_DB_KEY);
+    const content = decryptString(raw, getFileEncryptionKey());
     return content.trim() || null;
   } catch {
     return null;
@@ -42,7 +39,7 @@ export async function appendExchange(
   let existing = "";
   try {
     const raw = await fs.readFile(fp, "utf-8");
-    existing = decryptString(raw, process.env.OPENFINANCE_DB_KEY);
+    existing = decryptString(raw, getFileEncryptionKey());
   } catch {
     // File doesn't exist yet — start fresh
     existing = `# Chat Memory: ${conversationId}\n\n`;
@@ -58,7 +55,7 @@ export async function appendExchange(
   ].join("\n");
 
   const updated = existing + exchange;
-  const encrypted = encryptString(updated, process.env.OPENFINANCE_DB_KEY);
+  const encrypted = encryptString(updated, getFileEncryptionKey());
   await fs.writeFile(fp, encrypted, "utf-8");
 }
 

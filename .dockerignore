@@ -1,0 +1,8 @@
+.git
+.env
+**/node_modules
+**/dist
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/binaries
+**/*.dmg
+screenshots

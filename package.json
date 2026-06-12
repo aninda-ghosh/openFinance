@@ -1,14 +1,13 @@
 {
   "name": "openfinance",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "biome check .",
-    "tauri:dev": "pnpm --filter openfinance-desktop tauri dev"
+    "lint": "biome check ."
   },
   "devDependencies": {
     "@biomejs/biome": "latest",
@@ -16,7 +15,6 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3-multiple-ciphers",
       "esbuild"
     ]
   }

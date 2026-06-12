@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import * as documentService from "../services/document.service";
 import * as fs from "fs";
 import * as path from "path";
-import { decryptBuffer } from "../utils/crypto";
+import { decryptBuffer, getFileEncryptionKey } from "../utils/crypto";
 
 export const documentsRouter = new Hono();
 
@@ -71,7 +71,7 @@ documentsRouter.get("/:docId", async (c) => {
     }
 
     let fileBuffer: any = fs.readFileSync(filePath);
-    const key = process.env.OPENFINANCE_DB_KEY;
+    const key = getFileEncryptionKey();
     fileBuffer = decryptBuffer(fileBuffer, key);
     return c.body(new Uint8Array(fileBuffer), 200, {
       "Content-Type": doc.mime_type,

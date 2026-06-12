@@ -1,4 +1,5 @@
 import { AI_CONFIG } from "../config/ai.config";
+import { getOllamaModel, getOllamaUrl } from "../services/settings.service";
 
 export type OllamaMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -20,14 +21,19 @@ export type ChatOptions = {
 
 export class OllamaConnectionError extends Error {
   constructor() {
-    super(`Cannot connect to Ollama at ${AI_CONFIG.ollamaBaseUrl}`);
+    super(`Cannot connect to Ollama at ${getOllamaUrl()}`);
     this.name = "OllamaConnectionError";
   }
 }
 
 export class OllamaClient {
-  private baseUrl = AI_CONFIG.ollamaBaseUrl;
-  private model = AI_CONFIG.model;
+  // Resolved per request so Settings changes apply without a restart
+  private get baseUrl() {
+    return getOllamaUrl();
+  }
+  private get model() {
+    return getOllamaModel();
+  }
 
   async chat(
     messages: OllamaMessage[],

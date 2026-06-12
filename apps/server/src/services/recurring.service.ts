@@ -1,7 +1,8 @@
 import { and, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { getDb } from "../db/index";
-import { recurring_transactions, transactions } from "../db/schema";
+import { getDb, runTransaction } from "../db/index";
+import { recurring_transactions } from "../db/schema";
+import { insertTransactionTx } from "./budget.service";
 
 export type RecurringTransaction = typeof recurring_transactions.$inferSelect;
 
@@ -51,25 +52,30 @@ export async function applyDueRecurring(): Promise<number> {
       continue;
     }
 
-    // Create the actual transaction
-    await db.insert(transactions).values({
-      id: nanoid(),
-      account_id: r.account_id,
-      envelope_id: r.envelope_id ?? null,
-      payee: r.payee,
-      amount: r.amount,
-      type: r.type as "income" | "expense",
-      date: r.next_date,
-      notes: r.notes ? `[Auto] ${r.notes}` : "[Auto] Recurring",
-    });
+    // Insert the transaction and advance next_date atomically — a crash
+    // between the two would otherwise recreate the same transaction on the
+    // next startup. insertTransactionTx also keeps envelope.spent in sync,
+    // matching what a manual transaction entry would do.
+    await runTransaction(async (tx) => {
+      await insertTransactionTx(tx, {
+        id: nanoid(),
+        account_id: r.account_id,
+        envelope_id: r.envelope_id ?? null,
+        payee: r.payee,
+        amount: r.amount,
+        type: r.type as "income" | "expense",
+        date: r.next_date,
+        notes: r.notes ? `[Auto] ${r.notes}` : "[Auto] Recurring",
+      });
 
-    // Advance next_date; deactivate if past end_date
-    const nextDate = advanceDate(r.next_date, r.frequency);
-    const expired = r.end_date ? nextDate > r.end_date : false;
-    await db
-      .update(recurring_transactions)
-      .set({ next_date: nextDate, is_active: !expired })
-      .where(eq(recurring_transactions.id, r.id));
+      // Advance next_date; deactivate if past end_date
+      const nextDate = advanceDate(r.next_date, r.frequency);
+      const expired = r.end_date ? nextDate > r.end_date : false;
+      await tx
+        .update(recurring_transactions)
+        .set({ next_date: nextDate, is_active: !expired })
+        .where(eq(recurring_transactions.id, r.id));
+    });
 
     count++;
   }

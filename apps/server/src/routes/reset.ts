@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { getDb } from "../db/index";
+import { runTransaction } from "../db/index";
 import {
   accounts,
   ai_conversations,
@@ -24,24 +24,26 @@ export const resetRouter = new Hono();
 // DELETE all user data — leaves exchange_rates and the DB structure intact.
 // Tables must be deleted in FK-safe order (children before parents).
 resetRouter.post("/", async (c) => {
-  const db = getDb();
   try {
-    await db.delete(ai_tool_calls);
-    await db.delete(ai_messages);
-    await db.delete(ai_conversations);
-    await db.delete(budget_alerts);
-    await db.delete(recurring_transactions);
-    await db.delete(transactions);
-    await db.delete(envelopes);
-    await db.delete(envelope_groups);
-    await db.delete(price_history);
-    await db.delete(investment_value_history);
-    await db.delete(investment_documents);
-    await db.delete(policy_payouts);
-    await db.delete(policies);
-    await db.delete(investments);
-    await db.delete(accounts);
-    await db.delete(exchange_rates);
+    // All-or-nothing — a failure mid-way must not leave a half-wiped database
+    await runTransaction(async (tx) => {
+      await tx.delete(ai_tool_calls);
+      await tx.delete(ai_messages);
+      await tx.delete(ai_conversations);
+      await tx.delete(budget_alerts);
+      await tx.delete(recurring_transactions);
+      await tx.delete(transactions);
+      await tx.delete(envelopes);
+      await tx.delete(envelope_groups);
+      await tx.delete(price_history);
+      await tx.delete(investment_value_history);
+      await tx.delete(investment_documents);
+      await tx.delete(policy_payouts);
+      await tx.delete(policies);
+      await tx.delete(investments);
+      await tx.delete(accounts);
+      await tx.delete(exchange_rates);
+    });
     return c.json({ success: true });
   } catch (err) {
     console.error("Reset failed:", err);
@@ -52,11 +54,13 @@ resetRouter.post("/", async (c) => {
 // DELETE only transactions + reset envelope budgets to 0.
 // Keeps accounts, envelope groups, and envelopes intact.
 resetRouter.post("/transactions", async (c) => {
-  const db = getDb();
   try {
-    await db.delete(budget_alerts);
-    await db.delete(transactions);
-    await db.update(envelopes).set({ budgeted: 0 });
+    await runTransaction(async (tx) => {
+      await tx.delete(budget_alerts);
+      await tx.delete(transactions);
+      // spent mirrors transactions — with them gone it must go back to 0 too
+      await tx.update(envelopes).set({ budgeted: 0, spent: 0 });
+    });
     return c.json({ success: true });
   } catch (err) {
     console.error("Transaction reset failed:", err);

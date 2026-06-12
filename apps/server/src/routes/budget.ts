@@ -2,6 +2,7 @@ import {
   CreateAccountSchema,
   CreateEnvelopeSchema,
   CreateTransactionSchema,
+  CreateTransferSchema,
   TransactionFiltersSchema,
   UpdateAccountSchema,
   UpdateEnvelopeSchema,
@@ -261,28 +262,14 @@ budgetRouter.patch("/transactions/:id", async (c) => {
 
 budgetRouter.post("/transactions/transfer", async (c) => {
   const body = await c.req.json().catch(() => null);
-  if (
-    !body?.from_account_id ||
-    !body?.to_account_id ||
-    !body?.amount ||
-    !body?.date
-  ) {
-    return c.json(
-      { error: "from_account_id, to_account_id, amount, date required" },
-      400
-    );
+  const parsed = CreateTransferSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
   }
   try {
     const result = await budgetService.createTransfer({
-      from_account_id: body.from_account_id,
-      to_account_id: body.to_account_id,
-      amount: Number(body.amount),
-      to_amount: Number(body.to_amount ?? body.amount),
-      date: body.date,
-      notes: body.notes,
-      import_hash: body.import_hash,
-      envelope_id: body.envelope_id,
-      to_envelope_id: body.to_envelope_id,
+      ...parsed.data,
+      to_amount: parsed.data.to_amount ?? parsed.data.amount,
     });
     if (result === null)
       return c.json({ skipped: true, reason: "duplicate" }, 409);

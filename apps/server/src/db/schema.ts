@@ -4,7 +4,7 @@ import {
   integer,
   pgTable,
   text,
-} from "./table-helper";
+} from "drizzle-orm/pg-core";
 import { nanoid } from "nanoid";
 
 const now = () => new Date().toISOString();
@@ -342,5 +342,9 @@ export const app_settings = pgTable("app_settings", {
     .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
     .default("USD")
     .notNull(),
+  // AI assistant — null means "use the OLLAMA_URL / OLLAMA_MODEL env vars,
+  // or fall back to the built-in defaults"
+  ollama_url: text("ollama_url"),
+  ollama_model: text("ollama_model"),
   updated_at: text("updated_at").$defaultFn(now),
 });

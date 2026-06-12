@@ -38,7 +38,6 @@ const SettingsPage = lazy(
   () => import("@/modules/settings/pages/SettingsPage")
 );
 const FAQPage = lazy(() => import("@/modules/faq/pages/FAQPage"));
-const FirePage = lazy(() => import("@/modules/fire/pages/FirePage"));
 const QuickAddPage = lazy(
   () => import("@/modules/transactions/pages/QuickAddPage")
 );
@@ -114,7 +113,6 @@ function AppContent() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/faq" element={<FAQPage />} />
-            <Route path="/fire" element={<FirePage />} />
             <Route path="/quick-add" element={<QuickAddPage />} />
           </Routes>
         </Suspense>

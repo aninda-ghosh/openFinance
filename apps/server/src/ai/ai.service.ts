@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { AI_CONFIG } from "../config/ai.config";
+import { getOllamaModel } from "../services/settings.service";
 import { getDb } from "../db/index";
 import { ai_conversations, ai_messages, ai_tool_calls } from "../db/schema";
 import { appendExchange, deleteMemory } from "./chat-memory";
@@ -220,14 +221,13 @@ export class AIService {
       this.client.ping(),
       this.client.listModels(),
     ]);
+    const model = getOllamaModel();
     const model_available =
       connected &&
-      available_models.some(
-        (m) => m === AI_CONFIG.model || m.startsWith(AI_CONFIG.model)
-      );
+      available_models.some((m) => m === model || m.startsWith(model));
     return {
       connected,
-      model: AI_CONFIG.model,
+      model,
       model_available,
       available_models,
     };

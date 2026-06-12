@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Bot,
   CheckCircle2,
   Download,
   KeyRound,
@@ -41,6 +42,35 @@ const CHANGELOG: {
   date: string;
   sections: { label: string; items: string[] }[];
 }[] = [
+  {
+    version: "4.0.0",
+    date: "2026-06-11",
+    sections: [
+      {
+        label: "Added",
+        items: [
+          "One-command Docker deployment — the full stack (Nginx web UI, Hono API, PostgreSQL) is defined in a single docker-compose.yml with inline Dockerfiles; ./scripts/deploy.sh checks for Docker, generates all secrets into .env, builds, starts, and waits for health.",
+          "At-rest AES-256-GCM encryption for uploaded documents and AI chat memories using a deploy-time ENCRYPTION_KEY; pre-existing plaintext uploads are encrypted in place automatically at startup.",
+          "Configurable Ollama server — the AI assistant's endpoint and model are now runtime settings under Settings → AI Assistant with a connection test, stored in the database (in-app setting → env var → localhost fallback).",
+          "Proper web favicons — multi-size favicon.ico, PNG favicons, apple-touch-icon, and PWA manifest icons generated from the openFinance logo.",
+        ],
+      },
+      {
+        label: "Changed",
+        items: [
+          "PostgreSQL only — SQLite support removed entirely; the server bundle is now fully self-contained pure JavaScript with no native modules.",
+          "Transaction integrity pass — every multi-step write now runs in a database transaction through a single shared insert path that keeps envelope budgets in sync: atomic recurring transactions, all-or-nothing CSV import, transfer legs protected from desync (date/notes sync to both legs; amount/account edits rejected), atomic account seeding, backup restore, and data reset; duplicate imports detected race-free.",
+        ],
+      },
+      {
+        label: "Removed",
+        items: [
+          "macOS DMG packaging and the universal Node sidecar build pipeline — openFinance now targets self-hosted Docker deployment with browser access.",
+          "FIRE Calculator page, its sidebar entry, and help documentation.",
+        ],
+      },
+    ],
+  },
   {
     version: "3.0.1",
     date: "2026-05-31",
@@ -745,6 +775,136 @@ function buildMonthOptions() {
   return options.reverse();
 }
 
+function AiAssistantCard() {
+  const [url, setUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{
+    connected: boolean;
+    model_available: boolean;
+    available_models: string[];
+  } | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  const refreshStatus = async () => {
+    setChecking(true);
+    try {
+      const s = await apiFetch<{
+        connected: boolean;
+        model_available: boolean;
+        available_models: string[];
+      }>("/api/ai/status");
+      setStatus(s);
+    } catch {
+      setStatus(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    apiFetch<{ ollama_url: string; ollama_model: string }>("/api/ai/settings")
+      .then((s) => {
+        setUrl(s.ollama_url);
+        setModel(s.ollama_model);
+      })
+      .catch(() => {});
+    refreshStatus();
+  }, []);
+
+  const save = async () => {
+    try {
+      setSaving(true);
+      const s = await apiFetch<{ ollama_url: string; ollama_model: string }>(
+        "/api/ai/settings",
+        {
+          method: "PUT",
+          body: JSON.stringify({ ollama_url: url, ollama_model: model }),
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      setUrl(s.ollama_url);
+      setModel(s.ollama_model);
+      toast.success("AI assistant settings saved.");
+      await refreshStatus();
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to save AI assistant settings.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Bot className="w-4 h-4" /> AI Assistant
+        </CardTitle>
+        <CardDescription>
+          Point the AI chat at any reachable Ollama server. Defaults to a local
+          instance (http://localhost:11434).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="ollama-url">Ollama Server URL</Label>
+          <Input
+            id="ollama-url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="http://localhost:11434"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ollama-model">Model</Label>
+          <Input
+            id="ollama-model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="gemma4:e2b"
+          />
+          {status && status.available_models.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Installed on this server: {status.available_models.join(", ")}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            {checking ? (
+              <span className="text-xs text-muted-foreground animate-pulse">
+                Checking connection…
+              </span>
+            ) : status?.connected ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  Connected
+                </span>
+                {!status.model_available && (
+                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                    — model not installed (run: ollama pull {model})
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <XCircle className="w-4 h-4 text-red-500" />
+                <span className="text-red-600 dark:text-red-400 font-medium">
+                  Not reachable
+                </span>
+              </>
+            )}
+          </div>
+          <Button onClick={save} disabled={saving} size="sm">
+            {saving ? "Saving…" : "Save & Test"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ServerStatus() {
   const [status, setStatus] = useState<"checking" | "online" | "offline">(
     "checking"
@@ -1427,6 +1587,9 @@ export default function SettingsPage() {
       {/* Exchange rates */}
       <ExchangeRatesCard />
 
+      {/* AI assistant */}
+      <AiAssistantCard />
+
       {/* Server status */}
       <ServerStatus />
 
@@ -1480,10 +1643,8 @@ export default function SettingsPage() {
           </p>
           <p>
             AI powered by{" "}
-            <span className="font-medium text-foreground">
-              Ollama gemma4:e2b
-            </span>{" "}
-            running locally.
+            <span className="font-medium text-foreground">Ollama</span> — point
+            it at any reachable server from the AI Assistant section above.
           </p>
         </CardContent>
       </Card>

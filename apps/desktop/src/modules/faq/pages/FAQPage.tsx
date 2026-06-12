@@ -241,30 +241,12 @@ const FAQ_SECTIONS: FAQSection[] = [
     ],
   },
   {
-    title: "FIRE Planner",
-    icon: "🔥",
-    items: [
-      {
-        q: "What is the FIRE Calculator and how does it work?",
-        a: "The FIRE (Financial Independence, Retire Early) Calculator maps out your retirement projections. It simulates year-by-year portfolio growth, compounding gains, and geoarbitrage savings side-by-side for up to 7 distinct destinations based on customizable parameters.",
-      },
-      {
-        q: "How does the Dynamic Children/Kids age simulation work?",
-        a: "If your Household Size is set to 'Family', you can add up to 4 children and specify each child's current age. The engine calculates active dependents and dynamically adjusts target monthly expenses to reflect parental spending.",
-      },
-      {
-        q: "What is the 'Stepped Expenses Timeline'?",
-        a: "Rather than a flat cost assumption, the simulator reduces your monthly spending targets in steps. As each individual child turns 21 and reaches independence, your target retirement wealth dynamically adjusts downwards, showing a beautiful stepped step-down curve on the projection chart.",
-      },
-    ],
-  },
-  {
     title: "AI Chat",
     icon: "🤖",
     items: [
       {
         q: "What AI model does the chat use?",
-        a: "openFinance uses Ollama to run a local language model on your machine. Your financial data and questions never leave your device. The default model is gemma4:e2b, but you can switch to any model you have pulled in Ollama from the model selector in the chat header.",
+        a: "openFinance uses Ollama to run a language model on infrastructure you control. Point the app at any reachable Ollama server (your own machine, a home server, …) under Settings → AI Assistant — it defaults to http://localhost:11434. The default model is gemma4:e2b, but you can use any model installed on that server.",
       },
       {
         q: "What can the AI advisor help with?",
@@ -278,9 +260,10 @@ const FAQ_SECTIONS: FAQSection[] = [
         q: "The AI says it can't connect — what do I do?",
         a: (
           <span>
-            Check the Ollama status at the top of the Chat page. If it shows
-            Offline, click <strong>Start Ollama</strong>. Make sure Ollama is
-            installed on your machine (
+            Check the Ollama server URL under{" "}
+            <strong>Settings → AI Assistant</strong> and use{" "}
+            <strong>Save &amp; Test</strong> to verify the connection. Make
+            sure Ollama is running on that machine (
             <code className="bg-muted px-1 rounded text-xs">ollama.com</code>)
             and that you have pulled at least one model (e.g.{" "}
             <code className="bg-muted px-1 rounded text-xs">

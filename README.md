@@ -1,16 +1,16 @@
-# 🦉 openFinance (v3.1.0) — Your Money. Your Rules. 💸
+# 🦉 openFinance (v4.0.0) — Your Money. Your Rules. 💸
 
-A standalone personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards, local SQLCipher database encryption, AES-256-GCM local document vault storage, and secure offline AI chat running 100% locally on your machine.
+A self-hosted personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards and secure offline AI chat, running 100% on your own hardware.
 
-openFinance runs as a native macOS desktop application wrapped in Tauri, combining a React frontend, a Node.js Hono backend sidecar, and SQLCipher. 🚀
+openFinance deploys as a single Docker Compose stack — a React frontend served by Nginx, a Node.js Hono backend, and a PostgreSQL database — and is accessed from any browser on your network. One script (`./scripts/deploy.sh`) takes care of everything. 🚀
 
 ---
 
-## ⚡ Desktop Superpowers
+## ⚡ Superpowers
 
-- 🛡️ **Passcode-locked local SQLCipher Vault** — Your database is fully encrypted on disk. If the passcode is incorrect, the vault remains completely locked.
-- 🔒 **AES-256-GCM Document & Chat Encryption** — Uploaded bank statements, contract notes, and AI conversation histories are encrypted dynamically on write and decrypted on the fly in memory.
-- 💻 **Zero-Dependency Native Runtime** — Pre-packaged with embedded Node.js runtimes for both Apple Silicon and Intel macOS architectures. The app runs natively on any Mac out of the box with no Node.js or system environment dependencies.
+- 🛡️ **Self-Hosted & Login-Protected** — Runs entirely on your own server. The API is protected by username/password authentication with signed JWT tokens, and your data never leaves your machine.
+- 🔒 **AES-256-GCM Encryption at Rest** — Uploaded bank statements, contract notes, and AI chat memories are encrypted on disk with a server key generated at deploy time and decrypted on the fly in memory.
+- 📦 **Single-File Deployment** — The whole stack (web UI, API server, database, reverse proxy config) is defined in one `docker-compose.yml`, including the Dockerfiles inline. One command builds and starts everything.
 - 💸 **Envelope Budgeting** — Dynamic zero-based budgeting with custom rollovers (carry it forward, cap it, or reset it).
 - 🏦 **Unified Balance Sheet** — Scannable tracking across Checking, Savings, Credit Cards, Cash, Investments, and Loans.
 - 📈 **Tax-Loss & Portfolio Tracking** — Real-time performance metrics across mutual funds, stocks, bonds, high-yield deposits, real estate, and crypto.
@@ -50,19 +50,16 @@ openFinance runs as a native macOS desktop application wrapped in Tauri, combini
 ### 9. Debt & Loans Tracker
 ![Debt & Loans](screenshots/09-accounts-debt.png)
 
-### 10. FIRE Financial Freedom Calculator
-![FIRE Calculator](screenshots/10-fire-calculator.png)
-
-### 11. Local AI Financial Assistant
+### 10. Local AI Financial Assistant
 ![AI Chat](screenshots/11-ai-chat.png)
 
-### 12. Help & Documentation
+### 11. Help & Documentation
 ![Help & FAQ](screenshots/12-help-n-faqs.png)
 
-### 13. Settings & Backups
+### 12. Settings & Backups
 ![Settings](screenshots/13-settings.png)
 
-### 14. Secure Document Storage
+### 13. Secure Document Storage
 ![Settings](screenshots/14-document-storage.png)
 
 ---
@@ -71,28 +68,26 @@ openFinance runs as a native macOS desktop application wrapped in Tauri, combini
 
 | Layer | Technology |
 |-------|-----------|
-| **Desktop Wrapper** | Tauri v2 + Rust |
 | **Frontend** | React 19 + Vite + TypeScript + TailwindCSS 4 |
-| **Backend** | Hono (Node.js / TypeScript) bundled as a Tauri Sidecar |
-| **Database** | SQLite + SQLCipher (`better-sqlite3-multiple-ciphers`) |
+| **Backend** | Hono (Node.js / TypeScript) |
+| **Database** | PostgreSQL 17 |
 | **ORM** | Drizzle ORM |
-| **AI LLM Client** | Ollama (Local desktop instance) |
+| **AI LLM Client** | Ollama (local instance) |
+| **Deployment** | Docker Compose + Nginx |
 
 ---
 
-## Prerequisites for Modifying & Building
+## Prerequisites
 
-To customize or compile the codebase, make sure your build machine has:
+To **deploy**:
+- **Docker Engine** with **Compose v2.23.1+** (the compose file uses inline Dockerfiles and configs)
+
+To **modify or develop** the codebase:
 - **Node.js 22+**
 - **pnpm 10+**
-- **Rust & Cargo** (for compiling Tauri wrappers). If you want to cross-compile a single **Universal DMG** (supporting both Intel and Apple Silicon), you should install Rust via [rustup](https://rustup.rs) and install both compile targets:
+- **Ollama** (optional, for AI chat features):
   ```bash
-  rustup target add aarch64-apple-darwin
-  rustup target add x86_64-apple-darwin
-  ```
-- **Ollama** (for AI chat features, running locally on your Mac):
-  ```bash
-  ollama pull gemma4:e4b
+  ollama pull gemma4:e2b
   ```
 
 ---
@@ -105,47 +100,83 @@ openFinance uses Turborepo to orchestrate development tasks. Install dependencie
 # 1. Install workspace dependencies
 pnpm install
 
-# 2. Spin up frontend (port 1420) and backend dev servers (port 3001)
-pnpm dev
+# 2. Start a local PostgreSQL — uncomment the `ports` lines under the
+#    postgres service in docker-compose.yml, then:
+docker compose up -d postgres
+
+# 3. Spin up frontend (port 1420) and backend dev servers (port 3001).
+#    Use the POSTGRES_PASSWORD that scripts/deploy.sh generated into .env:
+DATABASE_URL=postgres://openfinance:<POSTGRES_PASSWORD>@127.0.0.1:5432/openfinance pnpm dev
 ```
 
 During development:
-- The React client runs at `http://localhost:1420`.
-- Tauri opens a development webview window mapped to the Vite hot-reloading server.
-- The Node server starts in watch mode with tsx.
+- The React client runs at `http://localhost:1420` (open it in your browser).
+- The Node server starts in watch mode with tsx on port `3001`.
 
 ---
 
-## Building the Standalone macOS DMG Installer
+## Deploying with Docker
 
-To package a standalone `.dmg` installer containing the zero-dependency Node sidecar and custom icons, execute the unified build script:
+The entire stack — web UI (Nginx), API server, and PostgreSQL database — is defined in a single [`docker-compose.yml`](./docker-compose.yml), with the Dockerfiles and Nginx config inlined. Deployment is one command:
 
 ```bash
-./scripts/build-dmg.sh
+./scripts/deploy.sh
 ```
 
-### What this script does:
-1. **Syncs Versioning**: Reads the project's root version (e.g. `3.0.2`) and synchronizes it across all package configs and Tauri settings.
-2. **Bundles Server Sidecar**: Compiles the backend into an ESM bundle with a CommonJS require bridge, and copies all binary native dependencies (like SQLCipher ciphers).
-3. **Bundles Node Runtimes**: Copies the host Node binary and pulls the opposite architecture's Node binary directly from `nodejs.org`, preparing both sidecar slots.
-4. **Compiles Tauri Client**:
-   - If `rustup` is installed with both architectures, it automatically cross-compiles and creates a **Universal macOS DMG** (`openFinance_3.1.0_universal.dmg`).
-   - If `rustup` is missing (Homebrew), it gracefully builds a native package for the host CPU architecture.
+The script:
+1. Checks that **Docker** is installed (and points you to the download page if it isn't — on macOS it can also start Docker Desktop for you).
+2. Generates the required secrets (`JWT_SECRET`, `POSTGRES_PASSWORD`) into `.env` on first run — no manual configuration needed.
+3. Builds and starts the stack with `docker compose up -d --build`.
+4. Waits until the app reports healthy and prints the URL.
 
-The compiled outputs will be available under:
-`apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg/` (Universal) or `target/release/bundle/dmg/` (Native).
+Then open `http://<your-server>:3002` in a browser and **register your account** on first launch.
 
-### ⚠️ macOS Gatekeeper Warning ("Developer cannot be verified")
+### Services
 
-Because the compiled app is self-signed, macOS Gatekeeper will block it on first launch. 
+| Service | Description |
+|---------|-------------|
+| `web` | React UI served by Nginx on host port **3002**; proxies `/api` to the server |
+| `server` | Hono API on internal port `3001` (uncomment the `ports` mapping in the compose file to expose it directly) |
+| `postgres` | PostgreSQL 17 — the application database |
 
-**To open it:**
-1. **Right-click** (or Control-click) **openFinance.app** in your **Applications** folder and select **Open**.
-2. Click **Open** on the confirmation dialog. 
-3. *Alternatively*, open your terminal and run:
-   ```bash
-   xattr -cr /Applications/openFinance.app
-   ```
+### AI assistant (Ollama)
+
+The AI chat connects to any reachable [Ollama](https://ollama.com) server — configure the URL and model from the in-app **Settings → AI Assistant** page (defaults to `http://localhost:11434`). Nothing is hardcoded: point it at your workstation, a GPU box on your LAN, or anywhere else. If Ollama runs on the same machine as Docker, use `http://host.docker.internal:11434`.
+
+### Data persistence
+
+| Volume | Contents |
+|--------|----------|
+| `openfinance_pgdata` | PostgreSQL data |
+| `openfinance_uploads` | Uploaded documents — encrypted at rest (AES-256-GCM) |
+| `openfinance_chat-memories` | AI conversation memories — encrypted at rest |
+
+All survive rebuilds and upgrades. To back up the database:
+
+```bash
+docker compose exec postgres pg_dump -U openfinance openfinance > openfinance-backup.sql
+```
+
+### Configuration (`.env`)
+
+Everything is generated or defaulted automatically; override only if you want to.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `JWT_SECRET` | auto-generated by `deploy.sh` | Secret used to sign login tokens |
+| `POSTGRES_PASSWORD` | auto-generated by `deploy.sh` | Database password |
+| `ENCRYPTION_KEY` | auto-generated by `deploy.sh` | AES-256-GCM key for documents & chat memories at rest |
+| `WEB_PORT` | `3002` | Host port for the web UI |
+| `OLLAMA_URL` / `OLLAMA_MODEL` | unset | Optional overrides for the AI defaults; normally configured in-app instead |
+
+> ⚠️ **Back up your `.env` file.** It holds the encryption key — without it, uploaded documents cannot be decrypted.
+
+### Upgrading
+
+```bash
+git pull
+./scripts/deploy.sh
+```
 
 ---
 
@@ -157,21 +188,19 @@ openFinance/
 │   ├── server/               # Hono backend API server (TypeScript)
 │   │   ├── src/
 │   │   │   ├── ai/           # Local Ollama client & chat memories
-│   │   │   ├── db/           # Drizzle ORM schemas & SQLite connection
+│   │   │   ├── db/           # Drizzle ORM schemas & PostgreSQL connection
 │   │   │   ├── routes/       # API router endpoints
 │   │   │   └── services/     # Core logic (Budgets, Documents, crypto)
-│   │   └── scripts/          # Server bundling and sidecar copier scripts
+│   │   └── scripts/          # Server esbuild bundler
 │   │
-│   └── desktop/              # React frontend client & Tauri desktop wrapper
-│       ├── src-tauri/        # Tauri Rust configurations, sidecar binaries, & app icons
-│       └── src/              # React client source files (Vite, TailwindCSS)
+│   └── desktop/              # React frontend client (Vite, TailwindCSS)
 │
 ├── packages/
 │   └── shared/               # Monorepo shared contract & validator types
 │
-├── docs/                     # Architecture & system design documentation
 ├── screenshots/              # README previews
-├── scripts/                  # DMG builder pipeline script
+├── scripts/                  # Utility scripts (backup conversion)
+├── docker-compose.yml        # Full-stack Docker deployment (inline Dockerfiles)
 ├── package.json              # Workspace root package config
 └── pnpm-workspace.yaml       # Monorepo workspace configuration
 ```

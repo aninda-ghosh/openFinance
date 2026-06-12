@@ -1,12 +1,11 @@
 {
   "name": "@openfinance/server",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "bundle": "node scripts/bundle.mjs",
-    "bundle:sidecar": "pnpm bundle && node scripts/copy-sidecar.mjs",
     "test": "vitest"
   },
   "dependencies": {
@@ -14,8 +13,6 @@
     "@hono/node-server": "latest",
     "@hono/zod-validator": "latest",
     "adm-zip": "^0.5.14",
-    "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.10.0",
-    "better-sqlite3-multiple-ciphers": "^12.10.0",
     "csv-parse": "latest",
     "drizzle-orm": "latest",
     "hono": "latest",
@@ -26,7 +23,6 @@
   },
   "devDependencies": {
     "@types/adm-zip": "latest",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "latest",
     "esbuild": "latest",
     "drizzle-kit": "latest",

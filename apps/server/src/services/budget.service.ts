@@ -16,7 +16,7 @@ import type {
 } from "@openfinance/shared/api-contracts";
 import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
-import { and, desc, eq, gte, isNull, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, runTransaction } from "../db/index";
 import {
@@ -204,21 +204,25 @@ export async function createAccount(
   const shouldSeedTransaction =
     openingBalance > 0 && !data.off_budget && !isDebt;
 
-  const [row] = await db
-    .insert(accounts)
-    .values({ ...data, balance: shouldSeedTransaction ? 0 : openingBalance })
-    .returning();
+  const row = await runTransaction(async (tx) => {
+    const [created] = await tx
+      .insert(accounts)
+      .values({ ...data, balance: shouldSeedTransaction ? 0 : openingBalance })
+      .returning();
 
-  if (shouldSeedTransaction) {
-    await db.insert(transactions).values({
-      account_id: row.id,
-      payee: "Starting Balance",
-      amount: openingBalance,
-      type: "income",
-      date: new Date().toISOString().slice(0, 10),
-      income_category: "starting_balance",
-    });
-  }
+    if (shouldSeedTransaction) {
+      await insertTransactionTx(tx, {
+        account_id: created.id,
+        payee: "Starting Balance",
+        amount: openingBalance,
+        type: "income",
+        date: new Date().toISOString().slice(0, 10),
+        income_category: "starting_balance",
+      });
+    }
+
+    return created;
+  });
 
   return toAccountResponse(row, rates);
 }
@@ -792,44 +796,72 @@ export async function listTransactions(
   };
 }
 
+/**
+ * The single write path for inserting a transaction row. Applies the envelope
+ * `spent` accounting alongside the insert so every caller (UI create,
+ * transfers, CSV import, recurring, account seeding) gets identical
+ * bookkeeping. Must be called with a runTransaction handle.
+ *
+ * Expenses and Transfer Out debit the envelope; Transfer In credits it.
+ */
+export async function insertTransactionTx(
+  tx: any,
+  data: typeof transactions.$inferInsert
+): Promise<typeof transactions.$inferSelect> {
+  const [row] = await tx.insert(transactions).values(data).returning();
+
+  if (
+    data.envelope_id &&
+    (data.type === "expense" || data.type === "transfer")
+  ) {
+    const isCredit = data.type === "transfer" && data.payee === "Transfer in";
+    await tx
+      .update(envelopes)
+      .set({
+        spent: isCredit
+          ? sql`${envelopes.spent} - ${data.amount}`
+          : sql`${envelopes.spent} + ${data.amount}`,
+      })
+      .where(eq(envelopes.id, data.envelope_id));
+  }
+
+  return row;
+}
+
+/** Unique-index violations from concurrent duplicate imports (PG + SQLite). */
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  return (
+    e?.code === "23505" ||
+    e?.code === "SQLITE_CONSTRAINT_UNIQUE" ||
+    /UNIQUE constraint failed/i.test(e?.message ?? "")
+  );
+}
+
 export async function createTransaction(
   data: CreateTransactionRequest
 ): Promise<TransactionResponse | null> {
-  const db = getDb();
+  try {
+    const result = await runTransaction(async (tx) => {
+      // Deduplicate on import_hash — return null to signal "already exists".
+      // Checked inside the transaction; concurrent duplicates that slip past
+      // the check hit the unique index and are mapped below.
+      if (data.import_hash) {
+        const existing = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(eq(transactions.import_hash, data.import_hash));
+        if (existing.length > 0) return null;
+      }
 
-  // Deduplicate on import_hash — return null to signal "already exists"
-  if (data.import_hash) {
-    const existing = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(eq(transactions.import_hash, data.import_hash));
-    if (existing.length > 0) return null;
+      return insertTransactionTx(tx, data);
+    });
+
+    return result ? toTransactionResponse(result) : null;
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
   }
-
-  const result = await runTransaction(async (tx) => {
-    const [row] = await tx.insert(transactions).values(data).returning();
-
-    // Keep envelope.spent in sync atomically.
-    // Expenses and Transfer Out debit the envelope; Transfer In credits it.
-    if (
-      data.envelope_id &&
-      (data.type === "expense" || data.type === "transfer")
-    ) {
-      const isCredit = data.type === "transfer" && data.payee === "Transfer in";
-      await tx
-        .update(envelopes)
-        .set({
-          spent: isCredit
-            ? sql`${envelopes.spent} - ${data.amount}`
-            : sql`${envelopes.spent} + ${data.amount}`,
-        })
-        .where(eq(envelopes.id, data.envelope_id));
-    }
-
-    return row;
-  });
-
-  return toTransactionResponse(result);
 }
 
 export async function updateTransaction(
@@ -845,6 +877,43 @@ export async function updateTransaction(
       .where(eq(transactions.id, id));
     if (!existing)
       throw Object.assign(new Error("Transaction not found"), { status: 404 });
+
+    // Transfer legs must stay symmetric: amount/type/payee/envelope changes on
+    // one leg would desync the pair (and the payee string drives the
+    // credit/debit envelope accounting). Only date and notes are editable,
+    // and they are applied to both legs atomically.
+    if (existing.transfer_pair_id) {
+      const disallowed =
+        data.amount !== undefined ||
+        data.type !== undefined ||
+        data.payee !== undefined ||
+        data.envelope_id !== undefined ||
+        data.income_category !== undefined;
+      if (disallowed) {
+        throw Object.assign(
+          new Error(
+            "Only date and notes can be edited on a transfer — delete and recreate the transfer to change amounts, accounts, or envelopes."
+          ),
+          { status: 400 }
+        );
+      }
+
+      const pairData: Partial<typeof transactions.$inferInsert> = {};
+      if (data.date !== undefined) pairData.date = data.date;
+      if (data.notes !== undefined) pairData.notes = data.notes;
+      if (Object.keys(pairData).length === 0) return existing;
+
+      await tx
+        .update(transactions)
+        .set(pairData)
+        .where(eq(transactions.transfer_pair_id, existing.transfer_pair_id));
+
+      const [updated] = await tx
+        .select()
+        .from(transactions)
+        .where(eq(transactions.id, id));
+      return updated;
+    }
 
     const newType = data.type ?? existing.type;
     const newAmount = data.amount ?? existing.amount;
@@ -1016,21 +1085,22 @@ export async function createTransfer(data: {
     );
   }
 
-  // Deduplicate on import_hash — return null to signal "already exists"
-  if (data.import_hash) {
-    const existing = await db
-      .select({ id: transactions.id })
-      .from(transactions)
-      .where(eq(transactions.import_hash, data.import_hash));
-    if (existing.length > 0) return null;
-  }
+  try {
+    const result = await runTransaction(async (tx) => {
+      // Deduplicate on import_hash — return null to signal "already exists"
+      if (data.import_hash) {
+        const existing = await tx
+          .select({ id: transactions.id })
+          .from(transactions)
+          .where(eq(transactions.import_hash, data.import_hash));
+        if (existing.length > 0) return null;
+      }
 
-  const result = await runTransaction(async (tx) => {
-    const pairId = nanoid();
+      const pairId = nanoid();
 
-    const [from] = await tx
-      .insert(transactions)
-      .values({
+      // The helper applies the envelope accounting for both legs:
+      // "Transfer out" + envelope_id debits, "Transfer in" + envelope_id credits.
+      const from = await insertTransactionTx(tx, {
         account_id: data.from_account_id,
         payee: "Transfer out",
         amount: data.amount,
@@ -1040,12 +1110,9 @@ export async function createTransfer(data: {
         import_hash: data.import_hash ?? null,
         envelope_id: data.envelope_id ?? null,
         transfer_pair_id: pairId,
-      })
-      .returning();
+      });
 
-    const [to] = await tx
-      .insert(transactions)
-      .values({
+      const to = await insertTransactionTx(tx, {
         account_id: data.to_account_id,
         payee: "Transfer in",
         amount: data.to_amount,
@@ -1054,31 +1121,20 @@ export async function createTransfer(data: {
         notes: data.notes ?? null,
         transfer_pair_id: pairId,
         envelope_id: data.to_envelope_id ?? null,
-      })
-      .returning();
+      });
 
-    // Debit the envelope on the outgoing side when provided
-    if (data.envelope_id) {
-      await tx
-        .update(envelopes)
-        .set({ spent: sql`${envelopes.spent} + ${data.amount}` })
-        .where(eq(envelopes.id, data.envelope_id));
-    }
-    // Credit the envelope on the incoming side when provided
-    if (data.to_envelope_id) {
-      await tx
-        .update(envelopes)
-        .set({ spent: sql`${envelopes.spent} - ${data.to_amount}` })
-        .where(eq(envelopes.id, data.to_envelope_id));
-    }
+      return { from, to };
+    });
 
-    return { from, to };
-  });
-
-  return {
-    from: toTransactionResponse(result.from),
-    to: toTransactionResponse(result.to),
-  };
+    if (!result) return null;
+    return {
+      from: toTransactionResponse(result.from),
+      to: toTransactionResponse(result.to),
+    };
+  } catch (err) {
+    if (isUniqueViolation(err)) return null;
+    throw err;
+  }
 }
 
 // ─── CSV Import ───────────────────────────────────────────────────────────────
@@ -1110,50 +1166,92 @@ export async function importCSV(
     return { imported: 0, skipped: 0, errors: ["Failed to parse CSV file"] };
   }
 
-  await runTransaction(async (tx) => {
-    for (const row of rows) {
-      const rawString = JSON.stringify(row);
-      const importHash = hashRow(rawString);
+  // Validate the target account up front — inside the transaction a FK
+  // violation would abort the whole batch.
+  const [account] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+  if (!account) {
+    return { imported: 0, skipped: 0, errors: ["Account not found"] };
+  }
 
-      // Check for duplicate
-      const existing = await tx
-        .select({ id: transactions.id })
-        .from(transactions)
-        .where(eq(transactions.import_hash, importHash));
+  // Phase 1: validate and hash every row in memory. Nothing may fail inside
+  // the insert transaction — on Postgres a single failed statement poisons
+  // the transaction and aborts everything after it.
+  const candidates: (typeof transactions.$inferInsert)[] = [];
+  const seenHashes = new Set<string>();
+  for (const row of rows) {
+    const importHash = hashRow(JSON.stringify(row));
 
-      if (existing.length > 0) {
-        result.skipped++;
-        continue;
-      }
-
-      const amount = parseFloat(row.amount);
-      if (Number.isNaN(amount)) {
-        result.errors.push(`Row skipped — invalid amount: "${row.amount}"`);
-        continue;
-      }
-
-      const type = row.type?.toLowerCase();
-      if (!["income", "expense", "transfer"].includes(type)) {
-        result.errors.push(`Row skipped — invalid type: "${row.type}"`);
-        continue;
-      }
-
-      try {
-        await tx.insert(transactions).values({
-          account_id: accountId,
-          payee: row.payee ?? "Unknown",
-          amount,
-          type: type as "income" | "expense" | "transfer",
-          date: row.date,
-          notes: row.notes ?? null,
-          import_hash: importHash,
-        });
-        result.imported++;
-      } catch (e) {
-        result.errors.push(`Row skipped — ${(e as Error).message}`);
-      }
+    // Identical row appearing twice in the same file
+    if (seenHashes.has(importHash)) {
+      result.skipped++;
+      continue;
     }
-  });
+
+    const amount = parseFloat(row.amount);
+    if (Number.isNaN(amount)) {
+      result.errors.push(`Row skipped — invalid amount: "${row.amount}"`);
+      continue;
+    }
+
+    const type = row.type?.toLowerCase();
+    if (!["income", "expense", "transfer"].includes(type)) {
+      result.errors.push(`Row skipped — invalid type: "${row.type}"`);
+      continue;
+    }
+
+    seenHashes.add(importHash);
+    candidates.push({
+      account_id: accountId,
+      payee: row.payee ?? "Unknown",
+      amount,
+      type: type as "income" | "expense" | "transfer",
+      date: row.date,
+      notes: row.notes ?? null,
+      import_hash: importHash,
+    });
+  }
+
+  if (candidates.length === 0) return result;
+
+  // Phase 2: all-or-nothing insert. Rows already in the database are skipped;
+  // everything else either fully imports or fully rolls back.
+  try {
+    await runTransaction(async (tx) => {
+      const existingDupes = new Set<string>();
+      const hashes = [...seenHashes];
+      for (let i = 0; i < hashes.length; i += 500) {
+        const chunk = hashes.slice(i, i + 500);
+        const found = await tx
+          .select({ import_hash: transactions.import_hash })
+          .from(transactions)
+          .where(inArray(transactions.import_hash, chunk));
+        for (const f of found) {
+          if (f.import_hash) existingDupes.add(f.import_hash);
+        }
+      }
+
+      for (const candidate of candidates) {
+        if (candidate.import_hash && existingDupes.has(candidate.import_hash)) {
+          result.skipped++;
+          continue;
+        }
+        await insertTransactionTx(tx, candidate);
+        result.imported++;
+      }
+    });
+  } catch (err) {
+    return {
+      imported: 0,
+      skipped: 0,
+      errors: [
+        `Import failed — no rows were imported: ${(err as Error).message}`,
+      ],
+    };
+  }
 
   return result;
 }

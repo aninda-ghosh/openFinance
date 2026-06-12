@@ -4,11 +4,9 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { accounts, investment_documents, investments } from "../db/schema";
 import { nanoid } from "nanoid";
-import { encryptBuffer } from "../utils/crypto";
+import { encryptBuffer, getFileEncryptionKey, isEncryptedFile } from "../utils/crypto";
 
-export const UPLOADS_DIR = process.env.DB_PATH
-  ? path.join(path.dirname(process.env.DB_PATH), "uploads", "documents")
-  : path.join(process.cwd(), "uploads", "documents");
+export const UPLOADS_DIR = path.join(process.cwd(), "uploads", "documents");
 
 function ensureUploadsDir() {
   if (!fs.existsSync(UPLOADS_DIR)) {
@@ -33,7 +31,7 @@ export async function createDocument(
   const diskFileName = `doc_${uniqueId}${extension}`;
   const filePath = path.join(UPLOADS_DIR, diskFileName);
 
-  const key = process.env.OPENFINANCE_DB_KEY;
+  const key = getFileEncryptionKey();
   const bufferToWrite = encryptBuffer(fileBuffer, key);
   fs.writeFileSync(filePath, bufferToWrite);
 
@@ -51,6 +49,29 @@ export async function createDocument(
     .returning();
 
   return row;
+}
+
+/**
+ * Encrypts any plaintext files left in the uploads directory (uploaded before
+ * at-rest encryption was enabled). Web/server mode only — desktop-era files
+ * may be encrypted without the magic header, so they must not be re-encrypted.
+ */
+export function migratePlaintextDocuments(): number {
+  if (process.env.OPENFINANCE_DESKTOP === "true") return 0;
+  const key = getFileEncryptionKey();
+  if (!key) return 0;
+  if (!fs.existsSync(UPLOADS_DIR)) return 0;
+
+  let migrated = 0;
+  for (const fileName of fs.readdirSync(UPLOADS_DIR)) {
+    const filePath = path.join(UPLOADS_DIR, fileName);
+    if (!fs.statSync(filePath).isFile()) continue;
+    const data = fs.readFileSync(filePath);
+    if (isEncryptedFile(data)) continue;
+    fs.writeFileSync(filePath, encryptBuffer(data, key));
+    migrated++;
+  }
+  return migrated;
 }
 
 export async function listAllDocuments(filters?: {

@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.0.0] — 2026-06-11
+
+### Added
+
+- **One-Command Docker Deployment.** New `./scripts/deploy.sh` deploys the whole stack: it verifies Docker is installed (pointing to the installer — and auto-starting Docker Desktop on macOS — if needed), generates `JWT_SECRET` and `POSTGRES_PASSWORD` into `.env` automatically, builds and starts the containers, and waits until the app is healthy. No manual environment configuration required.
+- **Single-File Compose Stack.** The full stack — Nginx-served web UI, Hono API server, and PostgreSQL — is defined in one `docker-compose.yml` with inline Dockerfiles and Nginx config. The compose project is named `openfinance`, and PostgreSQL data and uploaded documents persist in named volumes (`openfinance_pgdata`, `openfinance_uploads`).
+- **At-Rest Encryption in Server Mode.** Uploaded documents and AI chat memories are now AES-256-GCM encrypted on disk in the Docker deployment, using an `ENCRYPTION_KEY` generated automatically by `deploy.sh` (previously encryption only applied to the desktop build). Existing plaintext documents are encrypted in place automatically at server startup, and chat memories persist in a new `openfinance_chat-memories` volume.
+- **Configurable Ollama Server.** The AI assistant's Ollama endpoint and model are now runtime settings managed from the new **Settings → AI Assistant** card (with connection test and installed-model listing), stored in the database. Nothing is hardcoded: point the chat at any reachable Ollama server. Resolution order is in-app setting → `OLLAMA_URL`/`OLLAMA_MODEL` env vars → `http://localhost:11434`.
+
+### Changed
+
+- **PostgreSQL only.** SQLite support has been removed entirely — local development and deployment both use PostgreSQL. The dual-dialect database layer (`table-helper.ts`, the cross-dialect `runTransaction`, the raw-SQL sqlite shim) is gone, the server bundle is now fully self-contained pure JavaScript (no native modules, no compiler toolchain in the Docker build), and `better-sqlite3-multiple-ciphers` was dropped from the dependencies.
+- **Transaction integrity pass.** All multi-step writes now run inside database transactions through a single shared insert path (`insertTransactionTx`) that keeps envelope budgets in sync: recurring transactions apply atomically (no more duplicates after a crash, envelope spent now updates), CSV import is all-or-nothing (one bad row no longer poisons the PostgreSQL transaction and loses the batch), transfer legs can no longer be desynced by editing one side (date/notes sync to both legs; amount/account changes are rejected), account creation seeds its starting balance atomically, backup restore and data reset roll back fully on failure, and duplicate imports are detected race-free via the unique index.
+- **Proper favicons.** The web portal now ships real favicon assets (multi-size `favicon.ico`, 16/32 px PNGs, 180 px apple-touch-icon, 192/512 px PWA icons) generated from the openFinance logo, so the icon shows in the browser tab and bookmarks instead of a raw 2 MP image.
+- The chat page's offline banner now links to the AI Assistant settings instead of trying to start a local Ollama process, and model names shown in chat reflect the configured model instead of a hardcoded default.
+
+### Removed
+
+- **macOS DMG Packaging.** Removed the `build-dmg.sh` pipeline and the universal Node sidecar bundler (`copy-sidecar.mjs`). The project now targets self-hosted Docker deployment with browser access instead of a native macOS desktop build.
+- **FIRE Calculator.** Removed the FIRE (Financial Independence, Retire Early) calculator page, its sidebar entry, and its help documentation.
+
 ## [3.1.0] — 2026-06-07
 
 ### Added

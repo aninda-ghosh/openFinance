@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
-import { getDb } from "../db/index";
+import { getDb, runTransaction } from "../db/index";
 import {
   accounts,
   ai_conversations,
@@ -25,7 +25,7 @@ import AdmZip from "adm-zip";
 import * as fs from "fs";
 import * as path from "path";
 import { UPLOADS_DIR } from "../services/document.service";
-import { encryptBuffer, decryptBuffer, encryptBackup, decryptBackup } from "../utils/crypto";
+import { encryptBuffer, decryptBuffer, encryptBackup, decryptBackup, getFileEncryptionKey } from "../utils/crypto";
 import { deriveBackupKey } from "../services/auth.service";
 
 export const backupRouter = new Hono();
@@ -103,7 +103,7 @@ backupRouter.get("/export", async (c) => {
         const filePath = path.join(docsDir, file);
         if (fs.statSync(filePath).isFile()) {
           let fileData: any = fs.readFileSync(filePath);
-          const key = process.env.OPENFINANCE_DB_KEY;
+          const key = getFileEncryptionKey();
           fileData = decryptBuffer(fileData, key);
           zip.addFile(path.join("documents", file), fileData);
         }
@@ -292,56 +292,69 @@ backupRouter.post("/import", async (c) => {
       }
     }
 
-    // Delete in FK-safe reverse order
-    await db.delete(ai_tool_calls);
-    await db.delete(ai_messages);
-    await db.delete(ai_conversations);
-    await db.delete(budget_alerts);
-    await db.delete(recurring_transactions);
-    await db.delete(transactions);
-    await db.delete(envelopes);
-    await db.delete(envelope_groups);
-    await db.delete(price_history);
-    await db.delete(investment_value_history);
-    await db.delete(investment_documents);
-    await db.delete(policy_payouts);
-    await db.delete(policies);
-    await db.delete(investments);
-    await db.delete(accounts);
-    await db.delete(exchange_rates);
+    // Wipe and restore atomically — a failure anywhere rolls everything back
+    // instead of leaving the database half-wiped.
+    await runTransaction(async (tx) => {
+      // Delete in FK-safe reverse order
+      await tx.delete(ai_tool_calls);
+      await tx.delete(ai_messages);
+      await tx.delete(ai_conversations);
+      await tx.delete(budget_alerts);
+      await tx.delete(recurring_transactions);
+      await tx.delete(transactions);
+      await tx.delete(envelopes);
+      await tx.delete(envelope_groups);
+      await tx.delete(price_history);
+      await tx.delete(investment_value_history);
+      await tx.delete(investment_documents);
+      await tx.delete(policy_payouts);
+      await tx.delete(policies);
+      await tx.delete(investments);
+      await tx.delete(accounts);
+      await tx.delete(exchange_rates);
 
-    // Batch insert helper to avoid Postgres prepared statement MAX_PARAMETERS_EXCEEDED (65,535 limit)
-    const batchInsert = async (table: any, items: any[], chunkSize = 1000) => {
-      for (let i = 0; i < items.length; i += chunkSize) {
-        const chunk = items.slice(i, i + chunkSize);
-        await db.insert(table).values(chunk);
-      }
-    };
+      // Batch insert helper to avoid Postgres prepared statement MAX_PARAMETERS_EXCEEDED (65,535 limit)
+      const batchInsert = async (table: any, items: any[], chunkSize = 1000) => {
+        for (let i = 0; i < items.length; i += chunkSize) {
+          const chunk = items.slice(i, i + chunkSize);
+          await tx.insert(table).values(chunk);
+        }
+      };
 
-    // Insert in FK-safe order
-    if (d.exchange_rates?.length)
-      await batchInsert(exchange_rates, d.exchange_rates);
-    if (d.accounts?.length) await batchInsert(accounts, d.accounts);
-    if (d.envelope_groups?.length)
-      await batchInsert(envelope_groups, d.envelope_groups);
-    if (d.envelopes?.length) await batchInsert(envelopes, d.envelopes);
-    if (d.transactions?.length)
-      await batchInsert(transactions, d.transactions);
-    if (d.budget_alerts?.length)
-      await batchInsert(budget_alerts, d.budget_alerts);
-    if (d.recurring_transactions?.length)
-      await batchInsert(recurring_transactions, d.recurring_transactions);
-    if (d.investments?.length)
-      await batchInsert(investments, d.investments);
-    if (d.price_history?.length)
-      await batchInsert(price_history, d.price_history);
-    if (d.investment_value_history?.length)
-      await batchInsert(investment_value_history, d.investment_value_history);
-    if (d.investment_documents?.length)
-      await batchInsert(investment_documents, d.investment_documents);
-    if (d.policies?.length) await batchInsert(policies, d.policies);
+      // Insert in FK-safe order
+      if (d.exchange_rates?.length)
+        await batchInsert(exchange_rates, d.exchange_rates);
+      if (d.accounts?.length) await batchInsert(accounts, d.accounts);
+      if (d.envelope_groups?.length)
+        await batchInsert(envelope_groups, d.envelope_groups);
+      if (d.envelopes?.length) await batchInsert(envelopes, d.envelopes);
+      if (d.transactions?.length)
+        await batchInsert(transactions, d.transactions);
+      if (d.budget_alerts?.length)
+        await batchInsert(budget_alerts, d.budget_alerts);
+      if (d.recurring_transactions?.length)
+        await batchInsert(recurring_transactions, d.recurring_transactions);
+      if (d.investments?.length)
+        await batchInsert(investments, d.investments);
+      if (d.price_history?.length)
+        await batchInsert(price_history, d.price_history);
+      if (d.investment_value_history?.length)
+        await batchInsert(investment_value_history, d.investment_value_history);
+      if (d.investment_documents?.length)
+        await batchInsert(investment_documents, d.investment_documents);
+      if (d.policies?.length) await batchInsert(policies, d.policies);
+      if (d.policy_payouts?.length)
+        await batchInsert(policy_payouts, d.policy_payouts);
+      if (d.ai_conversations?.length)
+        await batchInsert(ai_conversations, d.ai_conversations);
+      if (d.ai_messages?.length)
+        await batchInsert(ai_messages, d.ai_messages);
+      if (d.ai_tool_calls?.length)
+        await batchInsert(ai_tool_calls, d.ai_tool_calls);
+    });
 
-    // Extract documents folder from ZIP directly to disk
+    // Extract documents from the ZIP to disk after the DB restore commits
+    // (filesystem writes can't participate in the transaction).
     const docsDir = UPLOADS_DIR;
     if (!fs.existsSync(docsDir)) {
       fs.mkdirSync(docsDir, { recursive: true });
@@ -353,20 +366,12 @@ backupRouter.post("/import", async (c) => {
         const fileName = path.basename(entry.entryName);
         if (fileName) {
           let fileData = entry.getData();
-          const key = process.env.OPENFINANCE_DB_KEY;
+          const key = getFileEncryptionKey();
           fileData = encryptBuffer(fileData, key);
           fs.writeFileSync(path.join(docsDir, fileName), fileData);
         }
       }
     }
-    if (d.policy_payouts?.length)
-      await batchInsert(policy_payouts, d.policy_payouts);
-    if (d.ai_conversations?.length)
-      await batchInsert(ai_conversations, d.ai_conversations);
-    if (d.ai_messages?.length)
-      await batchInsert(ai_messages, d.ai_messages);
-    if (d.ai_tool_calls?.length)
-      await batchInsert(ai_tool_calls, d.ai_tool_calls);
 
     // Flush and reset exchange rates to universal base currency
     try {
@@ -378,11 +383,6 @@ backupRouter.post("/import", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.error("Import failed:", err);
-    try {
-      fs.writeFileSync("/Users/anindaghosh/Projects/FinWise-Desktop-App/import-error.log", (err as Error).stack || String(err));
-    } catch (logErr) {
-      console.error("Failed to write error log:", logErr);
-    }
     return c.json({ error: "Import failed" }, 500);
   }
 });
