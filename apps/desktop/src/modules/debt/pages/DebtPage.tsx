@@ -13,8 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -25,11 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useAccounts,
   useCreateAccount,
-  useCreateTransaction,
-  useCreateTransfer,
   useDeleteAccount,
   useDeleteTransaction,
-  useEnvelopes,
   useExchangeRates,
   useTransactions,
   useUpdateAccount,
@@ -37,6 +32,7 @@ import {
 import { useAppStore } from "@/stores/app.store";
 import { AccountFormDialog } from "@/components/AccountFormDialog";
 import { budgetApi } from "@/modules/budget/api";
+import TransactionForm from "@/components/TransactionForm";
 
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
@@ -59,170 +55,32 @@ function formatDateLabel(dateStr: string) {
 
 function PaymentDialog({
   debtAccount,
-  budgetAccounts,
   trigger,
 }: {
   debtAccount: any;
-  budgetAccounts: any[];
   trigger: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const [fromAccount, setFromAccount] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
-  const [envelope, setEnvelope] = useState("");
-  const { mutate: createTransfer, isPending } = useCreateTransfer();
-  const { selectedMonth } = useAppStore();
-  const { data: envelopesData } = useEnvelopes(selectedMonth);
-
-  const allEnvelopes = (envelopesData as any)?.envelopes ?? [];
-  const envelopesByGroup = (allEnvelopes as any[]).reduce<
-    { groupId: string; groupName: string; items: any[] }[]
-  >((acc, env: any) => {
-    const existing = acc.find((g) => g.groupId === env.group_id);
-    if (existing) existing.items.push(env);
-    else
-      acc.push({
-        groupId: env.group_id,
-        groupName: env.group_name ?? "Other",
-        items: [env],
-      });
-    return acc;
-  }, []);
-
-  const sel = "w-full border rounded-md px-3 py-2 text-sm mt-1 bg-background";
-
-  const reset = () => {
-    setFromAccount("");
-    setAmount("");
-    setDate(new Date().toISOString().slice(0, 10));
-    setNotes("");
-    setEnvelope("");
-  };
-
-  const fromAcc = budgetAccounts.find((a: any) => a.id === fromAccount);
-  const sameCurrency = fromAcc?.currency === debtAccount.currency;
-
-  const submit = () => {
-    if (!fromAccount || !amount) return;
-    const fromAmt = parseFloat(amount);
-    createTransfer(
-      {
-        from_account_id: fromAccount,
-        to_account_id: debtAccount.id,
-        amount: fromAmt,
-        to_amount: sameCurrency ? fromAmt : fromAmt,
-        date,
-        notes: notes.trim() || undefined,
-        envelope_id: envelope || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast.success("Payment recorded");
-          setOpen(false);
-          reset();
-        },
-        onError: (e) => toast.error(e.message),
-      }
-    );
-  };
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (!o) reset();
-      }}
+      onOpenChange={setOpen}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Make Payment — {debtAccount.name}</DialogTitle>
+      <DialogContent className="max-w-[500px] md:max-w-[760px] p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/20 flex-shrink-0">
+          <DialogTitle className="text-sm font-semibold tracking-tight">
+            Make Payment — {debtAccount.name}
+          </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 pt-2">
-          <div>
-            <Label>Pay From</Label>
-            <select
-              value={fromAccount}
-              onChange={(e) => setFromAccount(e.target.value)}
-              className={sel}
-            >
-              <option value="">Select account…</option>
-              {budgetAccounts.map((a: any) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label>Amount ({debtAccount.currency})</Label>
-            <Input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="mt-1"
-            />
-          </div>
-          {envelopesByGroup.length > 0 && (
-            <div>
-              <Label>
-                Category{" "}
-                <span className="text-muted-foreground font-normal">
-                  (optional)
-                </span>
-              </Label>
-              <select
-                value={envelope}
-                onChange={(e) => setEnvelope(e.target.value)}
-                className={sel}
-              >
-                <option value="">None</option>
-                {envelopesByGroup.map(({ groupId, groupName, items }) => (
-                  <optgroup key={groupId} label={groupName}>
-                    {items.map((env: any) => (
-                      <option key={env.id} value={env.id}>
-                        {env.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-          )}
-          <div>
-            <Label>Date</Label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label>
-              Notes{" "}
-              <span className="text-muted-foreground font-normal">
-                (optional)
-              </span>
-            </Label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Monthly EMI"
-              className="mt-1"
-            />
-          </div>
-          <Button
-            className="w-full"
-            onClick={submit}
-            disabled={isPending || !fromAccount || !amount}
-          >
-            Record Payment
-          </Button>
+        <div className="flex flex-col max-h-[80vh] min-h-0">
+          <TransactionForm
+            mode="create"
+            defaultToAccountId={debtAccount.id}
+            defaultTab="transfer"
+            onSuccess={() => setOpen(false)}
+          />
         </div>
       </DialogContent>
     </Dialog>
@@ -235,20 +93,15 @@ function TransactionSheet({
   account,
   open,
   onOpenChange,
-  allAccounts,
 }: {
   account: any;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  allAccounts: any[];
 }) {
   const { data } = useTransactions({ account_id: account.id, limit: 100 });
   const { mutate: deleteTxn } = useDeleteTransaction();
-  const { mutate: createTxn, isPending: creating } = useCreateTransaction();
-  const { mutate: createTransfer, isPending: transferring } = useCreateTransfer();
-  const { defaultCurrency, selectedMonth } = useAppStore();
+  const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
-  const { data: envelopesData } = useEnvelopes(selectedMonth);
 
   const txns = data?.transactions ?? [];
 
@@ -284,105 +137,6 @@ function TransactionSheet({
       defaultCurrency as any
     );
 
-  const allEnvelopes = (envelopesData as any)?.envelopes ?? [];
-  const envelopesByGroup = (allEnvelopes as any[]).reduce<
-    { groupId: string; groupName: string; items: any[] }[]
-  >((acc, env: any) => {
-    const existing = acc.find((g) => g.groupId === env.group_id);
-    if (existing) existing.items.push(env);
-    else
-      acc.push({
-        groupId: env.group_id,
-        groupName: env.group_name ?? "Other",
-        items: [env],
-      });
-    return acc;
-  }, []);
-
-  const [tab, setTab] = useState<"income" | "expense" | "transfer">("expense");
-  const [transferDir, setTransferDir] = useState<"out" | "in">("out");
-  const [payee, setPayee] = useState("");
-  const [amount, setAmount] = useState("");
-  const [toAccount, setToAccount] = useState("");
-  const [toAmount, setToAmount] = useState("");
-  const [envelope, setEnvelope] = useState("");
-  const [incomeCat, setIncomeCat] = useState<"income" | "cashback" | "starting_balance">("cashback");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-
-  const resetForm = () => {
-    setPayee("");
-    setAmount("");
-    setToAccount("");
-    setToAmount("");
-    setEnvelope("");
-    setIncomeCat("cashback");
-    setDate(new Date().toISOString().slice(0, 10));
-  };
-
-  const otherAcc = allAccounts.find((a: any) => a.id === toAccount);
-  const sameCurrency = otherAcc?.currency === account.currency;
-
-  const submitTxn = () => {
-    if (tab === "transfer") {
-      if (!toAccount || !amount) return;
-      const fromId = transferDir === "out" ? account.id : toAccount;
-      const toId = transferDir === "out" ? toAccount : account.id;
-      const fromAmt = parseFloat(amount);
-      const toAmt = sameCurrency ? fromAmt : parseFloat(toAmount || amount);
-      createTransfer(
-        {
-          from_account_id: fromId,
-          to_account_id: toId,
-          amount: fromAmt,
-          to_amount: toAmt,
-          date,
-          notes: payee || undefined,
-          envelope_id: envelope || undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Transfer recorded");
-            resetForm();
-          },
-          onError: (e) => {
-            toast.error("Intent Unfulfilled: Transfer Not Saved", {
-              description: e?.message || "Failed to record transfer. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
-        }
-      );
-    } else {
-      if (!payee.trim() || !amount) return;
-      createTxn(
-        {
-          account_id: account.id,
-          payee: payee.trim(),
-          amount: parseFloat(amount),
-          type: tab,
-          date,
-          envelope_id: tab === "expense" && envelope ? envelope : undefined,
-          income_category: tab === "income" ? incomeCat : undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Transaction added");
-            resetForm();
-          },
-          onError: (e) => {
-            toast.error("Intent Unfulfilled: Transaction Not Saved", {
-              description: e?.message || "Failed to add transaction. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
-        }
-      );
-    }
-  };
-
-  const selClass =
-    "w-full border rounded-md px-2 py-1 text-xs mt-1 h-8 bg-background focus:ring-1 focus:ring-primary";
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -413,257 +167,16 @@ function TransactionSheet({
         </SheetHeader>
 
         {/* Floating Quick Entry Form */}
-        <div className="bg-card border border-border/30 rounded-3xl p-5 shadow-sm mx-6 my-4 flex-shrink-0 animate-fade-in">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-1.5 select-none">
+        <div className="bg-card border border-border/30 rounded-3xl shadow-sm mx-6 my-4 overflow-hidden animate-fade-in flex-shrink-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 px-5 pt-4 flex items-center gap-1.5 select-none">
             <Coins className="w-3.5 h-3.5 text-primary" /> Add Record
           </p>
-          <div className="flex rounded-xl bg-muted p-1 gap-1 text-xs mb-4 select-none">
-            {(["expense", "income", "transfer"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setTab(t);
-                  resetForm();
-                }}
-                className={`flex-1 py-1.5 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                  tab === t
-                    ? "bg-primary text-primary-foreground shadow-sm active:scale-[0.98]"
-                    : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {tab === "transfer" ? (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="flex rounded-xl bg-muted p-1 gap-1 text-xs mb-2 select-none">
-                <button
-                  onClick={() => {
-                    setTransferDir("out");
-                    setToAccount("");
-                    setToAmount("");
-                  }}
-                  className={`flex-1 py-1 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                    transferDir === "out"
-                      ? "bg-background text-foreground shadow-sm active:scale-[0.98]"
-                      : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                  }`}
-                >
-                  Send from {account.name}
-                </button>
-                <button
-                  onClick={() => {
-                    setTransferDir("in");
-                    setToAccount("");
-                    setToAmount("");
-                  }}
-                  className={`flex-1 py-1 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                    transferDir === "in"
-                      ? "bg-background text-foreground shadow-sm active:scale-[0.98]"
-                      : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                  }`}
-                >
-                  Receive into {account.name}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">
-                    {transferDir === "out" ? "Recipient Account" : "Sender Account"}
-                  </Label>
-                  <select
-                    value={toAccount}
-                    onChange={(e) => {
-                      setToAccount(e.target.value);
-                      setToAmount("");
-                    }}
-                    className={selClass}
-                  >
-                    <option value="">Select Account</option>
-                    {allAccounts
-                      .filter((a) => a.id !== account.id)
-                      .map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.currency})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Amount ({account.currency})</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              </div>
-
-              {!sameCurrency && otherAcc && (
-                <div className="animate-fade-in">
-                  <Label className="text-xs text-muted-foreground font-bold select-none">
-                    {transferDir === "out"
-                      ? `Amount Received (${otherAcc.currency})`
-                      : `Amount Deducted (${otherAcc.currency})`}
-                  </Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={toAmount}
-                    onChange={(e) => setToAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Notes (optional)</Label>
-                  <Input
-                    value={payee}
-                    onChange={(e) => setPayee(e.target.value)}
-                    placeholder="Credit card payment"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Date</Label>
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                {envelopesByGroup.length > 0 && (
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground font-bold select-none">
-                      Envelope Category{" "}
-                      <span className="text-muted-foreground font-normal">(optional)</span>
-                    </Label>
-                    <select
-                      value={envelope}
-                      onChange={(e) => setEnvelope(e.target.value)}
-                      className={selClass}
-                    >
-                      <option value="">Select Envelope</option>
-                      {envelopesByGroup.map(({ groupId, groupName, items }) => (
-                        <optgroup key={groupId} label={groupName}>
-                          {items.map((env) => (
-                            <option key={env.id} value={env.id}>
-                              {env.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              <Button
-                className="w-full h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold tracking-wide text-xs shadow-md hover:shadow-primary/10 active:scale-[0.98] transition-all duration-200 mt-2"
-                onClick={submitTxn}
-                disabled={
-                  transferring ||
-                  !toAccount ||
-                  !amount ||
-                  (!sameCurrency && !toAmount && !!otherAcc)
-                }
-              >
-                Record Transfer
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Payee / Payer</Label>
-                  <Input
-                    value={payee}
-                    onChange={(e) => setPayee(e.target.value)}
-                    placeholder={
-                      tab === "income" ? "e.g. Dividend" : "e.g. Supermarket"
-                    }
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Amount ({account.currency})</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-
-                {tab === "expense" && envelopesByGroup.length > 0 && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground font-bold select-none">Category</Label>
-                    <select
-                      value={envelope}
-                      onChange={(e) => setEnvelope(e.target.value)}
-                      className={selClass}
-                    >
-                      <option value="">Uncategorised</option>
-                      {envelopesByGroup.map(({ groupId, groupName, items }) => (
-                        <optgroup key={groupId} label={groupName}>
-                          {items.map((env) => (
-                            <option key={env.id} value={env.id}>
-                              {env.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {tab === "income" && (
-                  <div>
-                    <Label className="text-xs text-muted-foreground font-bold select-none">Category</Label>
-                    <select
-                      value={incomeCat}
-                      onChange={(e) => setIncomeCat(e.target.value as any)}
-                      className={selClass}
-                    >
-                      <option value="cashback">Cashback / Refund</option>
-                      <option value="income">Income / Salary</option>
-                      <option value="starting_balance">Starting Balance</option>
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Date</Label>
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              </div>
-
-              <Button
-                className="w-full h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold tracking-wide text-xs shadow-md hover:shadow-primary/10 active:scale-[0.98] transition-all duration-200 mt-2"
-                onClick={submitTxn}
-                disabled={creating || !payee.trim() || !amount}
-              >
-                Record {tab}
-              </Button>
-            </div>
-          )}
+          <TransactionForm
+            key={account?.id}
+            mode="create"
+            defaultAccountId={account?.id}
+            layout="single"
+          />
         </div>
 
         {/* Transaction list */}
@@ -803,7 +316,6 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
   const debtAccounts = allAccounts.filter(
     (a: any) => ["credit", "loan", "debt"].includes(a.type) && a.is_active
   );
-  const budgetAccounts = allAccounts.filter((a: any) => !a.off_budget);
 
   const totalDebtInr = debtAccounts.reduce(
     (s: number, a: any) => s + a.balance_inr,
@@ -1076,7 +588,6 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                         <div className="flex gap-1.5 justify-end">
                           <PaymentDialog
                             debtAccount={a}
-                            budgetAccounts={budgetAccounts}
                             trigger={
                               <Button
                                 variant="outline"
@@ -1188,7 +699,6 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
           onOpenChange={(open) => {
             if (!open) setSheetAccount(null);
           }}
-          allAccounts={allAccounts}
         />
       )}
     </div>

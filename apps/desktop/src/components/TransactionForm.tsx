@@ -54,61 +54,19 @@ export type TransactionFormProps = {
   transaction?: any;
   /** Pre-select this account in create mode (e.g. account detail sheet) */
   defaultAccountId?: string;
+  /** Pre-select this destination account in create mode */
+  defaultToAccountId?: string;
+  /** Pre-select the tab in create mode */
+  defaultTab?: "expense" | "income" | "transfer";
   /** Called after the success animation completes (close drawer / dialog) */
   onSuccess?: () => void;
   /** Called after a successful delete in edit mode */
   onDeleted?: () => void;
   className?: string;
+  /** Whether to use a single column stack or a split two-column layout on desktop */
+  layout?: "single" | "split";
 };
 
-function AccountChip({
-  account,
-  isSelected,
-  disabled,
-  onSelect,
-}: {
-  account: any;
-  isSelected: boolean;
-  disabled?: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      disabled={disabled}
-      className={cn(
-        "flex-shrink-0 w-36 rounded-2xl border p-3.5 flex flex-col justify-between text-left transition-all duration-300 shadow-sm relative overflow-hidden select-none",
-        isSelected
-          ? "border-primary bg-primary/5 ring-1 ring-primary/30 shadow-md shadow-primary/5"
-          : "border-border/60 bg-card hover:bg-muted/40 hover:border-primary/20 shadow-sm",
-        disabled && "cursor-not-allowed opacity-70"
-      )}
-    >
-      {isSelected && (
-        <div className="absolute top-2 right-2 w-3.5 h-3.5 rounded-full bg-primary flex items-center justify-center border border-background">
-          <Check className="w-2.5 h-2.5 text-white" />
-        </div>
-      )}
-      <div className="flex flex-col">
-        <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/80 uppercase truncate leading-normal">
-          {account.institution || account.type}
-        </span>
-        <span className="text-xs font-semibold text-foreground truncate mt-0.5 max-w-[100px]">
-          {account.name}
-        </span>
-      </div>
-      <div className="mt-3">
-        <span className="text-xs font-medium text-muted-foreground/75 block leading-none">
-          Balance
-        </span>
-        <span className="text-xs font-semibold text-foreground tracking-tight tabular-nums mt-1 block">
-          {formatCurrency(account.balance, account.currency as any)}
-        </span>
-      </div>
-    </button>
-  );
-}
 
 function EnvelopeTrigger({
   envelopes,
@@ -124,15 +82,15 @@ function EnvelopeTrigger({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full border border-border/60 hover:border-primary/30 bg-card hover:bg-muted/40 rounded-2xl px-3.5 py-3.5 flex items-center justify-between transition-all outline-none focus:ring-2 focus:ring-primary/10 font-semibold text-left shadow-sm"
+      className="w-full h-10 border border-border/60 hover:border-primary/30 bg-card hover:bg-muted/40 rounded-lg px-3 flex items-center justify-between transition-all outline-none focus:ring-2 focus:ring-primary/10 font-semibold text-left shadow-sm"
     >
-      <div className="flex flex-col">
+      <div className="flex flex-col justify-center min-w-0">
         {selected ? (
           <>
-            <span className="text-[10px] font-semibold tracking-wider text-primary/80 uppercase">
+            <span className="text-[9px] font-semibold tracking-wider text-primary/80 uppercase leading-none">
               {selected.group_name || "Budget Group"}
             </span>
-            <span className="text-xs font-extrabold text-foreground mt-0.5">
+            <span className="text-xs font-bold text-foreground mt-0.5 truncate leading-none">
               {selected.name}
             </span>
           </>
@@ -142,7 +100,56 @@ function EnvelopeTrigger({
           </span>
         )}
       </div>
-      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+    </button>
+  );
+}
+
+function AccountTrigger({
+  account,
+  placeholder,
+  onClick,
+  disabled,
+}: {
+  account?: any;
+  placeholder: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "w-full h-10 border border-border/60 hover:border-primary/30 bg-card hover:bg-muted/40 rounded-lg px-3 flex items-center justify-between transition-all outline-none focus:ring-2 focus:ring-primary/10 font-semibold text-left shadow-sm",
+        disabled && "opacity-70 cursor-not-allowed hover:bg-card hover:border-border/60"
+      )}
+    >
+      <div className="flex flex-col justify-center min-w-0">
+        {account ? (
+          <>
+            <span className="text-[9px] font-semibold tracking-wider text-primary/80 uppercase leading-none">
+              {account.institution || account.type}
+            </span>
+            <span className="text-xs font-bold text-foreground mt-0.5 truncate leading-none">
+              {account.name}
+            </span>
+          </>
+        ) : (
+          <span className="text-xs font-semibold text-muted-foreground">
+            {placeholder}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {account && (
+          <span className="text-[11px] font-bold text-foreground tabular-nums bg-muted/60 px-1.5 py-0.5 rounded border border-border/10">
+            {formatCurrency(account.balance, account.currency as any)}
+          </span>
+        )}
+        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+      </div>
     </button>
   );
 }
@@ -151,9 +158,12 @@ export default function TransactionForm({
   mode = "create",
   transaction,
   defaultAccountId,
+  defaultToAccountId,
+  defaultTab,
   onSuccess,
   onDeleted,
   className,
+  layout = "split",
 }: TransactionFormProps) {
   const isEdit = mode === "edit";
   const isTransferEdit = isEdit && transaction?.type === "transfer";
@@ -180,7 +190,9 @@ export default function TransactionForm({
 
   // Form states
   const [tab, setTab] = useState<TabType>(
-    isEdit ? (transaction?.type ?? "expense") : "expense"
+    isEdit
+      ? (transaction?.type ?? "expense")
+      : (defaultTab ?? "expense")
   );
   const [amount, setAmount] = useState(
     isEdit ? String(transaction?.amount ?? "") : ""
@@ -208,6 +220,8 @@ export default function TransactionForm({
   const [showEnvelopeSelect, setShowEnvelopeSelect] = useState(false);
   const [envSearchQuery, setEnvSearchQuery] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [activeAccountField, setActiveAccountField] = useState<"from" | "to" | null>(null);
+  const [accountSearchQuery, setAccountSearchQuery] = useState("");
 
   // UI state
   const [showAdvanced, setShowAdvanced] = useState(isEdit);
@@ -250,7 +264,15 @@ export default function TransactionForm({
   }, [isEdit, accounts, accountId, defaultAccountId, defaultCurrency]);
 
   useEffect(() => {
-    if (isEdit || accounts.length < 2 || toAccountId || !accountId) return;
+    if (isEdit || accounts.length < 2 || toAccountId) return;
+
+    if (defaultToAccountId && accounts.some((a) => a.id === defaultToAccountId)) {
+      setToAccountId(defaultToAccountId);
+      return;
+    }
+
+    if (!accountId) return;
+
     const nextAcc =
       accounts.find(
         (a) => a.id !== accountId && a.is_active && a.currency === defaultCurrency
@@ -258,7 +280,7 @@ export default function TransactionForm({
       accounts.find((a) => a.id !== accountId && a.is_active) ||
       accounts.find((a) => a.id !== accountId);
     if (nextAcc) setToAccountId(nextAcc.id);
-  }, [isEdit, accounts, accountId, toAccountId, defaultCurrency]);
+  }, [isEdit, accounts, accountId, toAccountId, defaultToAccountId, defaultCurrency]);
 
   // Focus Amount input on mount
   useEffect(() => {
@@ -347,6 +369,51 @@ export default function TransactionForm({
       return acc;
     }, []);
   }, [envelopes, envSearchQuery]);
+
+  // Group and filter accounts by search query
+  const filteredAccountsByGroup = useMemo(() => {
+    const query = accountSearchQuery.toLowerCase().trim();
+    
+    // Filter active accounts
+    const activeAccounts = accounts.filter((a) => a.is_active);
+
+    // Apply search query
+    const matchedAccounts = activeAccounts.filter((a) => {
+      if (!query) return true;
+      return (
+        a.name.toLowerCase().includes(query) ||
+        (a.institution && a.institution.toLowerCase().includes(query)) ||
+        a.type.toLowerCase().includes(query)
+      );
+    });
+
+    // Grouping
+    const onBudget = matchedAccounts.filter((a) => !a.off_budget);
+    const offBudgetLiabilities = matchedAccounts.filter(
+      (a) => a.off_budget && ["credit", "loan", "debt"].includes(a.type)
+    );
+    const offBudgetAssets = matchedAccounts.filter(
+      (a) => a.off_budget && !["credit", "loan", "debt"].includes(a.type)
+    );
+
+    interface AccountGroup {
+      groupName: string;
+      items: typeof accounts;
+    }
+
+    const groups: AccountGroup[] = [];
+    if (onBudget.length > 0) {
+      groups.push({ groupName: "On-Budget Accounts", items: onBudget });
+    }
+    if (offBudgetLiabilities.length > 0) {
+      groups.push({ groupName: "Off-Budget Liabilities (Debt)", items: offBudgetLiabilities });
+    }
+    if (offBudgetAssets.length > 0) {
+      groups.push({ groupName: "Off-Budget Assets (Investments)", items: offBudgetAssets });
+    }
+
+    return groups;
+  }, [accounts, accountSearchQuery]);
 
   const fromAccount = accounts.find((a) => a.id === accountId);
   const toAccount = accounts.find((a) => a.id === toAccountId);
@@ -564,7 +631,11 @@ export default function TransactionForm({
     : ["expense", "income", "transfer"];
 
   return (
-    <div className={cn("relative flex flex-col h-full min-h-0", className)}>
+    <div className={cn(
+      "relative flex flex-col min-h-0",
+      layout === "split" ? "h-full" : "h-auto",
+      className
+    )}>
       {/* Premium Custom Envelope Selector Overlay */}
       {showEnvelopeSelect && (
         <div className="absolute inset-0 z-50 flex flex-col bg-card animate-slide-up">
@@ -610,7 +681,10 @@ export default function TransactionForm({
                   <h3 className="text-[10px] font-semibold tracking-wider text-muted-foreground/80 uppercase border-b border-border/10 pb-0.5">
                     {groupName}
                   </h3>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className={cn(
+                    "grid grid-cols-1 gap-2",
+                    layout === "split" && "md:grid-cols-2"
+                  )}>
                     {items.map((env) => {
                       const isSelected = env.id === envelopeId;
                       const pctSpent =
@@ -705,6 +779,121 @@ export default function TransactionForm({
         </div>
       )}
 
+      {/* Premium Custom Account Selector Overlay */}
+      {activeAccountField && (
+        <div className="absolute inset-0 z-50 flex flex-col bg-card animate-slide-up">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/20">
+            <span className="text-[11px] font-semibold text-primary/90 tracking-wide dark:text-primary/80 flex items-center gap-1.5">
+              <Coins className="w-3.5 h-3.5 text-primary" />
+              {activeAccountField === "from"
+                ? "Select Source Account"
+                : "Select Destination Account"}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveAccountField(null);
+                setAccountSearchQuery("");
+              }}
+              className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Search Input Box */}
+          <div className="px-5 py-3 border-b border-border/40 flex items-center relative">
+            <input
+              type="text"
+              placeholder="Search account by name, type..."
+              value={accountSearchQuery}
+              onChange={(e) => setAccountSearchQuery(e.target.value)}
+              className="w-full border border-border/80 focus:border-primary rounded-xl pl-9 pr-3.5 py-2.5 text-xs bg-background outline-none transition-all focus:ring-1 focus:ring-primary font-bold"
+            />
+            <Search className="absolute left-8 w-4 h-4 text-muted-foreground select-none pointer-events-none" />
+          </div>
+
+          {/* List scrollable area */}
+          <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4 space-y-4">
+            {filteredAccountsByGroup.length === 0 ? (
+              <div className="text-center py-8 text-xs text-muted-foreground font-semibold">
+                No matching accounts found
+              </div>
+            ) : (
+              filteredAccountsByGroup.map(({ groupName, items }) => (
+                <div key={groupName} className="space-y-1.5">
+                  <h3 className="text-[10px] font-semibold tracking-wider text-muted-foreground/80 uppercase border-b border-border/10 pb-0.5">
+                    {groupName}
+                  </h3>
+                  <div className={cn(
+                    "grid grid-cols-1 gap-2",
+                    layout === "split" && "md:grid-cols-2"
+                  )}>
+                    {items.map((acc) => {
+                      const isSelected =
+                        activeAccountField === "from"
+                          ? acc.id === accountId
+                          : acc.id === toAccountId;
+                      
+                      // For "to" account, we disable selecting the same account as "from"
+                      const isDisabled =
+                        activeAccountField === "to" && acc.id === accountId;
+
+                      return (
+                        <button
+                          key={acc.id}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (activeAccountField === "from") {
+                              setAccountId(acc.id);
+                              if (toAccountId === acc.id) {
+                                setToAccountId("");
+                              }
+                            } else {
+                              setToAccountId(acc.id);
+                            }
+                            setActiveAccountField(null);
+                            setAccountSearchQuery("");
+                          }}
+                          className={cn(
+                            "w-full text-left rounded-xl border p-3 flex items-center justify-between transition-all duration-150 select-none shadow-sm",
+                            isSelected
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                              : "border-border/60 bg-background hover:bg-muted/40 hover:border-muted-foreground/20",
+                            isDisabled && "opacity-40 cursor-not-allowed hover:bg-background"
+                          )}
+                        >
+                          <div className="flex flex-col min-w-0 pr-2">
+                            <span className="text-xs font-bold text-foreground truncate">
+                              {acc.name}
+                            </span>
+                            <span className="text-[9px] font-semibold text-muted-foreground/80 uppercase mt-0.5">
+                              {acc.institution || acc.type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs font-extrabold tabular-nums text-foreground">
+                              {formatCurrency(acc.balance, acc.currency as any)}
+                            </span>
+                            {isSelected && (
+                              <div className="w-3.5 h-3.5 rounded-full bg-primary flex items-center justify-center border border-background">
+                                <Check className="w-2 text-white" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Success Pulse overlay */}
       {successAnimation && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-card/90 backdrop-blur-sm animate-fade-in">
@@ -745,245 +934,159 @@ export default function TransactionForm({
       </div>
 
       {/* Form area: Fully scrollable and takes up dynamic space */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4 space-y-4">
-        {/* Amount input block */}
-        <div
-          className={cn(
-            "relative rounded-3xl border border-border/40 bg-card p-6 flex flex-col justify-center items-center shadow-sm transition-all duration-300",
-            isTransferEdit
-              ? "opacity-60"
-              : "hover:border-primary/20 focus-within:border-primary/40 focus-within:ring-4 focus-within:ring-primary/5"
-          )}
-        >
-          <span className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide">
-            Amount
-          </span>
-          <div className="flex items-center justify-center gap-1 mt-2.5 w-full">
-            <span className="text-4xl font-light text-muted-foreground/60 select-none leading-none">
-              {getCurrencySymbol(fromAccount?.currency ?? defaultCurrency)}
-            </span>
-            <input
-              ref={amountRef}
-              type="number"
-              inputMode="decimal"
-              pattern="[0-9]*"
-              placeholder="0.00"
-              value={amount}
-              disabled={isTransferEdit}
-              onKeyDown={handleKeyboardInput}
-              onChange={(e) => setAmount(e.target.value)}
-              style={{
-                width: `${Math.max(1.5, (amount || "0.00").length) * 1.65}rem`,
-              }}
-              className="bg-transparent border-0 outline-none focus:ring-0 text-5xl font-semibold tracking-tight text-foreground p-0 text-left min-w-[2rem] font-sans leading-none disabled:cursor-not-allowed"
-            />
-          </div>
-          {isTransferEdit && (
-            <p className="text-[10px] text-muted-foreground mt-2 text-center font-semibold">
-              Transfer amounts can't be edited — delete and recreate the
-              transfer to change them.
-            </p>
-          )}
-        </div>
-
-        {/* Account Selector (CC Card Chips) */}
-        <div className="space-y-2">
-          <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-            {tab === "transfer" ? "From Account" : "Select Account"}
-            {isEdit && (
-              <span className="text-muted-foreground ml-1">(locked)</span>
-            )}
-          </label>
-          <div className="flex gap-2.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
-            {(isEdit
-              ? accounts.filter((a) => a.id === accountId)
-              : accounts
-            ).map((a) => (
-              <AccountChip
-                key={a.id}
-                account={a}
-                isSelected={a.id === accountId}
-                disabled={isEdit}
-                onSelect={() => setAccountId(a.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Destination Selector for Transfers */}
-        {tab === "transfer" && !isEdit && (
-          <div className="space-y-2 pt-1 border-t border-border/5">
-            <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-              To Account
-            </label>
-            <div className="flex gap-2.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
-              {accounts
-                .filter((a) => a.id !== accountId)
-                .map((a) => (
-                  <AccountChip
-                    key={a.id}
-                    account={a}
-                    isSelected={a.id === toAccountId}
-                    onSelect={() => setToAccountId(a.id)}
-                  />
-                ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cross-currency destination amount */}
-        {isCrossCurrency && !isEdit && (
-          <div className="space-y-1.5 animate-fade-in">
-            <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-              Amount Received ({toAccount?.currency})
-              <span className="text-negative/85 font-bold ml-1">*Required</span>
-            </label>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="any"
-              placeholder="0.00"
-              value={toAmount}
-              onChange={(e) => setToAmount(e.target.value)}
-              className="w-full border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-2xl px-3.5 py-3.5 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
-            />
-          </div>
-        )}
-
-        {/* Payee panel */}
-        {tab !== "transfer" && (
-          <div className="space-y-1.5">
-            <label
-              className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block"
-              htmlFor="payee-input"
-            >
-              Payee / Source
-            </label>
-            <div className="relative flex items-center">
-              <input
-                id="payee-input"
-                type="text"
-                placeholder={
-                  tab === "income"
-                    ? "e.g. Salary, Dividend"
-                    : "e.g. Starbucks, Uber"
-                }
-                value={payee}
-                onChange={(e) => handlePayeeChange(e.target.value)}
-                className="w-full border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-2xl pl-9 pr-4 py-3.5 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
-              />
-              <Sparkles className="absolute left-3 w-4 h-4 text-primary/80 select-none pointer-events-none" />
-            </div>
-          </div>
-        )}
-
-        {/* Predictive Payee Pills Horizontal Scroll */}
-        {tab !== "transfer" && topPayees.length > 0 && !payee && (
-          <div className="space-y-1.5">
-            <span className="text-[11px] font-semibold text-primary/95 flex items-center gap-1">
-              <Sparkles className="w-2.5 h-2.5 text-primary/80 animate-pulse" />{" "}
-              Recent Payees
-            </span>
-            <div className="flex gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
-              {topPayees.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => handlePayeeChange(p)}
-                  className="flex-shrink-0 px-3.5 py-1.5 rounded-full border border-border/60 hover:border-primary/30 bg-card hover:bg-primary/5 text-xs font-medium text-muted-foreground hover:text-primary transition-all duration-200 shadow-sm"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Envelope Selector for Expenses */}
-        {tab === "expense" && envelopes.length > 0 && (
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-              Budget Envelope Category
-              {fromAccount && !fromAccount.off_budget ? (
-                <span className="text-negative/85 font-bold ml-1">
-                  *Required
+      <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4">
+        <div className={cn(
+          "space-y-4",
+          layout === "split" && "md:grid md:grid-cols-2 md:gap-6 md:space-y-0"
+        )}>
+          {/* Left Column (Primary Details) */}
+          <div className="space-y-4">
+            {/* Amount input block */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                Amount
+                {isTransferEdit && (
+                  <span className="text-muted-foreground ml-1">(locked)</span>
+                )}
+              </label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-xs font-semibold text-muted-foreground/60 select-none">
+                  {getCurrencySymbol(fromAccount?.currency ?? defaultCurrency)}
                 </span>
-              ) : (
-                <span className="text-muted-foreground ml-1">
-                  (Optional for Off-Budget)
-                </span>
+                <input
+                  ref={amountRef}
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  placeholder="0.00"
+                  value={amount}
+                  disabled={isTransferEdit}
+                  onKeyDown={handleKeyboardInput}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full h-10 pl-8 pr-3 border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-lg text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-bold disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
+                />
+              </div>
+              {isTransferEdit && (
+                <p className="text-[10px] text-muted-foreground font-semibold">
+                  Transfer amounts can't be edited — delete and recreate the transfer to change them.
+                </p>
               )}
-            </label>
-            <EnvelopeTrigger
-              envelopes={envelopes}
-              envelopeId={envelopeId}
-              onOpen={() => setShowEnvelopeSelect(true)}
-            />
-          </div>
-        )}
-
-        {/* Custom Income Category Tag Selector */}
-        {tab === "income" && (
-          <div className="space-y-2">
-            <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-              Income Category
-            </label>
-            <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
-              {(
-                [
-                  { value: "income", label: "Salary / Income" },
-                  { value: "cashback", label: "Cashback / Refund" },
-                  { value: "starting_balance", label: "Starting Balance" },
-                ] as const
-              ).map((item) => {
-                const isSelected = incomeCategory === item.value;
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => setIncomeCategory(item.value)}
-                    className={cn(
-                      "flex-shrink-0 px-4 py-2 rounded-2xl border text-xs font-semibold transition-all duration-200 select-none shadow-sm",
-                      isSelected
-                        ? "border-positive bg-positive/10 text-positive font-extrabold shadow-sm"
-                        : "border-border/15 bg-background hover:bg-muted/20 text-muted-foreground hover:text-foreground shadow-sm"
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
             </div>
-          </div>
-        )}
 
-        {/* Transfer envelope & boundary info */}
-        {tab === "transfer" && !isEdit && (
-          <div className="space-y-3">
-            {isBoundaryCrossing && (
-              <div className="rounded-xl border border-primary/10 bg-primary/5 p-3.5 text-xs leading-relaxed text-primary dark:text-primary-foreground/90 shadow-sm">
-                <div className="flex gap-1.5 font-bold uppercase tracking-wider text-xs text-primary dark:text-primary/80 mb-1">
-                  <ArrowRightLeft className="w-3.5 h-3.5" /> YNAB Envelope
-                  Boundary Crossing
-                </div>
-                You are transferring funds from an <strong>On-Budget</strong>{" "}
-                account to an <strong>Off-Budget</strong> account. Since the
-                funds are leaving your liquid budget envelopes, you must select
-                an envelope category to log the outflow.
+            {/* Account Selector */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                {tab === "transfer" ? "From Account" : "Select Account"}
+                {isEdit && (
+                  <span className="text-muted-foreground ml-1">(locked)</span>
+                )}
+              </label>
+              <AccountTrigger
+                account={fromAccount}
+                placeholder="Select account..."
+                onClick={() => setActiveAccountField("from")}
+                disabled={isEdit}
+              />
+            </div>
+
+            {/* Destination Selector for Transfers */}
+            {tab === "transfer" && !isEdit && (
+              <div className="space-y-2 pt-1 border-t border-border/5">
+                <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                  To Account
+                </label>
+                <AccountTrigger
+                  account={toAccount}
+                  placeholder="Select destination account..."
+                  onClick={() => setActiveAccountField("to")}
+                  disabled={isEdit}
+                />
               </div>
             )}
 
-            {envelopes.length > 0 && (
+            {/* Cross-currency destination amount */}
+            {isCrossCurrency && !isEdit && (
+              <div className="space-y-1.5 animate-fade-in">
+                <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                  Amount Received ({toAccount?.currency})
+                  <span className="text-negative/85 font-bold ml-1">*Required</span>
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  placeholder="0.00"
+                  value={toAmount}
+                  onChange={(e) => setToAmount(e.target.value)}
+                  className="w-full h-10 border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-lg px-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Right Column (Secondary/Category Details) */}
+          <div className="space-y-4">
+            {/* Payee panel */}
+            {tab !== "transfer" && (
+              <div className="space-y-1.5">
+                <label
+                  className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block"
+                  htmlFor="payee-input"
+                >
+                  Payee / Source
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    id="payee-input"
+                    type="text"
+                    placeholder={
+                      tab === "income"
+                        ? "e.g. Salary, Dividend"
+                        : "e.g. Starbucks, Uber"
+                    }
+                    value={payee}
+                    onChange={(e) => handlePayeeChange(e.target.value)}
+                    className="w-full h-10 border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-lg pl-8 pr-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-semibold shadow-sm"
+                  />
+                  <Sparkles className="absolute left-2.5 w-3.5 h-3.5 text-primary/80 select-none pointer-events-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Predictive Payee Pills Horizontal Scroll */}
+            {tab !== "transfer" && topPayees.length > 0 && !payee && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-primary/95 flex items-center gap-1">
+                  <Sparkles className="w-2.5 h-2.5 text-primary/80 animate-pulse" />{" "}
+                  Recent Payees
+                </span>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 max-w-full no-scrollbar">
+                  {topPayees.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => handlePayeeChange(p)}
+                      className="flex-shrink-0 px-2.5 py-1 rounded-lg border border-border/60 hover:border-primary/20 bg-card hover:bg-primary/5 text-[11px] font-semibold text-muted-foreground hover:text-primary transition-all duration-150 shadow-sm"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Envelope Selector for Expenses */}
+            {tab === "expense" && envelopes.length > 0 && (
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
                   Budget Envelope Category
-                  {isBoundaryCrossing ? (
+                  {fromAccount && !fromAccount.off_budget ? (
                     <span className="text-negative/85 font-bold ml-1">
                       *Required
                     </span>
                   ) : (
                     <span className="text-muted-foreground ml-1">
-                      (Optional)
+                      (Optional for Off-Budget)
                     </span>
                   )}
                 </label>
@@ -995,87 +1098,162 @@ export default function TransactionForm({
               </div>
             )}
 
-            {!isBoundaryCrossing && (
-              <div className="rounded-xl border border-border/10 bg-background p-3 text-xs text-muted-foreground text-center font-bold shadow-sm">
-                🔄 This transfer is <strong>Budget-Neutral</strong>. An envelope
-                category is optional as the funds remain within the same budget
-                boundary.
+            {/* Custom Income Category Tag Selector */}
+            {tab === "income" && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                  Income Category
+                </label>
+                <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+                  {(
+                    [
+                      { value: "income", label: "Salary / Income" },
+                      { value: "cashback", label: "Cashback / Refund" },
+                      { value: "starting_balance", label: "Starting Balance" },
+                    ] as const
+                  ).map((item) => {
+                    const isSelected = incomeCategory === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setIncomeCategory(item.value)}
+                        className={cn(
+                          "flex-shrink-0 px-3.5 py-1.5 h-8 rounded-lg border text-xs font-bold transition-all duration-200 select-none shadow-sm flex items-center justify-center",
+                          isSelected
+                            ? "border-positive bg-positive/10 text-positive font-extrabold shadow-sm"
+                            : "border-border/15 bg-background hover:bg-muted/20 text-muted-foreground hover:text-foreground shadow-sm"
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Transfer envelope & boundary info */}
+            {tab === "transfer" && !isEdit && (
+              <div className="space-y-3">
+                {isBoundaryCrossing && (
+                  <div className="rounded-xl border border-primary/10 bg-primary/5 p-3.5 text-xs leading-relaxed text-primary dark:text-primary-foreground/90 shadow-sm">
+                    <div className="flex gap-1.5 font-bold uppercase tracking-wider text-xs text-primary dark:text-primary/80 mb-1">
+                      <ArrowRightLeft className="w-3.5 h-3.5" /> YNAB Envelope
+                      Boundary Crossing
+                    </div>
+                    You are transferring funds from an <strong>On-Budget</strong>{" "}
+                    account to an <strong>Off-Budget</strong> account. Since the
+                    funds are leaving your liquid budget envelopes, you must select
+                    an envelope category to log the outflow.
+                  </div>
+                )}
+
+                {envelopes.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                      Budget Envelope Category
+                      {isBoundaryCrossing ? (
+                        <span className="text-negative/85 font-bold ml-1">
+                          *Required
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground ml-1">
+                          (Optional)
+                        </span>
+                      )}
+                    </label>
+                    <EnvelopeTrigger
+                      envelopes={envelopes}
+                      envelopeId={envelopeId}
+                      onOpen={() => setShowEnvelopeSelect(true)}
+                    />
+                  </div>
+                )}
+
+                {!isBoundaryCrossing && (
+                  <div className="rounded-xl border border-border/10 bg-background p-3 text-xs text-muted-foreground text-center font-bold shadow-sm">
+                    🔄 This transfer is <strong>Budget-Neutral</strong>. An envelope
+                    category is optional as the funds remain within the same budget
+                    boundary.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Transfer edit: envelope is read-only */}
+            {isTransferEdit && (
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                  Budget Envelope Category
+                  <span className="text-muted-foreground ml-1">(locked)</span>
+                </label>
+                <div className="w-full h-10 border border-border/40 bg-muted/20 rounded-lg px-3 flex items-center justify-between text-left shadow-sm opacity-70">
+                  <span className="text-xs font-semibold text-foreground">
+                    {transaction?.envelope_name ?? "Uncategorised"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground font-semibold">
+                  Transfer envelopes can't be changed — delete and recreate the
+                  transfer instead. Only date and notes are editable.
+                </p>
+              </div>
+            )}
+
+            {/* Date and Notes */}
+            {!isEdit && (
+              <div className="flex justify-center border-t border-border/5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 py-1 px-2 rounded-md hover:bg-muted/40 transition-colors"
+                >
+                  {showAdvanced
+                    ? "Hide Optional Details"
+                    : "Show Optional Details (Date, Notes)"}
+                </button>
+              </div>
+            )}
+
+            {showAdvanced && (
+              <div className="grid grid-cols-2 gap-3 text-xs animate-fade-in">
+                <div>
+                  <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide mb-1 block flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-primary" /> Date
+                  </label>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full h-10 border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-lg px-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide mb-1 block flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-primary" /> Notes
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Memo / notes..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full h-10 border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-lg px-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
+                  />
+                </div>
               </div>
             )}
           </div>
-        )}
-
-        {/* Transfer edit: envelope is read-only */}
-        {isTransferEdit && (
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-              Budget Envelope Category
-              <span className="text-muted-foreground ml-1">(locked)</span>
-            </label>
-            <div className="w-full border border-border/40 bg-muted/20 rounded-2xl px-3.5 py-3.5 flex items-center justify-between text-left shadow-sm opacity-70">
-              <span className="text-xs font-semibold text-foreground">
-                {transaction?.envelope_name ?? "Uncategorised"}
-              </span>
-            </div>
-            <p className="text-[10px] text-muted-foreground font-semibold">
-              Transfer envelopes can't be changed — delete and recreate the
-              transfer instead. Only date and notes are editable.
-            </p>
-          </div>
-        )}
-
-        {/* Date and Notes */}
-        {!isEdit && (
-          <div className="flex justify-center border-t border-border/5 pt-2">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-1 py-1 px-2 rounded-md hover:bg-muted/40 transition-colors"
-            >
-              {showAdvanced
-                ? "Hide Optional Details"
-                : "Show Optional Details (Date, Notes)"}
-            </button>
-          </div>
-        )}
-
-        {showAdvanced && (
-          <div className="grid grid-cols-2 gap-3 text-xs animate-fade-in">
-            <div>
-              <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide mb-1 block flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-primary" /> Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-2xl px-3.5 py-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide mb-1 block flex items-center gap-1">
-                <FileText className="w-3 h-3 text-primary" /> Notes
-              </label>
-              <input
-                type="text"
-                placeholder="Memo / notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full border border-border/60 focus:border-primary/40 bg-background/40 focus:bg-background rounded-2xl px-3.5 py-3 text-xs outline-none transition-all focus:ring-2 focus:ring-primary/10 font-medium shadow-sm"
-              />
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Sticky Bottom Actions */}
-      <div className="border-t border-border/10 bg-muted/20 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex-shrink-0 flex gap-2.5">
+      <div className="p-5 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] flex-shrink-0 flex gap-3 bg-card border-t border-border/5">
         {isEdit && (
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
             disabled={pending || deleting}
-            className="flex-1 py-3.5 bg-negative/10 hover:bg-negative/20 text-negative border border-negative/20 font-semibold tracking-wide text-sm rounded-2xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="flex-1 h-10 bg-negative/10 hover:bg-negative/20 text-negative border border-negative/15 font-semibold tracking-wide text-xs rounded-xl active:scale-[0.98] disabled:bg-muted disabled:text-muted-foreground/30 disabled:border-transparent disabled:cursor-not-allowed transition-all duration-200"
           >
             Delete
           </button>
@@ -1083,14 +1261,20 @@ export default function TransactionForm({
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pending || deleting || (!isTransferEdit && !amount)}
+          disabled={
+            pending ||
+            deleting ||
+            (!isTransferEdit && (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0))
+          }
           className={cn(
-            "py-3.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold tracking-wide text-sm rounded-2xl shadow-lg hover:shadow-primary/10 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2",
+            "h-10 font-bold tracking-wide text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-2 select-none outline-none focus:ring-2 focus:ring-primary/20 border border-transparent",
+            "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.98] shadow-md hover:shadow-lg hover:shadow-primary/5",
+            "disabled:bg-muted/10 disabled:text-muted-foreground/40 disabled:border-border/30 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none",
             isEdit ? "flex-[2]" : "w-full"
           )}
         >
           {pending ? (
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
           ) : isEdit ? (
             "Save Changes"
           ) : (
