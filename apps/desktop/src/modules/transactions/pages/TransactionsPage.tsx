@@ -241,7 +241,7 @@ function EditTransactionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
-        className="max-w-[500px] p-0 gap-0 overflow-hidden"
+        className="max-w-[500px] md:max-w-[760px] p-0 gap-0 overflow-hidden"
       >
         <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/20 flex-shrink-0">
           <DialogTitle className="text-sm font-semibold tracking-tight">

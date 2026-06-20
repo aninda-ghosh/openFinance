@@ -44,14 +44,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountFormDialog } from "@/components/AccountFormDialog";
 import { useAppStore } from "@/stores/app.store";
+import TransactionForm from "@/components/TransactionForm";
 import {
   useAccounts,
   useCreateAccount,
   useCreateTransaction,
-  useCreateTransfer,
   useDeleteAccount,
   useDeleteTransaction,
-  useEnvelopes,
   useExchangeRates,
   useTransactions,
   useUpdateAccount,
@@ -200,21 +199,15 @@ function LinkedAccountSheet({
   account,
   open,
   onOpenChange,
-  allAccounts,
 }: {
   account: any;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  allAccounts: any[];
 }) {
   const { data } = useTransactions({ account_id: account.id, limit: 200 });
   const { mutate: deleteTxn } = useDeleteTransaction();
-  const { mutate: createTxn, isPending: creating } = useCreateTransaction();
-  const { mutate: createTransfer, isPending: transferring } =
-    useCreateTransfer();
-  const { defaultCurrency, selectedMonth } = useAppStore();
+  const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
-  const { data: envelopesData } = useEnvelopes(selectedMonth);
 
   const txns = data?.transactions ?? [];
 
@@ -249,101 +242,6 @@ function LinkedAccountSheet({
       defaultCurrency as any
     );
 
-  const allEnvelopes = (envelopesData as any)?.envelopes ?? [];
-  const envelopesByGroup = (allEnvelopes as any[]).reduce<
-    { groupId: string; groupName: string; items: any[] }[]
-  >((acc, env: any) => {
-    const existing = acc.find((g) => g.groupId === env.group_id);
-    if (existing) existing.items.push(env);
-    else
-      acc.push({
-        groupId: env.group_id,
-        groupName: env.group_name ?? "Other",
-        items: [env],
-      });
-    return acc;
-  }, []);
-
-  const [tab, setTab] = useState<"income" | "expense" | "transfer">("income");
-  const [transferDir, setTransferDir] = useState<"out" | "in">("out");
-  const [payee, setPayee] = useState("");
-  const [amount, setAmount] = useState("");
-  const [toAccount, setToAccount] = useState("");
-  const [toAmount, setToAmount] = useState("");
-  const [envelope, setEnvelope] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-
-  const resetForm = () => {
-    setPayee("");
-    setAmount("");
-    setToAccount("");
-    setToAmount("");
-    setEnvelope("");
-    setDate(new Date().toISOString().slice(0, 10));
-  };
-
-  const otherAcc = allAccounts.find((a: any) => a.id === toAccount);
-  const sameCurrency = otherAcc?.currency === account.currency;
-
-  const submitTxn = () => {
-    if (tab === "transfer") {
-      if (!toAccount || !amount) return;
-      const fromId = transferDir === "out" ? account.id : toAccount;
-      const toId = transferDir === "out" ? toAccount : account.id;
-      const fromAmt = parseFloat(amount);
-      const toAmt = sameCurrency ? fromAmt : parseFloat(toAmount || amount);
-      createTransfer(
-        {
-          from_account_id: fromId,
-          to_account_id: toId,
-          amount: fromAmt,
-          to_amount: toAmt,
-          date,
-          notes: payee || undefined,
-          envelope_id: envelope || undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Transfer recorded");
-            resetForm();
-          },
-          onError: (e) => {
-            toast.error("Intent Unfulfilled: Transfer Not Saved", {
-              description: e?.message || "Failed to record transfer. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
-        }
-      );
-    } else {
-      if (!payee.trim() || !amount) return;
-      createTxn(
-        {
-          account_id: account.id,
-          payee: payee.trim(),
-          amount: parseFloat(amount),
-          type: tab,
-          date,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Transaction added");
-            resetForm();
-          },
-          onError: (e) => {
-            toast.error("Intent Unfulfilled: Transaction Not Saved", {
-              description: e?.message || "Failed to add transaction. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
-        }
-      );
-    }
-  };
-
-  const sel =
-    "w-full border border-border/60 rounded-xl px-2.5 py-1.5 text-xs mt-1 h-9 bg-background focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all duration-200 font-semibold cursor-pointer shadow-sm";
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -369,209 +267,16 @@ function LinkedAccountSheet({
         </SheetHeader>
 
         {/* Floating Quick Entry Form */}
-        <div className="bg-card border border-border/30 rounded-3xl p-5 shadow-sm mx-6 my-4 flex-shrink-0 animate-fade-in">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-3 flex items-center gap-1.5 select-none">
+        <div className="bg-card border border-border/30 rounded-3xl shadow-sm mx-6 my-4 overflow-hidden animate-fade-in flex-shrink-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 px-5 pt-4 flex items-center gap-1.5 select-none">
             <Coins className="w-3.5 h-3.5 text-primary" /> Add Record
           </p>
-          <div className="flex rounded-xl bg-muted p-1 gap-1 text-xs mb-4 select-none">
-            {(["income", "expense", "transfer"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setTab(t);
-                  resetForm();
-                }}
-                className={`flex-1 py-1.5 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                  tab === t
-                    ? "bg-primary text-primary-foreground shadow-sm active:scale-[0.98]"
-                    : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {tab === "transfer" ? (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="flex rounded-xl bg-muted p-1 gap-1 text-xs mb-2 select-none">
-                <button
-                  onClick={() => {
-                    setTransferDir("out");
-                    setToAccount("");
-                    setToAmount("");
-                  }}
-                  className={`flex-1 py-1 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                    transferDir === "out"
-                      ? "bg-background text-foreground shadow-sm active:scale-[0.98]"
-                      : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                  }`}
-                >
-                  Send from {account.name}
-                </button>
-                <button
-                  onClick={() => {
-                    setTransferDir("in");
-                    setToAccount("");
-                    setToAmount("");
-                  }}
-                  className={`flex-1 py-1 capitalize font-bold rounded-lg transition-all duration-200 relative select-none ${
-                    transferDir === "in"
-                      ? "bg-background text-foreground shadow-sm active:scale-[0.98]"
-                      : "text-muted-foreground/80 hover:text-foreground font-semibold"
-                  }`}
-                >
-                  Deposit into {account.name}
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">
-                    {transferDir === "out" ? "To account" : "From account"}
-                  </Label>
-                  <select
-                    value={toAccount}
-                    onChange={(e) => {
-                      setToAccount(e.target.value);
-                      setToAmount("");
-                    }}
-                    className={sel}
-                  >
-                    <option value="">Select account</option>
-                    {allAccounts
-                      .filter((a: any) => a.id !== account.id)
-                      .map((a: any) => (
-                        <option key={a.id} value={a.id}>
-                          {a.name} ({a.currency})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Amount ({account.currency})</Label>
-                  <Input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              </div>
-              {!sameCurrency && otherAcc && (
-                <div className="animate-fade-in">
-                  <Label className="text-xs text-muted-foreground font-bold select-none">
-                    {transferDir === "out"
-                      ? `Received (${otherAcc.currency})`
-                      : `Deducted (${otherAcc.currency})`}
-                  </Label>
-                  <Input
-                    type="number"
-                    value={toAmount}
-                    onChange={(e) => setToAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Notes (optional)</Label>
-                  <Input
-                    value={payee}
-                    onChange={(e) => setPayee(e.target.value)}
-                    placeholder="e.g. Monthly transfer"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Date</Label>
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                {envelopesByGroup.length > 0 && (
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground font-bold select-none">
-                      Category{" "}
-                      <span className="text-muted-foreground font-normal">(optional)</span>
-                    </Label>
-                    <select
-                      value={envelope}
-                      onChange={(e) => setEnvelope(e.target.value)}
-                      className={sel}
-                    >
-                      <option value="">None</option>
-                      {envelopesByGroup.map(({ groupId, groupName, items }) => (
-                        <optgroup key={groupId} label={groupName}>
-                          {items.map((env: any) => (
-                            <option key={env.id} value={env.id}>
-                              {env.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-              <Button
-                className="w-full h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold tracking-wide text-xs shadow-md hover:shadow-primary/10 active:scale-[0.98] transition-all duration-200 mt-2"
-                onClick={submitTxn}
-                disabled={
-                  transferring ||
-                  !toAccount ||
-                  !amount ||
-                  (!sameCurrency && !toAmount && !!otherAcc)
-                }
-              >
-                Record Transfer
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3 text-xs animate-fade-in">
-              <div className="grid grid-cols-3 gap-2.5">
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Payee</Label>
-                  <Input
-                    value={payee}
-                    onChange={(e) => setPayee(e.target.value)}
-                    placeholder={tab === "income" ? "e.g. Interest" : "e.g. Fee"}
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Amount ({account.currency})</Label>
-                  <Input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground font-bold select-none">Date</Label>
-                  <Input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="mt-1 h-9 rounded-xl text-xs border border-border/60 bg-background focus-visible:ring-2 focus-visible:ring-primary/10 focus-visible:border-primary transition-all duration-200 font-semibold shadow-sm"
-                  />
-                </div>
-              </div>
-              <Button
-                className="w-full h-9 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold tracking-wide text-xs shadow-md hover:shadow-primary/10 active:scale-[0.98] transition-all duration-200 mt-2"
-                onClick={submitTxn}
-                disabled={creating || !payee.trim() || !amount}
-              >
-                Record {tab}
-              </Button>
-            </div>
-          )}
+          <TransactionForm
+            key={account?.id}
+            mode="create"
+            defaultAccountId={account?.id}
+            layout="single"
+          />
         </div>
 
         {/* Transaction list */}
@@ -1665,7 +1370,6 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
           onOpenChange={(open) => {
             if (!open) setSheetAccount(null);
           }}
-          allAccounts={accountsData?.accounts ?? []}
         />
       )}
 

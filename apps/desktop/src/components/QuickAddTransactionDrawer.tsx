@@ -8,7 +8,7 @@ export default function QuickAddTransactionDrawer() {
   if (!quickAddOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center md:inset-auto md:bottom-20 md:right-6 md:w-[500px] md:h-auto md:max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end items-center md:inset-auto md:bottom-20 md:right-6 md:w-[760px] md:h-auto md:max-h-[85vh]">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-background/85 backdrop-blur-sm md:bg-transparent md:backdrop-blur-none transition-opacity"
@@ -16,7 +16,7 @@ export default function QuickAddTransactionDrawer() {
       />
 
       {/* Drawer Body */}
-      <div className="relative w-full max-w-lg md:max-w-[500px] bg-card border border-border shadow-2xl rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden max-h-[92dvh] md:max-h-[83vh] transition-all duration-300 ease-out">
+      <div className="relative w-full max-w-lg md:max-w-[760px] bg-card border-x border-t md:border border-border shadow-2xl rounded-t-2xl md:rounded-2xl flex flex-col overflow-hidden max-h-[92dvh] md:max-h-[83vh] transition-all duration-300 ease-out">
         {/* Drawer Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/20 flex-shrink-0">
           <div className="flex items-center gap-1.5">
