@@ -15,6 +15,9 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  Legend,
 } from "recharts";
 
 const GROUP_COLORS = [
@@ -29,6 +32,46 @@ const GROUP_COLORS = [
   "var(--chart-6)",  // Pale Sage
   "var(--chart-5)",  // Forest Sage
 ];
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  isPercentage?: boolean;
+  defaultCurrency?: string;
+}
+
+function CustomChartTooltip({
+  active,
+  payload,
+  label,
+  isPercentage = false,
+  defaultCurrency = "USD",
+}: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div className="bg-popover/90 backdrop-blur-md border border-border/80 rounded-2xl p-4 shadow-xl space-y-2 text-xs min-w-[180px] select-none">
+      <p className="font-extrabold text-muted-foreground uppercase tracking-widest text-[9px]">{label}</p>
+      <div className="space-y-2">
+        {payload.map((entry: any, i: number) => {
+          const val = Number(entry.value);
+          const valueStr = isPercentage
+            ? `${val.toFixed(1)}%`
+            : formatCurrency(val, defaultCurrency as any);
+          return (
+            <div key={i} className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+                <span className="text-muted-foreground font-semibold">{entry.name === "income" ? "Income" : entry.name === "expenses" ? "Expenses" : entry.name}</span>
+              </div>
+              <span className="font-extrabold text-foreground tabular-nums">{valueStr}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function sankeyPath(
   x1: number,
@@ -831,20 +874,7 @@ export default function ReportsPage() {
   const { data: rates = {} } = useExchangeRates();
   const { defaultCurrency } = useAppStore();
 
-  const [viewMode, setViewMode] = useState<"sankey" | "cascade">("sankey");
-
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 768px)");
-    setIsMobile(media.matches);
-    const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
-  }, []);
-
-  useEffect(() => {
-    setViewMode(isMobile ? "cascade" : "sankey");
-  }, [isMobile]);
+  const [viewMode, setViewMode] = useState<"sankey" | "cascade">("cascade");
 
   const { data, isLoading } = useCashFlow(month);
 
@@ -853,6 +883,15 @@ export default function ReportsPage() {
       convertFromINR(inr, defaultCurrency as any, rates),
       defaultCurrency as any
     );
+
+  const fmtShort = (val: number) => {
+    if (Math.abs(val) >= 1000) {
+      const kVal = val / 1000;
+      const formattedNum = kVal % 1 === 0 ? kVal.toFixed(0) : kVal.toFixed(1);
+      return formatCurrency(parseFloat(formattedNum), defaultCurrency as any) + "k";
+    }
+    return formatCurrency(Math.round(val), defaultCurrency as any);
+  };
 
   const carryoverInr = data?.carryover ?? 0;
 
@@ -917,15 +956,59 @@ export default function ReportsPage() {
       const dateParts = d.month.split("-").map(Number);
       const monthName = new Date(dateParts[0], dateParts[1] - 1).toLocaleDateString("en-US", { month: "short" });
 
+      const convertedIncome = convertFromINR(d.total_income, defaultCurrency as any, rates);
+      const convertedExpenses = convertFromINR(d.total_expenses, defaultCurrency as any, rates);
+      const convertedSavings = convertFromINR(actSav, defaultCurrency as any, rates);
+
       return {
         month: monthName,
         rawMonth: d.month,
-        income: d.total_income,
-        savings: actSav,
+        income: parseFloat(convertedIncome.toFixed(2)),
+        expenses: parseFloat(convertedExpenses.toFixed(2)),
+        savings: parseFloat(convertedSavings.toFixed(2)),
         savingsRate: parseFloat(rate.toFixed(1)),
       };
     });
-  }, [historyData]);
+  }, [historyData, defaultCurrency, rates]);
+
+  const categoryTrendData = useMemo(() => {
+    if (!historyData) return { data: [], categories: [] };
+
+    // 1. Gather all unique group names across all months
+    const groupNamesSet = new Set<string>();
+    for (const d of historyData) {
+      for (const g of d.expense_groups) {
+        groupNamesSet.add(g.group_name);
+      }
+    }
+    const categories = Array.from(groupNamesSet);
+
+    // 2. Map month data
+    const data = historyData.map((d: any) => {
+      const dateParts = d.month.split("-").map(Number);
+      const monthName = new Date(dateParts[0], dateParts[1] - 1).toLocaleDateString("en-US", { month: "short" });
+
+      const row: any = {
+        month: monthName,
+        rawMonth: d.month,
+      };
+
+      // Initialize all categories to 0
+      for (const cat of categories) {
+        row[cat] = 0;
+      }
+
+      // Populate from expense groups
+      for (const g of d.expense_groups) {
+        const val = convertFromINR(g.total, defaultCurrency as any, rates);
+        row[g.group_name] = parseFloat(val.toFixed(2));
+      }
+
+      return row;
+    });
+
+    return { data, categories };
+  }, [historyData, defaultCurrency, rates]);
 
   const ytdMetrics = useMemo(() => {
     if (!trendData || trendData.length === 0) return { avgRate: "0.0", totalIncome: 0, totalSavings: 0 };
@@ -982,17 +1065,18 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Trend & YTD Chart */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm p-6 space-y-4">
+      {/* Trend & YTD Charts Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Card 1: Income & Expenses Trend (YTD) - Full Width */}
+        <div className="md:col-span-2 relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm p-6 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
+            <div className="flex-1">
               <h2 className="text-sm font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 select-none">
                 <TrendingUp className="w-3.5 h-3.5 text-primary" />
-                Savings Rate Trend (YTD)
+                Income & Expenses Trend (YTD)
               </h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Month-by-month cash savings rate vs. YTD target
+                Month-by-month comparison of total income and expenses
               </p>
             </div>
             <div className="flex items-center gap-4 bg-muted/30 px-4 py-2.5 rounded-2xl border border-border/40 select-none">
@@ -1008,7 +1092,9 @@ export default function ReportsPage() {
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold flex items-center gap-0.5 select-none">
                   Total YTD Saved
-                  <Info className="w-3 h-3 text-muted-foreground/60" title="Includes total net surplus and savings group envelope allocations since January." />
+                  <span title="Includes total net surplus and savings group envelope allocations since January.">
+                    <Info className="w-3 h-3 text-muted-foreground/60" />
+                  </span>
                 </span>
                 <span className="text-xl font-bold text-foreground">
                   {fmt(ytdMetrics.totalSavings)}
@@ -1024,15 +1110,93 @@ export default function ReportsPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={trendData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
+                >
+                  <defs>
+                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.08} />
+                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.08} />
+                      <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => fmtShort(v)}
+                  />
+                  <RechartsTooltip
+                    content={
+                      <CustomChartTooltip
+                        isPercentage={false}
+                        defaultCurrency={defaultCurrency}
+                      />
+                    }
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="income"
+                    name="income"
+                    stroke="var(--chart-1)"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#colorIncome)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="expenses"
+                    name="expenses"
+                    stroke="var(--chart-4)"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#colorExpenses)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Card 2: Savings Rate Trend (YTD) */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 select-none">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              Savings Rate Trend (YTD)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Month-by-month cash savings rate vs. YTD target
+            </p>
+          </div>
+
+          {historyLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={trendData}
+                  margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
                 >
                   <defs>
                     <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.4} />
+                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.15} />
                       <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
                   <XAxis
                     dataKey="month"
                     stroke="var(--muted-foreground)"
@@ -1048,24 +1212,95 @@ export default function ReportsPage() {
                     tickFormatter={(v) => `${v}%`}
                   />
                   <RechartsTooltip
-                    contentStyle={{
-                      background: "var(--card)",
-                      border: "1px solid var(--border)",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    }}
-                    formatter={(value: any) => [`${value}%`, "Savings Rate"]}
+                    content={
+                      <CustomChartTooltip
+                        isPercentage={true}
+                        defaultCurrency={defaultCurrency}
+                      />
+                    }
                   />
                   <Area
                     type="monotone"
                     dataKey="savingsRate"
+                    name="Savings Rate"
                     stroke="var(--chart-2)"
-                    strokeWidth={2}
+                    strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorSavings)"
                   />
                 </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Card 3: Spending by Category (YTD) */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 select-none">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              Spending by Category (YTD)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Month-by-month spending breakdown across all budget categories
+            </p>
+          </div>
+
+          {historyLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={categoryTrendData.data}
+                  margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => fmtShort(v)}
+                  />
+                  <RechartsTooltip
+                    cursor={false}
+                    content={
+                      <CustomChartTooltip
+                        isPercentage={false}
+                        defaultCurrency={defaultCurrency}
+                      />
+                    }
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    height={36}
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      paddingBottom: "15px",
+                    }}
+                  />
+                  {categoryTrendData.categories.map((cat, i) => (
+                    <Bar
+                      key={cat}
+                      dataKey={cat}
+                      name={cat}
+                      stackId="a"
+                      maxBarSize={28}
+                      fill={GROUP_COLORS[(i + 1) % GROUP_COLORS.length]}
+                    />
+                  ))}
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}

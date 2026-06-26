@@ -12,17 +12,11 @@ import {
   Wallet,
 } from "lucide-react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +27,6 @@ import {
   useDashboard,
   useNetWorth,
   usePortfolioBreakdown,
-  useSpendingTrends,
-  useTopMovers,
 } from "../hooks/useDashboard";
 
 const PIE_COLORS = [
@@ -114,8 +106,6 @@ export default function DashboardPage() {
     useDashboard(selectedMonth);
   const { data: netWorth, isLoading: nwLoading } = useNetWorth();
   const { data: breakdown } = usePortfolioBreakdown();
-  const { data: topMovers } = useTopMovers();
-  const { data: trendsData } = useSpendingTrends(6);
   const { data: rates = {} } = useExchangeRates();
 
   const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null);
@@ -151,7 +141,7 @@ export default function DashboardPage() {
   const accts = netWorth?.breakdown?.cash_inr ?? 0;
   const invs = netWorth?.breakdown?.investments_inr ?? 0;
   const pols = netWorth?.breakdown?.policies_inr ?? 0;
-  const debt = netWorth?.breakdown?.debt_inr ?? 0;
+  const debt = Math.abs(netWorth?.breakdown?.debt_inr ?? 0);
   const income = dashboard?.monthly_income ?? 0;
   const expenses = dashboard?.monthly_expenses ?? 0;
   const savings = dashboard?.savings_rate ?? 0;
@@ -480,6 +470,39 @@ export default function DashboardPage() {
                       : `${fmt(-toAssign)} over-budgeted`}
                   </p>
                 </div>
+                {dashboard?.top_categories && dashboard.top_categories.length > 0 && (
+                  <>
+                    <div className="border-t border-border/40 my-1" />
+                    <div className="space-y-1 pt-0.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Top Spending Categories
+                      </p>
+                      <div className="space-y-1">
+                        {dashboard.top_categories.slice(0, 3).map((c: any) => {
+                          const pct = spent > 0 ? (c.amount / spent) * 100 : 0;
+                          return (
+                            <div key={c.name} className="space-y-0.5">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-muted-foreground capitalize truncate max-w-[130px]">
+                                  {c.name.replace(/_/g, " ")}
+                                </span>
+                                <span className="font-semibold tabular-nums text-[11px]">
+                                  {fmt(c.amount)} ({pct.toFixed(0)}%)
+                                </span>
+                              </div>
+                              <div className="h-1 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full"
+                                  style={{ width: `${Math.min(100, pct)}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </CardContent>
@@ -534,248 +557,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* ── Row 5: Spending Trends ────────────────────────────────────── */}
-      <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-        <CardHeader className="pt-3 pb-1">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Income vs Expenses — Last 6 Months
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pb-3">
-          {!trendsData?.trends?.length ? (
-            <p className="text-xs text-muted-foreground text-center py-6">
-              No transaction data yet.
-            </p>
-          ) : (
-            <ResponsiveContainer width="100%" height={160}>
-              {(() => {
-                const CustomBarTooltip = ({ active, payload, label }: any) => {
-                  if (active && payload && payload.length) {
-                    const [y, mo] = label.split("-");
-                    const formattedLabel = new Date(+y, +mo - 1).toLocaleString("default", {
-                      month: "long",
-                      year: "numeric",
-                    });
-                    return (
-                      <div className="backdrop-blur-md bg-background/80 border border-border/50 shadow-xl rounded-xl p-3 text-xs flex flex-col gap-1.5 min-w-[140px] animate-in fade-in-50 duration-200">
-                        <p className="font-semibold text-muted-foreground">{formattedLabel}</p>
-                        <div className="space-y-1 mt-1">
-                          {payload.map((p: any) => (
-                            <div key={p.name} className="flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-1.5">
-                                <div 
-                                  className="w-2.5 h-2.5 rounded-full" 
-                                  style={{ 
-                                    background: p.name === "Income" ? "#8da99a" : "#c97b7b",
-                                    boxShadow: p.name === "Income" ? "0 0 6px rgba(141,169,154,0.4)" : "0 0 6px rgba(201,123,123,0.4)"
-                                  }}
-                                />
-                                <span className="text-muted-foreground text-xs">{p.name}</span>
-                              </div>
-                              <span className="font-bold tabular-nums text-foreground">
-                                {fmt(Number(p.value))}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                };
 
-                return (
-                  <BarChart data={trendsData.trends} barSize={16} barGap={4}>
-                    <defs>
-                      <linearGradient id="barIncomeGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#8da99a" />
-                        <stop offset="100%" stopColor="#769384" />
-                      </linearGradient>
-                      <linearGradient id="barExpenseGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#c97b7b" />
-                        <stop offset="100%" stopColor="#b86868" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="4 4"
-                      className="stroke-border/40"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fontSize: 10, fill: "currentColor", opacity: 0.6 }}
-                      tickFormatter={(m) => {
-                        const [y, mo] = m.split("-");
-                        return new Date(+y, +mo - 1).toLocaleString("default", {
-                          month: "short",
-                        });
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10, fill: "currentColor", opacity: 0.6 }}
-                      tickFormatter={(v) => fmt(v)}
-                      width={55}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "currentColor", opacity: 0.04 }} />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: 11, paddingTop: 6 }}
-                    />
-                    <Bar
-                      dataKey="income"
-                      name="Income"
-                      fill="url(#barIncomeGrad)"
-                      radius={[8, 8, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="expenses"
-                      name="Expenses"
-                      fill="url(#barExpenseGrad)"
-                      radius={[8, 8, 0, 0]}
-                    />
-                  </BarChart>
-                );
-              })()}
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* ── Row 6: Investment Movers + Upcoming Payouts + Upcoming Premiums ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* Investment Movers */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardHeader className="pt-3 pb-1">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Investment Movers
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3">
-            {!topMovers?.movers?.length ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No investments yet.
-              </p>
-            ) : (
-              <div className="space-y-0">
-                {topMovers.movers.map((m: any) => {
-                  const pos = m.gain_loss_inr >= 0;
-                  return (
-                    <div
-                      key={m.investment.id}
-                      className="flex items-center justify-between py-1.5 px-1 rounded hover:bg-muted/40 transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium truncate">
-                          {m.investment.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {m.investment.asset_type.replace(/_/g, " ")}
-                        </p>
-                      </div>
-                      <div
-                        className={`text-right ml-3 ${pos ? "text-positive" : "text-negative"}`}
-                      >
-                        <p className="text-xs font-semibold tabular-nums">
-                          {pos ? "+" : ""}
-                          {fmt(m.gain_loss_inr)}
-                        </p>
-                        <p className="text-xs">
-                          {pos ? "+" : ""}
-                          {m.gain_loss_pct.toFixed(2)}%
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Policy Payouts */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardHeader className="pt-3 pb-1">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Scheduled Policy Receipts — next 90 days
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Upcoming maturity/bonus amounts from your insurance &amp; bond
-              policies
-            </p>
-          </CardHeader>
-          <CardContent className="pb-3">
-            {!dashboard?.upcoming_policy_payouts?.length ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No scheduled receipts in the next 90 days.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {dashboard.upcoming_policy_payouts.map((p: any, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/40"
-                  >
-                    <div>
-                      <p className="text-xs font-medium">{p.policy_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.payout_date} · {p.label}
-                      </p>
-                    </div>
-                    <p className="text-xs font-bold text-positive tabular-nums">
-                      {fmt(p.amount)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Upcoming Premium Payments */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardHeader className="pt-3 pb-1">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Upcoming Premiums — next 60 days
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Insurance premium payments due soon
-            </p>
-          </CardHeader>
-          <CardContent className="pb-3">
-            {!dashboard?.upcoming_premium_payments?.length ? (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No premiums due in the next 60 days.
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {dashboard.upcoming_premium_payments.map(
-                  (p: any, i: number) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between p-2 rounded-lg bg-amber-500/10"
-                    >
-                      <div>
-                        <p className="text-xs font-medium">{p.policy_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {p.due_date} · {p.provider} · {p.frequency}
-                        </p>
-                      </div>
-                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 tabular-nums">
-                        −{fmt(p.amount)}
-                      </p>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
