@@ -38,4 +38,8 @@ export type DashboardResponse = {
     amount: number;
     frequency: string;
   }[];
+  top_categories?: {
+    name: string;
+    amount: number;
+  }[];
 };

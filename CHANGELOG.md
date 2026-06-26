@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.3] — 2026-06-26
+
+### Removed
+
+- **Bottom Widgets.** Removed the bottom row widgets (*Investment Movers*, *Scheduled Policy Receipts*, and *Upcoming Premiums*) from the Dashboard page.
+- **Income vs Expenses trend chart.** Removed the monthly trend chart from the Dashboard page.
+
+### Changed
+
+- **Savings Rate & Expenses alignment.** Aligned the Dashboard's monthly expenses and savings rate calculations with the Cash Flow page by subtracting any `"savings"` envelope group from the total expenses to show actual living expenses.
+
+### Fixed
+
+- **Total Debt display bug.** Fixed the Total Debt card showing `$0.00` by converting the negative liability balance returned by the API into a positive absolute value.
+- **Top Spending Categories in Budget Card.** Added the top 3 spending categories of the month (excluding the savings group) inside the Budget progress card with progress indicators.
+
 ## [4.1.2] — 2026-06-26
 
 ### Added

@@ -169,46 +169,29 @@ export async function getTopMovers(_days: number, limit: number) {
 export async function getSpendingTrends(
   months = 6
 ): Promise<{ month: string; income: number; expenses: number }[]> {
-  const db = getDb();
-  const rates = await getLatestRates();
-  const results: { month: string; income: number; expenses: number }[] = [];
   const today = new Date();
+  const promises = [];
 
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const dateFrom = `${month}-01`;
-    const dateTo = `${month}-${String(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
-
-    const rows = await db
-      .select({
-        type: transactions.type,
-        amount: transactions.amount,
-        currency: accounts.currency,
+    promises.push(
+      getCashFlow(month).then((cf) => {
+        const savingsGroup = cf.expense_groups.find(
+          (g) => g.group_name.toLowerCase() === "savings"
+        );
+        const savingsGroupTotal = savingsGroup ? savingsGroup.total : 0;
+        const livingExpenses = cf.total_expenses - savingsGroupTotal;
+        return {
+          month,
+          income: Math.round(cf.total_income),
+          expenses: Math.round(livingExpenses),
+        };
       })
-      .from(transactions)
-      .leftJoin(accounts, eq(transactions.account_id, accounts.id))
-      .where(
-        and(gte(transactions.date, dateFrom), lte(transactions.date, dateTo))
-      );
-
-    const toInrAmt = (amount: number, currency: string | null) =>
-      currency ? amount * (rates[currency] ?? 1.0) : amount;
-
-    const income = rows
-      .filter((r) => r.type === "income")
-      .reduce((s, r) => s + toInrAmt(r.amount, r.currency), 0);
-    const expenses = rows
-      .filter((r) => r.type === "expense")
-      .reduce((s, r) => s + toInrAmt(r.amount, r.currency), 0);
-    results.push({
-      month,
-      income: Math.round(income),
-      expenses: Math.round(expenses),
-    });
+    );
   }
 
-  return results;
+  return Promise.all(promises);
 }
 
 // ─── Upcoming Premium Payments ────────────────────────────────────────────────
@@ -507,6 +490,7 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
     allPolicies,
     upcomingPremiums,
     carryover,
+    cashFlow,
   ] = await Promise.all([
     getNetWorth(),
     listEnvelopes(month),
@@ -515,6 +499,7 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
     db.select().from(policies),
     getUpcomingPremiums(60),
     computeCarryoverForMonth(month, rates),
+    getCashFlow(month),
   ]);
 
   const totalBudgeted = envelopes.reduce(
@@ -545,12 +530,12 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
   const toInrAmt = (amount: number, currency: string | null) =>
     currency ? amount * (rates[currency] ?? 1.0) : amount;
 
-  const monthlyIncome = monthTxns
-    .filter((t) => t.type === "income")
-    .reduce((s, t) => s + toInrAmt(t.amount, t.currency), 0);
-  const monthlyExpenses = monthTxns
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + toInrAmt(t.amount, t.currency), 0);
+  const monthlyIncome = cashFlow.total_income;
+  const savingsGroup = cashFlow.expense_groups.find(
+    (g) => g.group_name.toLowerCase() === "savings"
+  );
+  const savingsGroupTotal = savingsGroup ? savingsGroup.total : 0;
+  const monthlyExpenses = cashFlow.total_expenses - savingsGroupTotal;
 
   const savingsRate =
     monthlyIncome > 0
@@ -623,5 +608,11 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
     }),
     upcoming_policy_payouts: upcoming,
     upcoming_premium_payments: upcomingPremiums,
+    top_categories: cashFlow.expense_groups
+      .filter((g) => g.group_name.toLowerCase() !== "savings")
+      .map((g) => ({
+        name: g.group_name,
+        amount: g.total,
+      })),
   };
 }
