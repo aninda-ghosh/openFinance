@@ -1,10 +1,21 @@
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
-import { ChevronLeft, ChevronRight, GitMerge, Layers, ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, GitMerge, Layers, ChevronDown, ChevronUp, TrendingUp, Info } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useExchangeRates } from "@/modules/budget/hooks/useBudget";
 import { useCashFlow } from "@/modules/dashboard/hooks/useDashboard";
 import { useAppStore } from "@/stores/app.store";
+import { dashboardApi } from "@/modules/dashboard/api";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+} from "recharts";
 
 const GROUP_COLORS = [
   "var(--chart-2)",  // Muted Savings Green (uses Sage green var)
@@ -851,6 +862,13 @@ export default function ReportsPage() {
   const savingsGroupTotal = savingsGroup ? savingsGroup.total : 0;
   const livingExpenses = data ? data.total_expenses - savingsGroupTotal : 0;
   
+  // Actual savings this month (net surplus + savings envelopes)
+  const actualSavings = data ? data.total_income - livingExpenses : 0;
+  const displaySavingsRate =
+    data && data.total_income > 0
+      ? ((actualSavings / data.total_income) * 100).toFixed(1)
+      : "0.0";
+
   // Base Net Surplus before carryover
   const netSurplus = data ? data.total_income - livingExpenses : 0;
 
@@ -859,11 +877,67 @@ export default function ReportsPage() {
   const displayExpenses = data ? livingExpenses + (carryoverInr < 0 ? Math.abs(carryoverInr) : 0) : 0;
   const displayNet = netSurplus + carryoverInr;
 
-  const effectiveSavingsForRate = savingsGroupTotal > 0 ? savingsGroupTotal : (data ? data.savings : 0);
-  const displaySavingsRate =
-    data && displayIncome > 0
-      ? (((effectiveSavingsForRate + carryoverInr) / displayIncome) * 100).toFixed(1)
-      : "0.0";
+  const [year, mon] = month.split("-").map(Number);
+
+  // Hook to fetch cash flow history YTD
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ["cash-flow-history", year, mon],
+    queryFn: async () => {
+      const promises = [];
+      for (let m = 1; m <= mon; m++) {
+        const monthStr = `${year}-${String(m).padStart(2, "0")}`;
+        promises.push(
+          dashboardApi.getCashFlow(monthStr).catch(() => ({
+            month: monthStr,
+            total_income: 0,
+            total_expenses: 0,
+            savings: 0,
+            income_sources: [],
+            expense_groups: [],
+          }))
+        );
+      }
+      return Promise.all(promises);
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const trendData = useMemo(() => {
+    if (!historyData) return [];
+    return historyData.map((d: any) => {
+      const sGroup = d.expense_groups.find(
+        (g: any) => g.group_name.toLowerCase() === "savings"
+      );
+      const sGroupTotal = sGroup ? sGroup.total : 0;
+      const livExp = d.total_expenses - sGroupTotal;
+      const actSav = d.total_income - livExp;
+      const rate = d.total_income > 0 ? (actSav / d.total_income) * 100 : 0;
+
+      // Extract month name (e.g. "2026-01" -> "Jan")
+      const dateParts = d.month.split("-").map(Number);
+      const monthName = new Date(dateParts[0], dateParts[1] - 1).toLocaleDateString("en-US", { month: "short" });
+
+      return {
+        month: monthName,
+        rawMonth: d.month,
+        income: d.total_income,
+        savings: actSav,
+        savingsRate: parseFloat(rate.toFixed(1)),
+      };
+    });
+  }, [historyData]);
+
+  const ytdMetrics = useMemo(() => {
+    if (!trendData || trendData.length === 0) return { avgRate: "0.0", totalIncome: 0, totalSavings: 0 };
+    let totalIncome = 0;
+    let totalSavings = 0;
+    for (const d of trendData) {
+      totalIncome += d.income;
+      totalSavings += d.savings;
+    }
+    const avgRate = totalIncome > 0 ? ((totalSavings / totalIncome) * 100).toFixed(1) : "0.0";
+    return { avgRate, totalIncome, totalSavings };
+  }, [trendData]);
 
   return (
     <div className="p-6 space-y-6">
@@ -906,6 +980,96 @@ export default function ReportsPage() {
             <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
           </div>
         ))}
+      </div>
+
+      {/* Trend & YTD Chart */}
+      <div className="grid grid-cols-1 gap-6">
+        <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 select-none">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                Savings Rate Trend (YTD)
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Month-by-month cash savings rate vs. YTD target
+              </p>
+            </div>
+            <div className="flex items-center gap-4 bg-muted/30 px-4 py-2.5 rounded-2xl border border-border/40 select-none">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold block">
+                  YTD Savings Rate
+                </span>
+                <span className="text-xl font-bold text-positive">
+                  {ytdMetrics.avgRate}%
+                </span>
+              </div>
+              <div className="w-px h-8 bg-border/60" />
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-bold flex items-center gap-0.5 select-none">
+                  Total YTD Saved
+                  <Info className="w-3 h-3 text-muted-foreground/60" title="Includes total net surplus and savings group envelope allocations since January." />
+                </span>
+                <span className="text-xl font-bold text-foreground">
+                  {fmt(ytdMetrics.totalSavings)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {historyLoading ? (
+            <Skeleton className="h-64 w-full" />
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={trendData}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.3} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="var(--muted-foreground)"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    }}
+                    formatter={(value: any) => [`${value}%`, "Savings Rate"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="savingsRate"
+                    stroke="var(--chart-2)"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorSavings)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sankey */}
