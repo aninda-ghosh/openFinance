@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Search, X, Edit2, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,9 @@ import {
 } from "@/components/ui/dialog";
 import TransactionForm from "@/components/TransactionForm";
 import { cn } from "@/lib/utils";
-import { useAccounts, useTransactions, useEnvelopes, useDeleteTransaction } from "@/modules/budget/hooks/useBudget";
+import { useAccounts, useTransactions, useEnvelopes, useDeleteTransaction, useExchangeRates } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
+import { formatCurrency } from "@openfinance/shared/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,14 +40,24 @@ const EMPTY: Filters = { page: 1, limit: 50 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(amount: number, type: string) {
-  const sign = type === "income" ? "+" : type === "expense" ? "-" : "";
-  return `${sign}$${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmt(amount: number, type: string, currency: string, payee?: string) {
+  let sign = "";
+  if (type === "income") {
+    sign = "+";
+  } else if (type === "expense") {
+    sign = "−";
+  } else if (type === "transfer") {
+    if (payee === "Transfer in") {
+      sign = "+";
+    } else if (payee === "Transfer out") {
+      sign = "−";
+    }
+  }
+  return `${sign}${formatCurrency(amount, currency as any)}`;
 }
 
-function fmtBalance(amount: number) {
-  const sign = amount < 0 ? "-" : "";
-  return `${sign}$${Math.abs(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function fmtBalance(amount: number, currency: string) {
+  return formatCurrency(amount, currency as any);
 }
 
 function typeColor(type: string) {
@@ -278,6 +289,8 @@ export default function TransactionsPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [editingTxn, setEditingTxn] = useState<any | null>(null);
 
+  const { defaultCurrency } = useAppStore();
+  const { data: rates = {} } = useExchangeRates();
   const { data, isLoading, isError } = useTransactions(filters as any);
   const txns = (data as any)?.transactions ?? [];
   const total = (data as any)?.total ?? 0;
@@ -422,8 +435,9 @@ export default function TransactionsPage() {
                   {items.map((txn: any) => {
                     const isCredit = txn.type === "income" || (txn.type === "transfer" && txn.payee === "Transfer in");
                     const amtColor = isCredit ? "text-positive" : "text-negative";
-                    const sign = isCredit ? "+" : "−";
                     const acctName = accountMap[txn.account_id] ?? "—";
+                    const currency = accountCurrencyMap[txn.account_id] ?? "INR";
+                    const showConverted = currency !== defaultCurrency;
                     return (
                       <div
                         key={txn.id}
@@ -466,10 +480,15 @@ export default function TransactionsPage() {
 
                         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 select-none">
                           <span className={cn("text-sm font-bold tabular-nums", amtColor)}>
-                            {sign}${txn.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {fmt(txn.amount, txn.type, currency, txn.payee)}
                           </span>
-                          <span className="text-[10px] text-muted-foreground/75 font-bold tabular-nums">
-                            {fmtBalance(runningBalances[txn.id] ?? 0)}
+                          {showConverted && (
+                            <span className="text-[10px] text-muted-foreground/60 font-semibold tabular-nums">
+                              ≈ {fmt(txn.amount * (rates[currency] ?? 1), txn.type, defaultCurrency, txn.payee)}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground/75 font-bold tabular-nums mt-0.5">
+                            {fmtBalance(runningBalances[txn.id] ?? 0, currency)}
                           </span>
                         </div>
                       </div>
@@ -498,15 +517,18 @@ export default function TransactionsPage() {
               </tr>
             </thead>
             <tbody>
-              {txns.map((txn: any, i: number) => (
-                <tr
-                  key={txn.id}
-                  onClick={() => setEditingTxn(txn)}
-                  className={cn(
-                    "border-b border-border/50 hover:bg-muted/30 hover:text-foreground transition-all duration-150 cursor-pointer group select-none",
-                    i % 2 === 0 ? "" : "bg-muted/10"
-                  )}
-                >
+              {txns.map((txn: any, i: number) => {
+                const currency = accountCurrencyMap[txn.account_id] ?? "INR";
+                const showConverted = currency !== defaultCurrency;
+                return (
+                  <tr
+                    key={txn.id}
+                    onClick={() => setEditingTxn(txn)}
+                    className={cn(
+                      "border-b border-border/50 hover:bg-muted/30 hover:text-foreground transition-all duration-150 cursor-pointer group select-none",
+                      i % 2 === 0 ? "" : "bg-muted/10"
+                    )}
+                  >
                   <td className="px-6 py-2.5 text-muted-foreground tabular-nums">
                     {txn.date}
                   </td>
@@ -541,16 +563,25 @@ export default function TransactionsPage() {
                   <td className="px-4 py-2.5">
                     <TypeBadge type={txn.type} />
                   </td>
-                  <td
-                    className={cn(
-                      "px-6 py-2.5 text-right font-medium tabular-nums",
-                      typeColor(txn.type)
+                  <td className="px-6 py-2.5 text-right tabular-nums">
+                    <span className={cn("font-medium block", typeColor(txn.type))}>
+                      {fmt(txn.amount, txn.type, currency, txn.payee)}
+                    </span>
+                    {showConverted && (
+                      <span className="text-[10px] text-muted-foreground block font-medium">
+                        ≈ {fmt(txn.amount * (rates[currency] ?? 1), txn.type, defaultCurrency, txn.payee)}
+                      </span>
                     )}
-                  >
-                    {fmt(txn.amount, txn.type)}
                   </td>
-                  <td className="px-6 py-2.5 text-right font-semibold tabular-nums text-foreground/80">
-                    {fmtBalance(runningBalances[txn.id] ?? 0)}
+                  <td className="px-6 py-2.5 text-right tabular-nums">
+                    <span className="font-semibold text-foreground/80 block">
+                      {fmtBalance(runningBalances[txn.id] ?? 0, currency)}
+                    </span>
+                    {showConverted && (
+                      <span className="text-[10px] text-muted-foreground block font-medium">
+                        ≈ {fmtBalance((runningBalances[txn.id] ?? 0) * (rates[currency] ?? 1), defaultCurrency)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-2.5 text-right w-24" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2 justify-end opacity-70 group-hover:opacity-100 transition-opacity">
@@ -586,7 +617,8 @@ export default function TransactionsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

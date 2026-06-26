@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.2] — 2026-06-26
+
+### Added
+
+- **Mobile Navigation Drawer (More Menu).** Added a slide-out navigation sheet on mobile devices under a new "More" tab, making all left-sidebar tabs (Net Worth, Accounts, Documents, AI Chat, Help & FAQ, Settings) fully accessible on mobile layouts.
+
+### Changed
+
+- **Slab phone layout optimization.** Removed the converted running balance line from mobile transaction cards to save vertical space and prevent layout wrapping in narrow vertical screens.
+
+### Fixed
+
+- **Currency-Aware Transactions Tab.** Updated the Transactions page to display transaction amounts and running balances in the account's native currency (e.g. INR for Indian accounts, showing `₹` symbol) instead of hardcoding a `$` prefix. Also displays the converted default currency (e.g. `≈ $6.87` USD) underneath when the currencies differ.
+- **Dynamic Conversion on Budget page.** Fixed a bug where INR income transactions on the Budget page were aggregated as raw numbers into the USD-based total (showing e.g. `$649.00` instead of `$6.87`). It now correctly converts the transactions using active exchange rates before formatting them in your base display currency.
+- **Envelope row highlight ergonomics.** Enhanced envelope rows on the Budget page to highlight the entire row as bold (`font-semibold`) and fully readable on hover.
+- **Persistent envelope actions.** Changed envelope action buttons (Edit, Return to Pool, Delete) on the Budget page to be permanently visible at `opacity-70` (lighting up to `opacity-100` on hover) instead of only appearing on row hover.
+
 ## [4.1.0] — 2026-06-12
 
 ### Added
