@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
+import { convertFromINR, convertToINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   CalendarClock,
   ChevronDown,
@@ -628,10 +628,7 @@ function BudgetTable({
   >(
     (acc, t: any) => {
       const cat: IncomeGroup = t.income_category ?? "income";
-      const inr =
-        t.currency && t.currency !== "INR"
-          ? t.amount * (rates[t.currency] ?? 1)
-          : t.amount;
+      const inr = convertToINR(t.amount, t.currency as any, rates);
       acc[cat][t.payee] = (acc[cat][t.payee] ?? 0) + inr;
       return acc;
     },
@@ -768,10 +765,10 @@ function BudgetTable({
                     return (
                       <tr
                         key={env.id}
-                        className="border-t border-border/30 hover:bg-muted/10 group/env transition-colors"
+                        className="border-t border-border/30 hover:bg-muted/10 group/env text-muted-foreground/80 hover:text-foreground transition-all duration-150"
                       >
                         <td
-                          className="px-4 py-2 pl-10 text-sm cursor-pointer hover:text-primary hover:underline underline-offset-2"
+                          className="px-4 py-2 pl-10 text-sm cursor-pointer hover:text-primary hover:underline underline-offset-2 group-hover/env:font-semibold transition-all duration-150"
                           onClick={() =>
                             setDrillEnvelope({
                               id: env.id,
@@ -814,7 +811,7 @@ function BudgetTable({
                             </div>
                           ) : (
                             <span
-                              className="cursor-pointer hover:underline hover:text-primary transition-colors"
+                              className="cursor-pointer hover:underline hover:text-primary transition-all duration-150 group-hover/env:font-semibold"
                               title={
                                 hasForeignCurrency
                                   ? `${env.budgeted} ${env.budget_currency} — click to edit`
@@ -832,7 +829,7 @@ function BudgetTable({
                           )}
                         </td>
                         <td
-                          className={`px-4 py-2 text-right tabular-nums cursor-pointer hover:opacity-75 ${env.spent > 0 ? "text-negative" : env.spent < 0 ? "text-positive" : "text-muted-foreground"}`}
+                          className={`px-4 py-2 text-right tabular-nums cursor-pointer hover:opacity-75 transition-all duration-150 group-hover/env:font-semibold ${env.spent > 0 ? "text-negative" : env.spent < 0 ? "text-positive" : "text-muted-foreground/80 group-hover/env:text-foreground"}`}
                           onClick={() =>
                             setDrillEnvelope({
                               id: env.id,
@@ -849,12 +846,12 @@ function BudgetTable({
                               : "—"}
                         </td>
                         <td
-                          className={`px-4 py-2 text-right tabular-nums ${balance < 0 ? "text-negative font-medium" : balance === 0 ? "text-muted-foreground" : ""}`}
+                          className={`px-4 py-2 text-right tabular-nums transition-all duration-150 group-hover/env:font-semibold ${balance < 0 ? "text-negative" : balance === 0 ? "text-muted-foreground/80 group-hover/env:text-foreground" : ""}`}
                         >
                           {fmtBudget(balance)}
                         </td>
                         <td className="px-2">
-                          <div className="flex gap-0.5 justify-end opacity-0 group-hover/env:opacity-100 transition-opacity">
+                          <div className="flex gap-0.5 justify-end opacity-70 hover:opacity-100 transition-opacity">
                             {balance > 0 && (
                               <ConfirmDialog
                                 trigger={
