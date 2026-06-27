@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.4] — 2026-06-26
+
+### Added
+
+- **Remote Deployment Script.** Added `scripts/deploy-remote.sh` which compiles local code, builds Docker images on the host, packages and streams them directly into the remote server's Docker engine via SSH, copies configuration files safely, and restarts containers. Uses SSH ControlMaster to prompt for the password exactly once.
+- **Production Compose File.** Added `docker-compose.prod.yml` template allowing users to deploy and run pre-built public Docker images from GHCR without cloning the codebase.
+- **CI/CD Workflow.** Added a GitHub Actions workflow `.github/workflows/docker-publish.yml` that runs linting, compiler typechecks, and tests on push/PR, and publishes multi-architecture (AMD64 & ARM64) Docker images to GHCR on tags.
+
+### Changed
+
+- **Extracted Dockerfiles.** Extracted inline Docker build scripts from `docker-compose.yml` into separate dedicated files: `apps/server/Dockerfile` and `apps/desktop/Dockerfile` to enable clean CI/CD orchestration.
+- **README documentation.** Updated `README.md` to reflect the separate Dockerfile structure, add CI/CD status validation instructions, and include instructions on deploying pre-built images.
+
+---
+
 ## [4.1.3] — 2026-06-26
 
 ### Removed
