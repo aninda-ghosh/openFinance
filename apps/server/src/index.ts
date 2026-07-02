@@ -244,6 +244,7 @@ await sql`
 // Incremental column additions
 await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transfer_pair_id TEXT`;
 await sql`ALTER TABLE investments ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id)`;
+await sql`ALTER TABLE investments ADD COLUMN IF NOT EXISTS maturity_date TEXT`;
 await sql`ALTER TABLE policies ADD COLUMN IF NOT EXISTS account_id TEXT REFERENCES accounts(id)`;
 await sql`ALTER TABLE policies ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'INR'`;
 

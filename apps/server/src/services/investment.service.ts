@@ -52,6 +52,7 @@ function toInvestmentResponse(
     current_value_at: row.current_value_at ?? null,
     notes: row.notes ?? null,
     account_id: row.account_id ?? null,
+    maturity_date: row.maturity_date ?? null,
     created_at: row.created_at ?? "",
     updated_at: row.updated_at ?? "",
   };

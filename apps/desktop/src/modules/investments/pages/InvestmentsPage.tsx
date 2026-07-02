@@ -560,6 +560,7 @@ const EMPTY_FORM = {
   units: "",
   notes: "",
   account_id: "",
+  maturity_date: "",
 };
 
 function InvestmentFormDialog({
@@ -608,6 +609,7 @@ function InvestmentFormDialog({
       units: form.units ? parseFloat(form.units) : undefined,
       notes: form.notes || undefined,
       account_id: form.account_id || null,
+      maturity_date: form.maturity_date || null,
     });
     setOpen(false);
   };
@@ -710,23 +712,22 @@ function InvestmentFormDialog({
             </p>
           )}
 
-          <div>
-            <Label>Parent Account</Label>
-            <select
-              value={form.account_id || ""}
-              onChange={set("account_id")}
-              className={sel}
-            >
-              <option value="">No parent account (Standalone)</option>
-              {parentAccounts.map((a: any) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} ({a.currency})
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Parent Account</Label>
+              <select
+                value={form.account_id || ""}
+                onChange={set("account_id")}
+                className={sel}
+              >
+                <option value="">No parent account (Standalone)</option>
+                {parentAccounts.map((a: any) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.currency})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <Label>
                 Units{" "}
@@ -742,12 +743,29 @@ function InvestmentFormDialog({
                 className="mt-1"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Purchase Date</Label>
               <Input
                 type="date"
                 value={form.purchase_date}
                 onChange={set("purchase_date")}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>
+                Maturity Date{" "}
+                <span className="text-muted-foreground text-xs">
+                  (optional)
+                </span>
+              </Label>
+              <Input
+                type="date"
+                value={form.maturity_date || ""}
+                onChange={set("maturity_date")}
                 className="mt-1"
               />
             </div>
@@ -860,6 +878,18 @@ function InvestmentHistorySheet({
               </p>
             </div>
           </div>
+          {inv?.maturity_date && (() => {
+            const isMatured = new Date(inv.maturity_date) <= new Date();
+            return (
+              <div className="mt-3 flex items-center gap-1 text-xs select-none">
+                <span className="text-muted-foreground">Maturity:</span>
+                <span className={`font-semibold ${isMatured ? "text-muted-foreground line-through" : "text-amber-600 dark:text-amber-400 animate-pulse-subtle"}`}>
+                  {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: "long" })}
+                </span>
+                {isMatured && <span className="text-[10px] uppercase font-bold text-muted-foreground/75 px-1.5 py-0.5 rounded bg-muted">Matured</span>}
+              </div>
+            );
+          })()}
         </SheetHeader>
 
         <div className="flex border-b px-6 bg-muted/10 flex-shrink-0">
@@ -1018,12 +1048,49 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
 
   const [groupByType, setGroupByType] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [sortBy, setSortBy] = useState<
+    "name" | "purchase_date_desc" | "purchase_date_asc" | "maturity_date_asc" | "maturity_date_desc" | "value_desc" | "gain"
+  >("name");
+
+  const compareMaturityDates = (a: InvestmentResponse, b: InvestmentResponse, ascending: boolean) => {
+    const dateA = a.maturity_date;
+    const dateB = b.maturity_date;
+    if (!dateA && !dateB) return a.name.localeCompare(b.name);
+    if (!dateA) return 1; // place nulls at the end
+    if (!dateB) return -1; // place nulls at the end
+    const cmp = dateA.localeCompare(dateB);
+    return ascending ? cmp : -cmp;
+  };
+
+  const sortedInvestments = useMemo(() => {
+    if (!data?.investments) return [];
+    return [...data.investments].sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "purchase_date_desc":
+          return b.purchase_date.localeCompare(a.purchase_date);
+        case "purchase_date_asc":
+          return a.purchase_date.localeCompare(b.purchase_date);
+        case "maturity_date_asc":
+          return compareMaturityDates(a, b, true);
+        case "maturity_date_desc":
+          return compareMaturityDates(a, b, false);
+        case "value_desc":
+          return b.current_value_inr - a.current_value_inr;
+        case "gain":
+          return b.gain_loss_inr - a.gain_loss_inr;
+        default:
+          return 0;
+      }
+    });
+  }, [data?.investments, sortBy]);
 
   const groupedInvestments = useMemo(() => {
-    if (!data?.investments) return [];
+    if (!sortedInvestments) return [];
 
     const groups: Record<string, InvestmentResponse[]> = {};
-    data.investments.forEach((inv) => {
+    sortedInvestments.forEach((inv) => {
       const type = inv.asset_type || "other";
       if (!groups[type]) groups[type] = [];
       groups[type].push(inv);
@@ -1048,7 +1115,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
       const labelB = ASSET_LABELS[b.type] ?? b.type;
       return labelA.localeCompare(labelB);
     });
-  }, [data?.investments]);
+  }, [sortedInvestments]);
 
   const toggleGroup = (type: string) => {
     setCollapsedGroups((prev) => ({
@@ -1393,31 +1460,50 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
       ) : (
         <div className="space-y-4">
           {/* Custom premium toggle bar */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">Holdings</h2>
-            <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border/30 backdrop-blur-sm shadow-sm select-none">
-              <button
-                onClick={() => setGroupByType(true)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
-                  groupByType
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Layers className="w-3 h-3" />
-                Group by Type
-              </button>
-              <button
-                onClick={() => setGroupByType(false)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
-                  !groupByType
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <List className="w-3 h-3" />
-                Flat List
-              </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-muted-foreground font-medium select-none">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e: any) => setSortBy(e.target.value)}
+                  className="bg-background border rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-ring select-none"
+                >
+                  <option value="name">Name (A-Z)</option>
+                  <option value="purchase_date_desc">Purchase Date (Newest)</option>
+                  <option value="purchase_date_asc">Purchase Date (Oldest)</option>
+                  <option value="maturity_date_asc">Maturity Soonest</option>
+                  <option value="maturity_date_desc">Maturity Furthest</option>
+                  <option value="value_desc">Current Value (High)</option>
+                  <option value="gain">Gain / Loss (High)</option>
+                </select>
+              </div>
+
+              <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border/30 backdrop-blur-sm shadow-sm select-none">
+                <button
+                  onClick={() => setGroupByType(true)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
+                    groupByType
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Layers className="w-3 h-3" />
+                  Group by Type
+                </button>
+                <button
+                  onClick={() => setGroupByType(false)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
+                    !groupByType
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <List className="w-3 h-3" />
+                  Flat List
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1528,6 +1614,15 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                     {inv.units} units
                                   </div>
                                 )}
+                                {inv.maturity_date && (() => {
+                                  const isMatured = new Date(inv.maturity_date) <= new Date();
+                                  return (
+                                    <div className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+                                      {isMatured ? "Matured: " : "Matures: "}
+                                      {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                                    </div>
+                                  );
+                                })()}
                                 {inv.current_value_at && (
                                   <div className="text-xs text-muted-foreground/80 mt-0.5">
                                     Updated{" "}
@@ -1588,6 +1683,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                       units: inv.units != null ? String(inv.units) : "",
                                       notes: inv.notes ?? "",
                                       account_id: inv.account_id ?? "",
+                                      maturity_date: inv.maturity_date ?? "",
                                     }}
                                     onSubmit={(data) =>
                                       updateInv(
@@ -1648,7 +1744,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                     );
                   })
                 ) : (
-                  data.investments.map((inv) => (
+                  sortedInvestments.map((inv) => (
                     <tr
                       key={inv.id}
                       className="hover:bg-muted/20 transition-colors cursor-pointer border-b last:border-b-0"
@@ -1685,6 +1781,15 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                             {inv.units} units
                           </div>
                         )}
+                        {inv.maturity_date && (() => {
+                          const isMatured = new Date(inv.maturity_date) <= new Date();
+                          return (
+                            <div className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
+                              {isMatured ? "Matured: " : "Matures: "}
+                              {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                            </div>
+                          );
+                        })()}
                         {inv.current_value_at && (
                           <div className="text-xs text-muted-foreground">
                             Updated{" "}
@@ -1745,6 +1850,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                               units: inv.units != null ? String(inv.units) : "",
                               notes: inv.notes ?? "",
                               account_id: inv.account_id ?? "",
+                              maturity_date: inv.maturity_date ?? "",
                             }}
                             onSubmit={(data) =>
                               updateInv(

@@ -32,6 +32,7 @@ export type InvestmentResponse = {
   current_value_at: string | null;
   notes: string | null;
   account_id: string | null;
+  maturity_date: string | null;
   created_at: string;
   updated_at: string;
 };
