@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.5] — 2026-07-02
+
+### Added
+
+- **Investment Maturity & Payout Dates.** Added maturity date support to the database and UI, allowing users to enter and store optional maturity or payout dates for investments (useful for FDs, bonds, structured notes, etc.).
+- **Sorting by Maturity Date & Fields.** Added interactive sorting controls to the holdings view. Users can now sort investments (both in the flat list and within grouped lists) by Name, Purchase Date, Maturity Date (Soonest first/Furthest first), Current Value, or Gain/Loss.
+- **Maturity Indicators & Status.** Added real-time coloring and text status indicators under investment names in the list (e.g. *"Matures: [date]"* or *"Matured: [date]"*) and details sheet.
+
+---
+
 ## [4.1.4] — 2026-06-26
 
 ### Added

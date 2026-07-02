@@ -128,6 +128,7 @@ export const investments = pgTable("investments", {
   current_value_at: text("current_value_at"),
   notes: text("notes"),
   account_id: text("account_id").references(() => accounts.id),
+  maturity_date: text("maturity_date"),
   created_at: text("created_at").$defaultFn(now),
   updated_at: text("updated_at").$defaultFn(now),
 });

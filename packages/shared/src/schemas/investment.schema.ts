@@ -26,6 +26,11 @@ export const CreateInvestmentSchema = z.object({
   current_value_at: z.string().date().optional(),
   notes: z.string().optional(),
   account_id: z.string().nullable().optional(),
+  maturity_date: z
+    .string()
+    .date("Date must be ISO format YYYY-MM-DD")
+    .nullable()
+    .optional(),
 });
 
 export const UpdateInvestmentSchema = z.object({
@@ -43,4 +48,9 @@ export const UpdateInvestmentSchema = z.object({
   units: z.number().positive().optional(),
   notes: z.string().optional(),
   account_id: z.string().nullable().optional(),
+  maturity_date: z
+    .string()
+    .date("Date must be ISO format YYYY-MM-DD")
+    .nullable()
+    .optional(),
 });
