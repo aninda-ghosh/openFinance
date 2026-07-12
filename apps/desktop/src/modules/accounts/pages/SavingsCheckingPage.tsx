@@ -460,7 +460,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
   }, [liquidAccounts]);
 
   return (
-    <div className={embed ? "space-y-6 w-full" : "p-4 md:p-6 space-y-6 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"}>
+    <div className={embed ? "space-y-3 w-full" : "p-4 md:p-6 space-y-6 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"}>
       {embed ? (
         <div className="flex justify-end items-center">
           <AccountFormDialog
@@ -506,53 +506,55 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
       )}
 
       {/* Aggregate Balance Dashboard Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent ">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Total Liquid Balances
-              </span>
-              <div className="p-1 rounded bg-primary/10 text-primary">
-                <Landmark className="w-3.5 h-3.5" />
+      {!embed && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent ">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Total Liquid Balances
+                </span>
+                <div className="p-1 rounded bg-primary/10 text-primary">
+                  <Landmark className="w-3.5 h-3.5" />
+                </div>
               </div>
-            </div>
-            {isLoading ? (
-              <Skeleton className="h-7 w-28 mt-2" />
-            ) : (
-              <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
-                {fmt(totalInr)}
+              {isLoading ? (
+                <Skeleton className="h-7 w-28 mt-2" />
+              ) : (
+                <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
+                  {fmt(totalInr)}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Calculated across on-budget checking, savings, and cash
               </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Calculated across on-budget checking, savings, and cash
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent ">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                On-Budget Envelope Total
-              </span>
-              <div className="p-1 rounded bg-primary/10 text-primary">
-                <Wallet className="w-3.5 h-3.5" />
+          <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent ">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  On-Budget Envelope Total
+                </span>
+                <div className="p-1 rounded bg-primary/10 text-primary">
+                  <Wallet className="w-3.5 h-3.5" />
+                </div>
               </div>
-            </div>
-            {isLoading ? (
-              <Skeleton className="h-7 w-28 mt-2" />
-            ) : (
-              <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
-                {fmt(onBudgetInr)}
+              {isLoading ? (
+                <Skeleton className="h-7 w-28 mt-2" />
+              ) : (
+                <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
+                  {fmt(onBudgetInr)}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Available for envelope budgeting
               </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Available for envelope budgeting
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Cash & Checking breakdown */}
       {!isLoading && liquidAccounts.length > 0 && donutData.length > 0 && (
@@ -681,7 +683,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
                 onClick={() => setSelectedAccount(a)}
                 className="group relative cursor-pointer overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent"
               >
-                <CardContent className="pt-4 pb-4 px-4 flex items-center justify-between gap-4 h-full relative">
+                <CardContent className="p-3 flex items-center justify-between gap-4 h-full relative">
                   {/* Left: Account Info */}
                   <div className="min-w-0 flex-1">
                     <h3 className="font-semibold text-sm truncate text-foreground/90 group-hover:text-primary transition-colors pr-6">
@@ -710,7 +712,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
 
                   {/* Right: Amount & Base conversion */}
                   <div className="text-right flex-shrink-0 flex flex-col justify-center items-end">
-                    <p className="text-base font-bold tabular-nums text-foreground/90 leading-none">
+                    <p className="text-sm font-bold tabular-nums text-foreground/90 leading-none">
                       {displayBal}
                     </p>
                     {!isBase && (

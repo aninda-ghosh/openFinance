@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.1.6] — 2026-07-11
+
+### Added
+
+- **Responsive Card-Based Budget View on Mobile.** Refactored the budget tables on screens under 768px to render as clean, expandable category cards with nested row details.
+- **Symmetrical Layout Columns.** Aligned all mobile budget progress tracks, inline action buttons, and balance badges into rigid vertical columns to prevent layout shifting.
+- **Proportional Typographic Scaling.** Implemented proportional font size overrides on mobile viewports to ensure a balanced, readable typographic scale across all pages.
+
+### Changed
+
+- **Standardized Navigation & Defaults.** Changed default redirect route to `/budget` and refactored the bottom navigation bar to focus on Budget, Accounts, Cash Flow, and More.
+- **Deduplicated Dashboard Widgets**: Hides redundant aggregate balance cards inside checking and savings lists when they are embedded inside the main accounts dashboard.
+- **Compact Accounts Visuals**: Redesigned the main balance sheet widgets into a 3-column horizontal grid on mobile to save vertical real estate.
+
+---
+
 ## [4.1.5] — 2026-07-02
 
 ### Added

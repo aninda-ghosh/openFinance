@@ -1023,14 +1023,14 @@ export default function ReportsPage() {
   }, [trendData]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Cash Flow</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Cash Flow</h1>
         <MonthPicker value={month} onChange={setMonth} />
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           {
             label: carryoverInr > 0 ? "Total Income + Carryover" : "Total Income",
@@ -1055,12 +1055,12 @@ export default function ReportsPage() {
         ].map((card) => (
           <div
             key={card.label}
-            className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-3xl bg-card p-5 border border-border/80 border-b-2 border-b-border/95 shadow-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 hover:shadow-md hover:border-primary/30 space-y-1"
+            className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent rounded-2xl bg-card p-3.5 md:p-5 border border-border/80 border-b border-b-border/90 shadow-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 hover:shadow-md hover:border-primary/30 space-y-0.5"
           >
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+            <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide truncate">
               {card.label}
             </p>
-            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+            <p className={`text-xl md:text-2xl font-extrabold tabular-nums tracking-tight ${card.color}`}>{card.value}</p>
           </div>
         ))}
       </div>

@@ -90,7 +90,7 @@ function AppContent() {
           <Routes>
             <Route
               path="/"
-              element={<Navigate to="/dashboard" replace />}
+              element={<Navigate to="/budget" replace />}
             />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/reports" element={<ReportsPage />} />

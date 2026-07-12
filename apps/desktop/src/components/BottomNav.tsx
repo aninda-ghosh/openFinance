@@ -22,9 +22,8 @@ import {
 } from "@/components/ui/sheet";
 
 const TABS = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/budget", label: "Budget", icon: Wallet },
-  { to: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+  { to: "/accounts", label: "Accounts", icon: Landmark },
   { to: "/reports", label: "Cash Flow", icon: BarChart2 },
 ];
 
@@ -65,7 +64,7 @@ export function BottomNav() {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const mainRoutes = ["/dashboard", "/budget", "/transactions", "/reports"];
+  const mainRoutes = ["/budget", "/accounts", "/reports"];
   const isMoreActive = !mainRoutes.includes(location.pathname);
 
   return (

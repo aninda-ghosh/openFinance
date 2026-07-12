@@ -13,7 +13,8 @@ import {
   Trash2,
   TrendingUp,
 } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -656,6 +657,385 @@ function BudgetTable({
     setEditingBudget(null);
   };
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 768px)");
+    setIsMobile(media.matches);
+    const listener = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+
+  if (isMobile) {
+    return (
+      <div className="space-y-3">
+        {groupedEnvelopes.map(({ group, envelopes }) => {
+          const isCollapsed = collapsed.has(group.id);
+          const totalBudgeted = envelopes.reduce(
+            (s, e) => s + (e.budgeted_inr ?? e.budgeted),
+            0
+          );
+          const totalSpent = envelopes.reduce((s, e) => s + e.spent, 0);
+          const totalBalance = totalBudgeted - totalSpent;
+          const spentPercent = totalBudgeted > 0 ? Math.min(100, (totalSpent / totalBudgeted) * 100) : 0;
+
+          return (
+            <div
+              key={group.id}
+              className="bg-card rounded-2xl border border-border/80 border-b border-b-border/90 shadow-sm overflow-hidden"
+            >
+              {/* Group Header Card */}
+              <div
+                className="relative py-2.5 px-3 bg-muted/10 hover:bg-muted/20 cursor-pointer transition-colors"
+                onClick={() => toggleGroup(group.id)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  {/* Left: Chevron + Name & Spent Subtext */}
+                  <div className="min-w-0 flex-1 flex items-center gap-2">
+                    {isCollapsed ? (
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-xs text-foreground block truncate">
+                        {group.name}
+                      </span>
+                      <span className="text-[9.5px] text-muted-foreground mt-0.5 block font-semibold">
+                        Spent {fmtBudget(totalSpent)} of {fmtBudget(totalBudgeted)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right: Actions and Balance aligned to columns */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Actions: w-[72px] matching items below */}
+                    <div className="w-[72px] flex justify-end items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <EnvelopeFormDialog
+                        title="Add Envelope"
+                        trigger={
+                          <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                            <PlusCircle className="w-3.5 h-3.5" />
+                          </button>
+                        }
+                        isPending={creatingEnv}
+                        selectedMonth={selectedMonth}
+                        groups={groups}
+                        initial={{ name: "", budgeted: 0, group_id: group.id }}
+                        onSubmit={(data) =>
+                          createEnvelope(data as any, {
+                            onSuccess: () => toast.success("Envelope added"),
+                            onError: (e) => toast.error(e.message),
+                          })
+                        }
+                      />
+                      <ConfirmDialog
+                        trigger={
+                          <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        }
+                        title={`Delete "${group.name}"?`}
+                        description="This will permanently delete this category and all its envelopes. Transactions will be uncategorised."
+                        onConfirm={() =>
+                          deleteGroup(group.id, {
+                            onSuccess: () => toast.success("Category deleted"),
+                            onError: (e) => toast.error(e.message),
+                          })
+                        }
+                      />
+                    </div>
+
+                    {/* Balance: w-[76px] matching items below */}
+                    <div className="w-[76px] flex justify-end items-baseline gap-0.5 flex-shrink-0">
+                      <span className={cn(
+                        "text-xs font-bold tabular-nums",
+                        totalBalance < 0 ? "text-negative" : totalBalance > 0 ? "text-positive" : "text-muted-foreground"
+                      )}>
+                        {fmtBudget(totalBalance)}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground font-semibold">left</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar line at the bottom of the header */}
+                {totalBudgeted > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-muted/20 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full transition-all duration-300",
+                        totalSpent > totalBudgeted ? "bg-negative" : "bg-primary"
+                      )}
+                      style={{ width: `${spentPercent}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Envelope List */}
+              {!isCollapsed && (
+                <div className="divide-y divide-border/30 border-t border-border/40 bg-card/30">
+                  {envelopes.map((env) => {
+                    const budgetedInr = env.budgeted_inr ?? env.budgeted;
+                    const balance = budgetedInr - env.spent;
+                    const isEditing = editingBudget?.envId === env.id;
+                    const hasForeignCurrency = env.budget_currency && env.budget_currency !== "INR";
+                    const envSpentPercent = budgetedInr > 0 ? Math.min(100, (env.spent / budgetedInr) * 100) : 0;
+
+                    return (
+                      <div
+                        key={env.id}
+                        className="py-2.5 px-3 flex items-center justify-between gap-3 hover:bg-muted/5 transition-colors"
+                      >
+                        <div
+                          className="min-w-0 flex-1 cursor-pointer hover:text-primary transition-colors flex items-center gap-2"
+                          onClick={() =>
+                            setDrillEnvelope({
+                              id: env.id,
+                              name: env.name,
+                              spent: env.spent,
+                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                            })
+                          }
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold text-xs text-foreground block truncate">
+                              {env.name}
+                            </span>
+                            <span className="text-[9.5px] text-muted-foreground mt-0.5 block font-semibold">
+                              Spent {fmtBudget(env.spent)} of {fmtBudget(budgetedInr)}
+                            </span>
+                          </div>
+
+                          {budgetedInr > 0 && (
+                            <div className="w-10 h-1 bg-muted-foreground/25 rounded-full overflow-hidden flex-shrink-0">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-300",
+                                  env.spent > budgetedInr ? "bg-negative" : "bg-primary"
+                                )}
+                                style={{ width: `${envSpentPercent}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {/* Actions */}
+                          <div className="w-[72px] flex justify-end items-center gap-1 flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+                            {balance > 0 && (
+                              <ConfirmDialog
+                                trigger={
+                                  <button
+                                    title="Return leftover budget to global pool"
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-positive transition-colors"
+                                  >
+                                    <CornerUpLeft className="w-3 h-3" />
+                                  </button>
+                                }
+                                title={`Return ${fmtBudget(balance)} to pool?`}
+                                description={`The ${fmtBudget(balance)} left in "${env.name}" will be returned to your unassigned budget.`}
+                                confirmLabel="Return to pool"
+                                destructive={false}
+                                onConfirm={() =>
+                                  reclaimEnvelope(env.id, {
+                                    onSuccess: (r) =>
+                                      toast.success(
+                                        `Returned ${fmtBudget(r.reclaimed_inr)} to pool`
+                                      ),
+                                    onError: (e) => toast.error(e.message),
+                                  })
+                                }
+                              />
+                            )}
+                            <EnvelopeFormDialog
+                              title="Edit Envelope"
+                              trigger={
+                                <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              }
+                              initial={{
+                                name: env.name,
+                                budgeted: Math.max(0, env.budgeted),
+                                budget_currency: env.budget_currency,
+                                group_id: env.group_id,
+                              }}
+                              isPending={false}
+                              selectedMonth={selectedMonth}
+                              groups={groups}
+                              onSubmit={({
+                                name,
+                                budgeted,
+                                budget_currency,
+                                group_id,
+                              }) =>
+                                updateEnvelope(
+                                  {
+                                    id: env.id,
+                                    data: {
+                                      name,
+                                      budgeted,
+                                      budget_currency,
+                                      group_id,
+                                    },
+                                  },
+                                  {
+                                    onSuccess: () =>
+                                      toast.success("Envelope updated"),
+                                    onError: (e) => toast.error(e.message),
+                                  }
+                                )
+                              }
+                            />
+                            <ConfirmDialog
+                              trigger={
+                                <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              }
+                              title={`Delete "${env.name}"?`}
+                              description="This envelope will be removed. Transactions assigned to it will become uncategorised."
+                              onConfirm={() =>
+                                deleteEnvelope(env.id, {
+                                  onSuccess: () =>
+                                    toast.success("Envelope deleted"),
+                                  onError: (e) => toast.error(e.message),
+                                })
+                              }
+                            />
+                          </div>
+
+                          {/* Balance Badge */}
+                          <div className="w-[76px] flex justify-end items-center flex-shrink-0">
+                            {isEditing ? (
+                              <div className="flex items-center gap-1 w-full justify-end">
+                                {hasForeignCurrency && (
+                                  <span className="text-[10px] text-muted-foreground font-semibold flex-shrink-0">
+                                    {env.budget_currency}
+                                  </span>
+                                )}
+                                <input
+                                  type="number"
+                                  value={editingBudget?.value}
+                                  onChange={(e) =>
+                                    setEditingBudget({
+                                      envId: env.id,
+                                      value: e.target.value,
+                                    })
+                                  }
+                                  onBlur={() =>
+                                    saveBudget(env.id, editingBudget?.value ?? "")
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter")
+                                      saveBudget(env.id, editingBudget?.value ?? "");
+                                    if (e.key === "Escape")
+                                      setEditingBudget(null);
+                                  }}
+                                  className="w-14 text-right bg-background border rounded px-1 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary font-bold"
+                                  autoFocus
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                className="flex items-center gap-1 cursor-pointer w-full justify-end"
+                                onClick={() =>
+                                  setEditingBudget({
+                                    envId: env.id,
+                                    value: String(Math.max(0, env.budgeted)),
+                                  })
+                                }
+                              >
+                                <span className={cn(
+                                  "px-2 py-0.5 rounded-full text-[10px] font-bold tabular-nums flex-shrink-0 text-center min-w-[58px]",
+                                  balance < 0
+                                    ? "bg-negative/10 text-negative border border-negative/25"
+                                    : balance === 0
+                                      ? "bg-muted text-muted-foreground border border-transparent"
+                                      : "bg-positive/10 text-positive border border-positive/25"
+                                )}>
+                                  {fmtBudget(balance)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Mobile Income Breakdown Cards */}
+        <div className="mt-8 pt-4 border-t border-border/30 space-y-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground/80 select-none px-1 flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-positive" />
+            <span>Income (Compiled from Transactions)</span>
+          </p>
+          {INCOME_GROUPS.map(({ key, label }) => {
+            const byPayee = incomeByGroup[key];
+            const groupTotal = Object.values(byPayee).reduce((s, v) => s + v, 0);
+            const hasEntries = Object.keys(byPayee).length > 0;
+            const isGroupCollapsed = collapsed.has(`__income_${key}`);
+
+            return (
+              <div
+                key={key}
+                className="bg-card rounded-2xl border border-border/80 border-b-2 border-b-border/95 shadow-sm overflow-hidden"
+              >
+                <div
+                  className="p-4 bg-positive/5 hover:bg-positive/10 cursor-pointer transition-colors"
+                  onClick={() => hasEntries && toggleGroup(`__income_${key}`)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-sm text-positive">
+                      {hasEntries ? (
+                        isGroupCollapsed ? (
+                          <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 flex-shrink-0" />
+                        )
+                      ) : (
+                        <span className="w-4" />
+                      )}
+                      <span>{label}</span>
+                    </div>
+                    <span className="text-xs font-bold text-positive tabular-nums">
+                      {fmtBudget(groupTotal)}
+                    </span>
+                  </div>
+                </div>
+
+                {!isGroupCollapsed && hasEntries && (
+                  <div className="divide-y divide-border/30 border-t border-border/40 bg-card/30">
+                    {Object.entries(byPayee)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([payee, amount]) => (
+                        <div key={payee} className="p-3.5 flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground font-semibold">
+                            {payee}
+                          </span>
+                          <span className="text-xs font-semibold text-positive tabular-nums">
+                            {fmtBudget(amount)}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-3xl bg-card border border-border/80 border-b-2 border-b-border/95 shadow-sm transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1 hover:shadow-md hover:border-primary/30 overflow-hidden overflow-x-auto">
       <table className="w-full text-sm min-w-[500px]">
@@ -799,7 +1179,7 @@ function BudgetTable({
                                 }
                                 onBlur={() =>
                                    saveBudget(env.id, editingBudget?.value ?? "")
-                                }
+                                  }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter")
                                     saveBudget(env.id, editingBudget?.value ?? "");
@@ -1491,7 +1871,7 @@ export default function BudgetPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Budget</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Budget</h1>
           {summary && (
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <span>Income: </span>

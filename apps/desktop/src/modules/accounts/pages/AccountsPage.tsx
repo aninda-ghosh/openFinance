@@ -80,7 +80,7 @@ export default function AccountsPage() {
   const isLoading = accountsLoading || nwLoading;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-7xl mx-auto">
       {/* Page Header */}
       <div>
         <h1 className="text-xl md:text-2xl font-bold tracking-tight">Accounts & Balance Sheet</h1>
@@ -90,74 +90,74 @@ export default function AccountsPage() {
       </div>
 
       {/* Aggregate Stats Dashboard Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         {/* Total Assets */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardContent className="pt-4 pb-4">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm border border-border/80">
+          <CardContent className="p-2.5 md:p-4 flex flex-col justify-between h-full min-h-[64px] md:min-h-0">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Total Assets
+              <span className="text-[10.5px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground truncate">
+                Assets
               </span>
-              <div className="p-1 rounded bg-primary/10 text-primary">
+              <div className="p-1 rounded bg-primary/10 text-primary hidden md:block">
                 <Landmark className="w-3.5 h-3.5" />
               </div>
             </div>
             {isLoading ? (
-              <Skeleton className="h-7 w-28 mt-2" />
+              <Skeleton className="h-5 w-16 md:h-7 md:w-28 mt-2" />
             ) : (
-              <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
+              <p className="text-sm md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary truncate">
                 {fmt(totalAssetsInr)}
               </p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
               Liquid Cash + Investments + Policies
             </p>
           </CardContent>
         </Card>
 
         {/* Total Liabilities */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardContent className="pt-4 pb-4">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm border border-border/80">
+          <CardContent className="p-2.5 md:p-4 flex flex-col justify-between h-full min-h-[64px] md:min-h-0">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Total Liabilities
+              <span className="text-[10.5px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground truncate">
+                Liabilities
               </span>
-              <div className="p-1 rounded bg-primary/10 text-primary">
+              <div className="p-1 rounded bg-primary/10 text-primary hidden md:block">
                 <Coins className="w-3.5 h-3.5" />
               </div>
             </div>
             {isLoading ? (
-              <Skeleton className="h-7 w-28 mt-2" />
+              <Skeleton className="h-5 w-16 md:h-7 md:w-28 mt-2" />
             ) : (
-              <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
+              <p className="text-sm md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary truncate">
                 {fmt(totalLiabilitiesInr)}
               </p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
               Credit Cards + Active Loans & Debts
             </p>
           </CardContent>
         </Card>
 
         {/* Net Position */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
-          <CardContent className="pt-4 pb-4">
+        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm border border-border/80">
+          <CardContent className="p-2.5 md:p-4 flex flex-col justify-between h-full min-h-[64px] md:min-h-0">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10.5px] md:text-xs font-bold uppercase tracking-wider text-muted-foreground truncate">
                 Net Position
               </span>
-              <div className="p-1 rounded bg-primary/10 text-primary">
+              <div className="p-1 rounded bg-primary/10 text-primary hidden md:block">
                 <Wallet className="w-3.5 h-3.5" />
               </div>
             </div>
             {isLoading ? (
-              <Skeleton className="h-7 w-28 mt-2" />
+              <Skeleton className="h-5 w-16 md:h-7 md:w-28 mt-2" />
             ) : (
-              <p className="text-lg md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary">
+              <p className="text-sm md:text-xl font-extrabold tabular-nums tracking-tight mt-1 text-primary truncate">
                 {fmt(netPositionInr)}
               </p>
             )}
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
               Total assets minus total liabilities
             </p>
           </CardContent>
