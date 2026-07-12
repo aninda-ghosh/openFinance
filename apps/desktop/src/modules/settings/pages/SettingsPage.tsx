@@ -43,6 +43,42 @@ const CHANGELOG: {
   sections: { label: string; items: string[] }[];
 }[] = [
   {
+    version: "4.1.6",
+    date: "2026-07-11",
+    sections: [
+      {
+        label: "Added",
+        items: [
+          "Responsive budget cards on mobile screens with collapsible sections and inline actions.",
+          "Rigid symmetrical columns aligning progress tracks, action buttons, and balance badges vertically on mobile.",
+          "Proportional typography scaling system overrides for a balanced font hierarchy on small viewports.",
+        ],
+      },
+      {
+        label: "Changed",
+        items: [
+          "Set default redirect route to /budget and streamlined bottom navigation bar.",
+          "Hid redundant balance widgets on checking/savings sub-views in embedded mode.",
+          "Condensed balance sheet widgets into a compact 3-column horizontal grid on mobile.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "4.1.5",
+    date: "2026-07-02",
+    sections: [
+      {
+        label: "Added",
+        items: [
+          "Investment maturity dates and payout support to database schemas and holdings views.",
+          "Holdings list sorting filters (by Name, Value, Purchase Date, and Maturity Date).",
+          "Real-time visual maturity indicators on investment cards and details drawers.",
+        ],
+      },
+    ],
+  },
+  {
     version: "4.1.0",
     date: "2026-06-11",
     sections: [

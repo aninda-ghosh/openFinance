@@ -50,7 +50,7 @@ trap cleanup EXIT
 
 # ── 4. Build local Docker images ──────────────────────────────────────────────
 echo "🔨 Building openFinance Docker images locally..."
-docker compose build
+docker compose build --no-cache
 
 # ── 5. Create remote directory and copy configurations ────────────────────────
 echo "📂 Setting up remote directory and configs..."
