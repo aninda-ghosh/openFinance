@@ -16,9 +16,13 @@ import type {
 } from "@openfinance/shared/api-contracts";
 import {
   BALANCE_ADJUSTMENT_PAYEE,
+  balanceDelta,
   bearsHoldings,
   isLiabilityType,
   isTransferIn,
+  STARTING_BALANCE_PAYEE,
+  TRANSFER_IN,
+  TRANSFER_OUT,
 } from "@openfinance/shared/constants";
 import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
@@ -166,14 +170,23 @@ async function deriveAccountBalances(
   const txnDeltaNative: Record<string, number> = {};
   for (const t of txnTotals) {
     if (!t.account_id) continue;
-    const prev = txnDeltaNative[t.account_id] ?? 0;
-    if (t.type === "income") txnDeltaNative[t.account_id] = prev + t.total;
-    else if (t.type === "expense")
-      txnDeltaNative[t.account_id] = prev - t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer in")
-      txnDeltaNative[t.account_id] = prev + t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer out")
-      txnDeltaNative[t.account_id] = prev - t.total;
+    const delta = balanceDelta({
+      type: t.type,
+      payee: t.payee,
+      amount: t.total,
+    });
+    if (delta === null) {
+      // A transfer leg whose payee is neither direction cannot be signed.
+      // It used to contribute zero silently, quietly understating the
+      // account; say so instead of hiding it.
+      console.error(
+        `[balance] account ${t.account_id}: ${t.type} rows with payee "${t.payee}" ` +
+          `have no balance direction and are excluded from the derived balance ` +
+          `(transfer legs must be "${TRANSFER_IN}" or "${TRANSFER_OUT}")`
+      );
+      continue;
+    }
+    txnDeltaNative[t.account_id] = (txnDeltaNative[t.account_id] ?? 0) + delta;
   }
 
   // Sum current_value from investments grouped by account_id and currency
@@ -275,7 +288,7 @@ export async function createAccount(
     if (shouldSeedTransaction) {
       await insertTransactionTx(tx, {
         account_id: created.id,
-        payee: "Starting Balance",
+        payee: STARTING_BALANCE_PAYEE,
         amount: openingBalance,
         type: "income",
         date: new Date().toISOString().slice(0, 10),
@@ -1214,10 +1227,10 @@ export async function createTransfer(data: {
       const pairId = nanoid();
 
       // The helper applies the envelope accounting for both legs:
-      // "Transfer out" + envelope_id debits, "Transfer in" + envelope_id credits.
+      // TRANSFER_OUT + envelope_id debits, TRANSFER_IN + envelope_id credits.
       const from = await insertTransactionTx(tx, {
         account_id: data.from_account_id,
-        payee: "Transfer out",
+        payee: TRANSFER_OUT,
         amount: data.amount,
         type: "transfer",
         date: data.date,
@@ -1229,7 +1242,7 @@ export async function createTransfer(data: {
 
       const to = await insertTransactionTx(tx, {
         account_id: data.to_account_id,
-        payee: "Transfer in",
+        payee: TRANSFER_IN,
         amount: data.to_amount,
         type: "transfer",
         date: data.date,
@@ -1521,8 +1534,7 @@ export async function getMonthlySummary(
     .filter((t) => t.type === "expense" || (t.envelope_id && t.type === "transfer"))
     .reduce((s, t) => {
       const inr = toInrAmount(t.amount, t.currency);
-      const isCredit = t.type === "transfer" && t.payee === "Transfer in";
-      return s + (isCredit ? -inr : inr);
+      return s + (isTransferIn(t) ? -inr : inr);
     }, 0);
 
   // Envelope spend comes from listEnvelopes, which uses computeSpentByEnvelope
