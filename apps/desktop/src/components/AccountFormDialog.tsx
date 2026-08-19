@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/stores/app.store";
-import { isLiabilityType } from "@openfinance/shared/constants";
+import {
+  BALANCE_ADJUSTMENT_PAYEE,
+  STARTING_BALANCE_PAYEE,
+  isLiabilityType,
+} from "@openfinance/shared/constants";
 
 const CURRENCIES = ["USD", "INR", "SGD", "GBP", "EUR", "JPY", "NTD"];
 
@@ -225,8 +229,8 @@ export function AccountFormDialog({
             />
             <p className="text-xs text-muted-foreground leading-normal mt-1">
               {isEdit
-                ? "The balance this account should read after saving. Any difference from its current balance is recorded as a dated “Balance Adjustment” transaction — the stored balance is never overwritten and your existing transactions stay intact."
-                : "What this account holds before any transaction you log against it. Recorded as a “Starting Balance” entry."}
+                ? `The balance this account should read after saving. Any difference from its current balance is recorded as a dated “${BALANCE_ADJUSTMENT_PAYEE}” transaction — the stored balance is never overwritten and your existing transactions stay intact.`
+                : `What this account holds before any transaction you log against it. Recorded as a “${STARTING_BALANCE_PAYEE}” entry.`}
               {isLiabilityType(type) &&
                 " Enter what you owe as a positive number — it is stored as a liability for you."}
             </p>
