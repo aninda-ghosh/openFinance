@@ -14,6 +14,7 @@ import type {
   UpdateEnvelopeRequest,
   UpdateTransactionRequest,
 } from "@openfinance/shared/api-contracts";
+import { BALANCE_ADJUSTMENT_PAYEE } from "@openfinance/shared/constants";
 import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
 import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
@@ -95,10 +96,49 @@ function toTransactionResponse(
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
-export async function listAccounts(): Promise<AccountResponse[]> {
+/**
+ * The parts of an account's derived balance, all in the account's native
+ * currency (`native`, `holdingsNative`) or the base currency (`base`,
+ * `holdingsBase`).
+ *
+ * `native` is the full derived balance: stored opening balance (sign-normalised
+ * for liabilities) + the net of every transaction + the current value of any
+ * `investments` rows linked to the account. `holdingsNative` is just that last
+ * term, so a caller that wants a **holdings-excluded** balance (a cash-only
+ * balance, e.g. for a running-balance ledger or a net-worth breakdown that
+ * counts holdings separately) can use `native - holdingsNative` without
+ * re-deriving anything.
+ */
+export type AccountBalanceParts = {
+  native: number;
+  base: number;
+  holdingsBase: number;
+  holdingsNative: number;
+};
+
+/**
+ * Derives the live balance of every account. This is THE definition of an
+ * account balance — `accounts.balance` is only an opening balance, never the
+ * current one, so nothing should read that column directly.
+ *
+ * Exported so other services (dashboard, reports) can consume the same numbers
+ * `listAccounts` returns, including the holdings split, instead of writing a
+ * fourth balance derivation.
+ */
+export async function getAccountBalances(): Promise<
+  Map<string, AccountBalanceParts>
+> {
   const db = getDb();
   const rates = await getLatestRates();
-  const rows = await db.select().from(accounts).orderBy(accounts.name);
+  const rows = await db.select().from(accounts);
+  return deriveAccountBalances(rows, rates);
+}
+
+async function deriveAccountBalances(
+  rows: (typeof accounts.$inferSelect)[],
+  rates: Record<string, number>
+): Promise<Map<string, AccountBalanceParts>> {
+  const db = getDb();
 
   // Build a currency map for each account
   const accountCurrency: Record<string, string> = {};
@@ -157,7 +197,8 @@ export async function listAccounts(): Promise<AccountResponse[]> {
     invDeltaNative[inv.account_id] = (invDeltaNative[inv.account_id] ?? 0) + valueInAccountCurrency;
   }
 
-  return rows.map((r) => {
+  const balances = new Map<string, AccountBalanceParts>();
+  for (const r of rows) {
     const currency = r.currency ?? "INR";
     // Debt accounts (credit/loan) are liabilities — balance must always be negative.
     // Normalize here so old accounts created with a positive balance still behave correctly.
@@ -165,23 +206,41 @@ export async function listAccounts(): Promise<AccountResponse[]> {
       r.type === "credit" || r.type === "loan"
         ? -Math.abs(r.balance ?? 0)
         : (r.balance ?? 0);
-    let liveNative = startBalance + (txnDeltaNative[r.id] ?? 0);
 
     // For all asset accounts (investment, checking, savings, cash), add the sum of holdings current value linked to it!
-    if (["investment", "checking", "savings", "cash"].includes(r.type)) {
-      liveNative += (invDeltaNative[r.id] ?? 0);
-    }
+    const holdingsNative = ["investment", "checking", "savings", "cash"].includes(
+      r.type
+    )
+      ? (invDeltaNative[r.id] ?? 0)
+      : 0;
 
-    // Convert live native balance to INR
-    const liveInr = toInr(liveNative, currency, rates);
+    const native = startBalance + (txnDeltaNative[r.id] ?? 0) + holdingsNative;
 
+    balances.set(r.id, {
+      native,
+      base: toInr(native, currency, rates),
+      holdingsNative,
+      holdingsBase: toInr(holdingsNative, currency, rates),
+    });
+  }
+  return balances;
+}
+
+export async function listAccounts(): Promise<AccountResponse[]> {
+  const db = getDb();
+  const rates = await getLatestRates();
+  const rows = await db.select().from(accounts).orderBy(accounts.name);
+  const balances = await deriveAccountBalances(rows, rates);
+
+  return rows.map((r) => {
+    const live = balances.get(r.id);
     return {
       id: r.id,
       name: r.name,
       type: r.type as AccountResponse["type"],
-      currency: currency as AccountResponse["currency"],
-      balance: liveNative,
-      balance_inr: liveInr,
+      currency: (r.currency ?? "INR") as AccountResponse["currency"],
+      balance: live?.native ?? 0,
+      balance_inr: live?.base ?? 0,
       institution: r.institution ?? null,
       is_active: r.is_active ?? true,
       off_budget: r.off_budget ?? false,
@@ -227,20 +286,90 @@ export async function createAccount(
   return toAccountResponse(row, rates);
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Updates an account's metadata and, if the caller sent a `balance`,
+ * reconciles the account to it.
+ *
+ * `accounts.balance` is an OPENING balance — the live balance is derived
+ * (see `getAccountBalances`). Writing the client's number straight into that
+ * column, as this used to, double-counted every transaction and every linked
+ * holding: the edit dialogs prefill the field with the derived balance, so
+ * saving an unrelated field (a rename) re-added the whole transaction history
+ * to the opening balance and doubled the account.
+ *
+ * Instead the requested balance is treated as a reconciliation target: the
+ * difference against the current derived balance is posted as a visible
+ * `Balance Adjustment` transaction. When they already match — the common case,
+ * because the dialog prefills the derived value — nothing is written.
+ */
 export async function updateAccount(
   id: string,
   data: UpdateAccountRequest
 ): Promise<AccountResponse> {
   const db = getDb();
   const rates = await getLatestRates();
-  const [row] = await db
-    .update(accounts)
-    .set({ ...data, updated_at: new Date().toISOString() })
+
+  const { balance: requestedBalance, ...fields } = data;
+
+  const [existing] = await db
+    .select()
+    .from(accounts)
     .where(eq(accounts.id, id))
-    .returning();
-  if (!row)
+    .limit(1);
+  if (!existing)
     throw Object.assign(new Error("Account not found"), { status: 404 });
-  return toAccountResponse(row, rates);
+
+  // Never write `balance` from this path — only metadata.
+  let row = existing;
+  if (Object.keys(fields).length > 0) {
+    const [updated] = await db
+      .update(accounts)
+      .set({ ...fields, updated_at: new Date().toISOString() })
+      .where(eq(accounts.id, id))
+      .returning();
+    if (!updated)
+      throw Object.assign(new Error("Account not found"), { status: 404 });
+    row = updated;
+  }
+
+  const currency = row.currency ?? "INR";
+  const balances = await getAccountBalances();
+  let derived = round2(balances.get(id)?.native ?? 0);
+
+  if (requestedBalance !== undefined) {
+    // Liabilities are stored and reported negative; accept either sign from
+    // the client and let the server own it (same rule as createAccount).
+    const isDebt = row.type === "credit" || row.type === "loan";
+    const target = round2(
+      isDebt ? -Math.abs(requestedBalance) : requestedBalance
+    );
+    const diff = round2(target - derived);
+
+    if (Math.abs(diff) >= 0.01) {
+      await runTransaction(async (tx) => {
+        await insertTransactionTx(tx, {
+          account_id: id,
+          payee: BALANCE_ADJUSTMENT_PAYEE,
+          amount: Math.abs(diff),
+          // Deliberately envelope-less: a reconciliation is not budgeted
+          // spending, and this must work on off-budget accounts too.
+          envelope_id: null,
+          type: diff > 0 ? "income" : "expense",
+          date: new Date().toISOString().slice(0, 10),
+          notes: `Reconciled from ${derived.toFixed(2)} to ${target.toFixed(2)}`,
+        });
+      });
+      derived = target;
+    }
+  }
+
+  return {
+    ...toAccountResponse(row, rates),
+    balance: derived,
+    balance_inr: toInr(derived, currency, rates),
+  };
 }
 
 export async function deleteAccount(id: string): Promise<void> {
