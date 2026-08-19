@@ -6,6 +6,11 @@ import type {
   UpdatePayoutRequest,
   UpdatePolicyRequest,
 } from "@openfinance/shared/api-contracts";
+import {
+  TRANSFER_IN,
+  TRANSFER_OUT,
+  balanceDelta,
+} from "@openfinance/shared/constants";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/index";
@@ -93,10 +98,23 @@ async function getAccountLiveBalance(db: any, accountId: string): Promise<number
 
   let delta = 0;
   for (const t of txnTotals) {
-    if (t.type === "income") delta += t.total;
-    else if (t.type === "expense") delta -= t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer in") delta += t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer out") delta -= t.total;
+    const signed = balanceDelta({
+      type: t.type,
+      payee: t.payee,
+      amount: t.total,
+    });
+    if (signed === null) {
+      // A transfer leg that is neither direction cannot be signed. It used to
+      // fall through every branch and count as zero, quietly understating the
+      // policy's invested amount; report it instead of hiding it.
+      console.error(
+        `[policy] account ${accountId}: ${t.type} rows with payee "${t.payee}" ` +
+          `have no balance direction and are excluded from the invested total ` +
+          `(transfer legs must be "${TRANSFER_IN}" or "${TRANSFER_OUT}")`
+      );
+      continue;
+    }
+    delta += signed;
   }
 
   return (account.balance ?? 0) + delta;

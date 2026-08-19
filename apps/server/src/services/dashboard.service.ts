@@ -1,8 +1,10 @@
 import type { DashboardResponse } from "@openfinance/shared/api-contracts";
 import {
+  STARTING_BALANCE_PAYEE,
   balanceDelta,
   bearsHoldings,
   isLiabilityType,
+  isTransferIn,
 } from "@openfinance/shared/constants";
 import { and, eq, gt, gte, lte, or } from "drizzle-orm";
 import { getDb } from "../db/index";
@@ -504,7 +506,7 @@ export async function getCashFlow(month: string) {
 
   const incomeByPayee: Record<string, number> = {};
   for (const t of incomeTxns) {
-    if (t.payee === "Starting Balance") continue;
+    if (t.payee === STARTING_BALANCE_PAYEE) continue;
     incomeByPayee[t.payee] =
       (incomeByPayee[t.payee] ?? 0) + toInrLocal(t.amount, t.currency);
   }
@@ -541,7 +543,7 @@ export async function getCashFlow(month: string) {
 
   for (const t of expenseTxns) {
     if (!t.envelope_id) continue;
-    const isCredit = t.type === "transfer" && t.payee === "Transfer in";
+    const isCredit = isTransferIn(t);
     const inr = toInrLocal(t.amount, t.currency);
     const net = isCredit ? -inr : inr;
     if (net <= 0) continue;
