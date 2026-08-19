@@ -5,6 +5,7 @@
   "exports": {
     "./types": "./src/types/index.ts",
     "./schemas": "./src/schemas/index.ts",
+    "./constants": "./src/constants/index.ts",
     "./api-contracts": "./src/api-contracts/index.ts",
     "./utils": "./src/utils/index.ts",
     "./utils/hash": "./src/utils/hash.ts"
