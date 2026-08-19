@@ -1,3 +1,4 @@
+import { balanceDelta } from "@openfinance/shared/constants";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import { CreditCard, Coins, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -181,6 +182,15 @@ function TransactionSheet({
             <div className="flex flex-col">
               {txns.map((t: any, i: number) => {
                 const showDateHeader = i === 0 || t.date !== txns[i - 1].date;
+                // Sign the amount off the same `balanceDelta` the running
+                // balance walks, so the two columns can never disagree. An
+                // orphan transfer leg (payee matching neither direction) moves
+                // the balance by nothing, so it gets no sign rather than the
+                // "−" the old `payee === "Transfer in" ? "+" : "−"` fallback
+                // showed for it.
+                const delta = balanceDelta(t);
+                const amountSign =
+                  delta === null ? "" : delta >= 0 ? "+" : "−";
                 return (
                   <div key={t.id} className="flex flex-col">
                     {showDateHeader && (
@@ -224,13 +234,7 @@ function TransactionSheet({
                                   : "text-negative"
                             }`}
                           >
-                            {t.type === "transfer"
-                              ? t.payee === "Transfer in"
-                                ? "+"
-                                : "−"
-                              : t.type === "income"
-                                ? "+"
-                                : "−"}
+                            {amountSign}
                             {formatCurrency(t.amount, account.currency)}
                           </p>
                           {showHint && (
