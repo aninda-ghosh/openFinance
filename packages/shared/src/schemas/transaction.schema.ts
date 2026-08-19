@@ -11,8 +11,15 @@ export const CreateTransactionSchema = z.object({
   account_id: z.string().min(1),
   envelope_id: z.string().min(1).optional(),
   payee: z.string().min(1),
-  amount: z.number(),
-  type: TransactionTypeEnum,
+  // Always a positive magnitude — direction comes from `type`, never from the
+  // sign. UpdateTransactionSchema has always required this; create did not,
+  // so the API accepted an amount it would then refuse on edit.
+  amount: z.number().positive(),
+  // Transfers are pairs of rows sharing a transfer_pair_id: POST /transactions
+  // can only make one row, i.e. an orphan leg with no pair, which breaks the
+  // pair handling in deleteTransaction and has no balance direction. Use the
+  // transfer endpoint.
+  type: z.enum(["income", "expense"]),
   date: z.string().date("Date must be ISO format YYYY-MM-DD"),
   notes: z.string().optional(),
   import_hash: z.string().optional(),

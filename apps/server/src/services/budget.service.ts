@@ -1346,6 +1346,15 @@ export async function importCSV(
       result.errors.push(`Row skipped — invalid amount: "${row.amount}"`);
       continue;
     }
+    // Same rule as the API: amounts are positive magnitudes and the `type`
+    // column carries the direction. A negative "expense" would otherwise
+    // increase the balance.
+    if (amount <= 0) {
+      result.errors.push(
+        `Row skipped — amount must be greater than zero (use the type column for direction): "${row.amount}"`
+      );
+      continue;
+    }
 
     const type = row.type?.toLowerCase();
     if (!["income", "expense", "transfer"].includes(type)) {
