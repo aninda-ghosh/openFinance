@@ -48,6 +48,39 @@ const getCurrencySymbol = (currencyCode: string): string => {
 type TabType = "expense" | "income" | "transfer";
 type IncomeCategory = "income" | "cashback" | "starting_balance";
 
+/**
+ * Client-side mirror of the server rule enforced in
+ * `createTransaction` / `updateTransaction`: an expense against an on-budget
+ * account must be assigned to an envelope, otherwise the spend never lands in
+ * any budget. Both the create and the edit path run this — they used to
+ * disagree, so editing an on-budget expense and clearing its envelope silently
+ * did what create-mode refused.
+ *
+ * Returns false when the account isn't loaded yet; the server is the backstop.
+ */
+function requiresEnvelope(
+  tab: TabType,
+  account: { off_budget?: boolean } | undefined,
+  envelopeId: string
+): boolean {
+  return tab === "expense" && !!account && !account.off_budget && !envelopeId;
+}
+
+const ENVELOPE_REQUIRED_MESSAGE =
+  "An envelope category is required for On-Budget expenses.";
+
+/**
+ * Surface a write failure with a title and the server's message as the
+ * description, so a 400 from the envelope / transfer rules reads as guidance
+ * rather than as a bare error string.
+ */
+function toastWriteError(title: string, e: any, fallback: string) {
+  toast.error(title, {
+    description: e?.message || fallback,
+    duration: 6000,
+  });
+}
+
 export type TransactionFormProps = {
   mode?: "create" | "edit";
   /** Transaction being edited (required when mode="edit") */
@@ -459,6 +492,23 @@ export default function TransactionForm({
     }, 1000);
   };
 
+  /**
+   * Single gate for the on-budget-expense envelope rule, shared by the create
+   * and the edit path so they can never drift apart again. Returns true when
+   * the submit should be aborted.
+   */
+  const blockedByMissingEnvelope = () => {
+    if (!requiresEnvelope(tab, fromAccount, envelopeId)) return false;
+    toast.error(ENVELOPE_REQUIRED_MESSAGE, {
+      description:
+        envelopes.length === 0
+          ? "This month has no envelopes yet — add one on the Budget page first."
+          : "Pick a category so this spend lands in a budget.",
+      duration: 6000,
+    });
+    return true;
+  };
+
   const handleSubmit = () => {
     if (isEdit) {
       handleSaveEdit();
@@ -510,14 +560,12 @@ export default function TransactionForm({
           onSuccess: () => {
             playSuccessAnimation();
           },
-          onError: (e: any) => {
-            toast.error("Intent Unfulfilled: Transfer Not Saved", {
-              description:
-                e?.message ||
-                "Failed to record transfer. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
+          onError: (e: any) =>
+            toastWriteError(
+              "Intent Unfulfilled: Transfer Not Saved",
+              e,
+              "Failed to record transfer. Please check your connection and try again."
+            ),
         }
       );
     } else {
@@ -529,15 +577,7 @@ export default function TransactionForm({
         toast.error("Please enter a payee.");
         return;
       }
-      if (
-        tab === "expense" &&
-        fromAccount &&
-        !fromAccount.off_budget &&
-        !envelopeId
-      ) {
-        toast.error("An envelope category is required for On-Budget expenses.");
-        return;
-      }
+      if (blockedByMissingEnvelope()) return;
 
       createTxn(
         {
@@ -554,14 +594,12 @@ export default function TransactionForm({
           onSuccess: () => {
             playSuccessAnimation();
           },
-          onError: (e: any) => {
-            toast.error("Intent Unfulfilled: Transaction Not Saved", {
-              description:
-                e?.message ||
-                "Failed to add transaction. Please check your connection and try again.",
-              duration: 6000,
-            });
-          },
+          onError: (e: any) =>
+            toastWriteError(
+              "Intent Unfulfilled: Transaction Not Saved",
+              e,
+              "Failed to add transaction. Please check your connection and try again."
+            ),
         }
       );
     }
@@ -577,7 +615,12 @@ export default function TransactionForm({
         { id: transaction.id, data: { date, notes: notes.trim() } },
         {
           onSuccess: () => playSuccessAnimation(),
-          onError: (e: any) => toast.error(e.message),
+          onError: (e: any) =>
+            toastWriteError(
+              "Intent Unfulfilled: Transfer Not Updated",
+              e,
+              "Failed to update transfer. Please check your connection and try again."
+            ),
         }
       );
       return;
@@ -588,6 +631,10 @@ export default function TransactionForm({
       toast.error("Please enter a payee and a valid positive amount.");
       return;
     }
+
+    // Same rule the create path enforces — clearing the envelope on an
+    // on-budget expense would otherwise orphan the spend from every budget.
+    if (blockedByMissingEnvelope()) return;
 
     const patch: any = {
       payee: payee.trim(),
@@ -605,7 +652,12 @@ export default function TransactionForm({
       { id: transaction.id, data: patch },
       {
         onSuccess: () => playSuccessAnimation(),
-        onError: (e: any) => toast.error(e.message),
+        onError: (e: any) =>
+          toastWriteError(
+            "Intent Unfulfilled: Transaction Not Updated",
+            e,
+            "Failed to update transaction. Please check your connection and try again."
+          ),
       }
     );
   };
@@ -618,7 +670,12 @@ export default function TransactionForm({
         setConfirmDelete(false);
         onDeleted?.();
       },
-      onError: (e: any) => toast.error(e.message),
+      onError: (e: any) =>
+        toastWriteError(
+          "Intent Unfulfilled: Transaction Not Deleted",
+          e,
+          "Failed to delete transaction. Please check your connection and try again."
+        ),
     });
   };
 
