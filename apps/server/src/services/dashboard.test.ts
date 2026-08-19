@@ -63,7 +63,7 @@ function account(over: Partial<NetWorthContext["accounts"][number]>) {
   };
 }
 
-function policy(over: Partial<(typeof policies.$inferSelect)>) {
+function policy(over: Partial<typeof policies.$inferSelect>) {
   return {
     id: "pol-1",
     name: "Endowment",
@@ -325,8 +325,14 @@ describe("net worth", () => {
           txnsByAccount: new Map([["chk", order]]),
         });
 
-      const ascending = computeNetWorthAt("2026-07-31", build([...rows].sort((a, b) => a.date.localeCompare(b.date))));
-      const descending = computeNetWorthAt("2026-07-31", build([...rows].sort((a, b) => b.date.localeCompare(a.date))));
+      const ascending = computeNetWorthAt(
+        "2026-07-31",
+        build([...rows].sort((a, b) => a.date.localeCompare(b.date)))
+      );
+      const descending = computeNetWorthAt(
+        "2026-07-31",
+        build([...rows].sort((a, b) => b.date.localeCompare(a.date)))
+      );
 
       // 60000 − (+10000 in Aug) − (−2000 in Aug); the June row is already in
       expect(ascending.total_inr).toBe(52000);
@@ -414,7 +420,9 @@ describe("net worth", () => {
       const snap = computeNetWorthAt(
         TODAY,
         ctxOf({
-          accounts: [account({ id: "orphan", type: "policy", liveNative: 7000 })],
+          accounts: [
+            account({ id: "orphan", type: "policy", liveNative: 7000 }),
+          ],
         })
       );
       expect(snap.breakdown.policies_inr).toBe(7000);

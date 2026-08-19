@@ -20,18 +20,12 @@ export const TRANSFER_IN = "Transfer in";
 export type TransferDirection = typeof TRANSFER_IN | typeof TRANSFER_OUT;
 
 /** True when this row is the crediting (incoming) leg of a transfer pair. */
-export function isTransferIn(txn: {
-  type: string;
-  payee: string;
-}): boolean {
+export function isTransferIn(txn: { type: string; payee: string }): boolean {
   return txn.type === "transfer" && txn.payee === TRANSFER_IN;
 }
 
 /** True when this row is the debiting (outgoing) leg of a transfer pair. */
-export function isTransferOut(txn: {
-  type: string;
-  payee: string;
-}): boolean {
+export function isTransferOut(txn: { type: string; payee: string }): boolean {
   return txn.type === "transfer" && txn.payee === TRANSFER_OUT;
 }
 
