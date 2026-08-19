@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db/index";
+import { applyDueRecurring } from "./recurring.service";
 import {
   computeSpentByEnvelope,
+  resolveEnvelopeForMonth,
   listAccounts,
   createTransaction,
   createTransfer,
@@ -446,6 +448,79 @@ describe("budget.service", () => {
       await deleteTransaction("txn-1");
 
       expect(fake.updated).toHaveLength(0);
+    });
+  });
+
+  // ─── Per-month envelope identity ───────────────────────────────────────────
+
+  describe("resolveEnvelopeForMonth", () => {
+    it("maps an envelope id onto the same group|name envelope in another month", async () => {
+      const fake = installFake();
+      fake.selects.push(
+        [{ id: "env-may", group_id: "g1", name: "Food", month: "2026-05" }],
+        [{ id: "env-aug" }]
+      );
+
+      const db = getDb();
+      expect(await resolveEnvelopeForMonth(db, "env-may", "2026-08")).toBe(
+        "env-aug"
+      );
+    });
+
+    it("returns null when the target month has no matching envelope", async () => {
+      const fake = installFake();
+      fake.selects.push(
+        [{ id: "env-may", group_id: "g1", name: "Food", month: "2026-05" }],
+        []
+      );
+
+      const db = getDb();
+      expect(await resolveEnvelopeForMonth(db, "env-may", "2026-08")).toBeNull();
+    });
+  });
+
+  // ─── Recurring catch-up ────────────────────────────────────────────────────
+
+  describe("applyDueRecurring", () => {
+    it("emits one transaction per missed period instead of one per run", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-08-19T00:00:00Z"));
+      try {
+        const fake = installFake();
+        fake.selects.push([
+          {
+            id: "rec-1",
+            account_id: "acc-1",
+            envelope_id: null,
+            payee: "Rent",
+            amount: 1000,
+            type: "expense",
+            frequency: "monthly",
+            next_date: "2026-05-15",
+            end_date: null,
+            notes: null,
+            is_active: true,
+          },
+        ]);
+
+        const applied = await applyDueRecurring();
+
+        // May, June, July and August are all due as of 19 Aug
+        expect(applied).toBe(4);
+        expect(fake.inserted.map((t) => t.date)).toEqual([
+          "2026-05-15",
+          "2026-06-15",
+          "2026-07-15",
+          "2026-08-15",
+        ]);
+        // ...and the rule is left pointing at the next future occurrence
+        expect(fake.updated).toContainEqual({
+          next_date: "2026-09-15",
+          is_active: true,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

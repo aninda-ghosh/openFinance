@@ -2,7 +2,17 @@ import { and, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, runTransaction } from "../db/index";
 import { recurring_transactions } from "../db/schema";
-import { assertEnvelopeRequired, insertTransactionTx } from "./budget.service";
+import {
+  assertEnvelopeRequired,
+  insertTransactionTx,
+  resolveEnvelopeForMonth,
+} from "./budget.service";
+
+/**
+ * Safety valve for the catch-up loop: a weekly rule left alone for five years
+ * would still finish, but a corrupt next_date should not generate forever.
+ */
+const MAX_CATCHUP_PERIODS = 500;
 
 export type RecurringTransaction = typeof recurring_transactions.$inferSelect;
 
@@ -52,32 +62,75 @@ export async function applyDueRecurring(): Promise<number> {
       continue;
     }
 
-    // Insert the transaction and advance next_date atomically — a crash
+    // Insert the transactions and advance next_date atomically — a crash
     // between the two would otherwise recreate the same transaction on the
-    // next startup. insertTransactionTx also keeps envelope.spent in sync,
-    // matching what a manual transaction entry would do.
+    // next startup.
+    //
+    // The loop catches the rule all the way up to today: it used to advance
+    // by a single period per run, so a rule three months overdue emitted one
+    // transaction per server restart and stayed permanently behind.
     await runTransaction(async (tx) => {
-      await insertTransactionTx(tx, {
-        id: nanoid(),
-        account_id: r.account_id,
-        envelope_id: r.envelope_id ?? null,
-        payee: r.payee,
-        amount: r.amount,
-        type: r.type as "income" | "expense",
-        date: r.next_date,
-        notes: r.notes ? `[Auto] ${r.notes}` : "[Auto] Recurring",
-      });
+      let nextDate = r.next_date;
+      let generated = 0;
 
-      // Advance next_date; deactivate if past end_date
-      const nextDate = advanceDate(r.next_date, r.frequency);
+      while (nextDate <= today && generated < MAX_CATCHUP_PERIODS) {
+        if (r.end_date && nextDate > r.end_date) break;
+
+        // Envelope ids are per-month, so the id pinned on the rule only
+        // matches the month it was created in. Re-resolve it for the month
+        // this occurrence lands in, or leave the transaction uncategorised —
+        // charging a closed month would hide the spend from every budget.
+        let envelopeId: string | null = null;
+        if (r.envelope_id) {
+          envelopeId = await resolveEnvelopeForMonth(
+            tx,
+            r.envelope_id,
+            nextDate.slice(0, 7)
+          );
+          if (!envelopeId) {
+            console.warn(
+              `[recurring] rule ${r.id} ("${r.payee}"): no envelope matching the rule's category exists for ${nextDate.slice(0, 7)} — recording the transaction uncategorised`
+            );
+          }
+        }
+
+        await insertTransactionTx(tx, {
+          id: nanoid(),
+          account_id: r.account_id,
+          envelope_id: envelopeId,
+          payee: r.payee,
+          amount: r.amount,
+          type: r.type as "income" | "expense",
+          date: nextDate,
+          notes: r.notes ? `[Auto] ${r.notes}` : "[Auto] Recurring",
+        });
+        generated++;
+
+        const advanced = advanceDate(nextDate, r.frequency);
+        if (advanced <= nextDate) {
+          // Unknown frequency — advanceDate returned the same date. Bail out
+          // rather than spin forever.
+          console.error(
+            `[recurring] rule ${r.id}: unknown frequency "${r.frequency}", deactivating`
+          );
+          await tx
+            .update(recurring_transactions)
+            .set({ is_active: false })
+            .where(eq(recurring_transactions.id, r.id));
+          count += generated;
+          return;
+        }
+        nextDate = advanced;
+      }
+
       const expired = r.end_date ? nextDate > r.end_date : false;
       await tx
         .update(recurring_transactions)
         .set({ next_date: nextDate, is_active: !expired })
         .where(eq(recurring_transactions.id, r.id));
-    });
 
-    count++;
+      count += generated;
+    });
   }
   return count;
 }

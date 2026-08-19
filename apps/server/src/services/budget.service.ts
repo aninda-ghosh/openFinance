@@ -547,6 +547,53 @@ export async function computeSpentByEnvelope(
   return spent;
 }
 
+/**
+ * Envelope rows are per-month with distinct ids; an envelope's identity across
+ * months is `group_id|name` (the key the rollover logic uses). Maps an
+ * envelope id to the equivalent envelope in `month`.
+ *
+ * Needed by anything that stores an envelope id and spends it later — a
+ * recurring rule pins one envelope id at creation time, and using it verbatim
+ * in a later month charges a month that has already closed, so the spend never
+ * appears in any budget.
+ *
+ * @returns the id of the matching envelope in `month`, or null if that month
+ *   has no envelope with the same group and name.
+ */
+export async function resolveEnvelopeForMonth(
+  q: { select: (...args: any[]) => any },
+  envelopeId: string,
+  month: string
+): Promise<string | null> {
+  const [src] = await q
+    .select({
+      id: envelopes.id,
+      group_id: envelopes.group_id,
+      name: envelopes.name,
+      month: envelopes.month,
+    })
+    .from(envelopes)
+    .where(eq(envelopes.id, envelopeId))
+    .limit(1);
+
+  if (!src) return null;
+  if (src.month === month) return src.id;
+
+  const [match] = await q
+    .select({ id: envelopes.id })
+    .from(envelopes)
+    .where(
+      and(
+        eq(envelopes.group_id, src.group_id),
+        eq(envelopes.name, src.name),
+        eq(envelopes.month, month)
+      )
+    )
+    .limit(1);
+
+  return match?.id ?? null;
+}
+
 export async function listEnvelopes(
   month: string
 ): Promise<EnvelopeWithGroupResponse[]> {
@@ -1559,10 +1606,14 @@ export async function getMonthlySummary(
     total_expenses: totalExpenses,
     net: totalIncome - totalExpenses,
     carryover_from_previous: carryoverFromPrevious,
+    // All three numbers are base currency. `budgeted` used to be the raw
+    // budget-currency amount while `spent` was base, so `available` was a
+    // subtraction across two different units and disagreed with the Budget
+    // page for any envelope budgeted in a foreign currency.
     envelope_summaries: envRows.map((e) => ({
       envelope_id: e.id,
       envelope_name: e.name,
-      budgeted: e.budgeted,
+      budgeted: e.budgeted_inr,
       spent: e.spent,
       available: e.available,
     })),
