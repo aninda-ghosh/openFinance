@@ -1,4 +1,4 @@
-import { balanceDelta } from "@openfinance/shared/constants";
+import { balanceDelta, isLiabilityType } from "@openfinance/shared/constants";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import { CreditCard, Coins, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -310,7 +310,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
 
   const allAccounts = accountsData?.accounts ?? [];
   const debtAccounts = allAccounts.filter(
-    (a: any) => ["credit", "loan", "debt"].includes(a.type) && a.is_active
+    (a: any) => isLiabilityType(a.type) && a.is_active
   );
 
   const totalDebtInr = debtAccounts.reduce(
@@ -361,10 +361,10 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
             }}
             isPending={creating}
             onSubmit={(data) => {
-              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                ? -data.balance 
-                : data.balance;
-              createAccount({ ...data, balance: finalBalance } as any, {
+              // Send the magnitude the user typed. `createAccount` normalizes
+              // the liability sign via `isLiabilityType`; negating here as well
+              // made the stored sign depend on which page opened the dialog.
+              createAccount(data as any, {
                 onSuccess: () => toast.success("Debt account added"),
                 onError: (e) => toast.error(e.message),
               });
@@ -402,10 +402,10 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
             }}
             isPending={creating}
             onSubmit={(data) => {
-              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                ? -data.balance 
-                : data.balance;
-              createAccount({ ...data, balance: finalBalance } as any, {
+              // Send the magnitude the user typed. `createAccount` normalizes
+              // the liability sign via `isLiabilityType`; negating here as well
+              // made the stored sign depend on which page opened the dialog.
+              createAccount(data as any, {
                 onSuccess: () => toast.success("Debt account added"),
                 onError: (e) => toast.error(e.message),
               });
@@ -616,9 +616,10 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                               off_budget: a.off_budget ?? true,
                             }}
                             onSubmit={(data) => {
-                              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                                ? -data.balance 
-                                : data.balance;
+                              // No client-side negation: the server owns the
+                              // liability sign (`-Math.abs(...)` in
+                              // updateAccount), so either sign reconciles to the
+                              // same target.
                               updateAccount(
                                 {
                                   id: a.id,
@@ -626,7 +627,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                                     name: data.name,
                                     type: data.type,
                                     currency: data.currency,
-                                    balance: finalBalance,
+                                    balance: data.balance,
                                     institution: data.institution,
                                     is_active: data.is_active,
                                     off_budget: data.off_budget,
