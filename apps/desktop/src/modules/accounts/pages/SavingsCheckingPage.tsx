@@ -44,6 +44,12 @@ import {
 import { useAppStore } from "@/stores/app.store";
 import { AccountFormDialog } from "@/components/AccountFormDialog";
 import TransactionForm from "@/components/TransactionForm";
+import { useInvestments } from "@/modules/investments/hooks/useInvestments";
+import {
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
 
 const LIQUID_TYPES = ["checking", "savings", "cash"];
 
@@ -123,36 +129,27 @@ function AccountDetailSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data } = useTransactions({ account_id: account?.id, limit: 150 });
+  const { data } = useTransactions({
+    account_id: account?.id,
+    limit: ACCOUNT_LEDGER_PAGE_SIZE,
+  });
   const { mutate: deleteTxn } = useDeleteTransaction();
   const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
+  const { data: investmentsData } = useInvestments();
 
   const txns = data?.transactions ?? [];
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    let current = account?.balance ?? 0;
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = current;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      current -= delta;
-    }
-    return balances;
-  }, [txns, account?.balance]);
+  // `account.balance` off the API is holdings-INCLUSIVE for checking / savings /
+  // cash (the server folds in the current value of any investments linked to the
+  // account), so seeding the backwards walk from it offset every row in this
+  // ledger by the account's total holdings. Seed from the cash-only balance.
+  const seedBalance = useHoldingsExcludedBalance(
+    account,
+    investmentsData?.investments,
+    rates
+  );
+  const runningBalances = useRunningBalances(txns, seedBalance);
 
   const [activeTab, setActiveTab] = useState<"transactions" | "documents">("transactions");
 

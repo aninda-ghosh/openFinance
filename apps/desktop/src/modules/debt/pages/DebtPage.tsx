@@ -33,6 +33,11 @@ import { useAppStore } from "@/stores/app.store";
 import { AccountFormDialog } from "@/components/AccountFormDialog";
 import { budgetApi } from "@/modules/budget/api";
 import TransactionForm from "@/components/TransactionForm";
+import {
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
 
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
@@ -98,36 +103,23 @@ function TransactionSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data } = useTransactions({ account_id: account.id, limit: 100 });
+  const { data } = useTransactions({
+    account_id: account.id,
+    limit: ACCOUNT_LEDGER_PAGE_SIZE,
+  });
   const { mutate: deleteTxn } = useDeleteTransaction();
   const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
 
   const txns = data?.transactions ?? [];
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    let current = account?.balance ?? 0;
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = current;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      current -= delta;
-    }
-    return balances;
-  }, [txns, account?.balance]);
+  // Debt accounts never carry linked investments, so the API balance is already
+  // holdings-excluded — `undefined` / `{}` make the seed helper a no-op here.
+  // The shared hook still matters: it drops the hand-rolled delta switch that
+  // silently treated an orphan transfer leg (payee matching neither direction)
+  // as an outflow, which desynced the walk from the balance it started at.
+  const seedBalance = useHoldingsExcludedBalance(account, undefined, {});
+  const runningBalances = useRunningBalances(txns, seedBalance);
 
   const showHint = account.currency !== defaultCurrency;
 

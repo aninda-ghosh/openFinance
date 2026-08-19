@@ -66,6 +66,11 @@ import {
 } from "../hooks/useInvestments";
 import { budgetApi } from "@/modules/budget/api";
 import { InvestmentDocuments } from "../components/InvestmentDocuments";
+import {
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
 
 const COLORS = [
   "var(--chart-1)",
@@ -204,36 +209,28 @@ function LinkedAccountSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data } = useTransactions({ account_id: account.id, limit: 200 });
+  const { data } = useTransactions({
+    account_id: account.id,
+    limit: ACCOUNT_LEDGER_PAGE_SIZE,
+  });
   const { mutate: deleteTxn } = useDeleteTransaction();
   const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
+  const { data: investmentsData } = useInvestments();
 
   const txns = data?.transactions ?? [];
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    let current = account?.balance ?? 0;
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = current;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      current -= delta;
-    }
-    return balances;
-  }, [txns, account?.balance]);
+  // `account.balance` off the API is holdings-INCLUSIVE for investment accounts
+  // (the server folds in Σ current_value of the linked investments), so seeding
+  // the backwards walk from it offset every row in this ledger by the whole
+  // portfolio value — the worst case of the bug, since these are exactly the
+  // accounts that carry holdings. Seed from the cash sleeve only.
+  const seedBalance = useHoldingsExcludedBalance(
+    account,
+    investmentsData?.investments,
+    rates
+  );
+  const runningBalances = useRunningBalances(txns, seedBalance);
 
   const showHint = account.currency !== defaultCurrency;
   const fmtDefault = (inr: number) =>
