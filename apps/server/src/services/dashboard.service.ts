@@ -1,6 +1,7 @@
 import type { DashboardResponse } from "@openfinance/shared/api-contracts";
 import {
   balanceDelta,
+  bearsHoldings,
   isLiabilityType,
 } from "@openfinance/shared/constants";
 import { and, eq, gt, gte, lte, or } from "drizzle-orm";
@@ -312,9 +313,10 @@ export async function getNetWorth(
 // ─── Portfolio Breakdown ───────────────────────────────────────────────────────
 
 export async function getPortfolioBreakdown() {
-  const [invList, allAccounts] = await Promise.all([
+  const [invList, allAccounts, balances] = await Promise.all([
     listInvestments(),
     listAccounts(),
+    getAccountBalances(),
   ]);
 
   const byType: Record<string, number> = {};
@@ -324,18 +326,17 @@ export async function getPortfolioBreakdown() {
       (byType[inv.asset_type] ?? 0) + inv.current_value_inr;
   }
 
-  // Include linked account cash balances (off-budget savings / investment accounts cash portions)
+  // Include the cash sleeve of off-budget asset accounts — the same bucket
+  // `computeNetWorthAt` folds into `investments_inr`. The sleeve comes from the
+  // shared balance derivation rather than a second holdings subtraction here.
   for (const acc of allAccounts) {
-    if (
-      acc.off_budget &&
-      ["investment", "savings", "checking", "cash"].includes(acc.type)
-    ) {
-      const accInvs = invList.filter((i) => i.account_id === acc.id);
-      const holdingsValInr = accInvs.reduce((sum, i) => sum + i.current_value_inr, 0);
-      const cashValInr = Math.max(0, acc.balance_inr - holdingsValInr);
-      if (cashValInr > 0) {
-        byType[acc.type] = (byType[acc.type] ?? 0) + cashValInr;
-      }
+    if (!acc.is_active || !acc.off_budget || !bearsHoldings(acc.type)) continue;
+    const parts = balances.get(acc.id);
+    const cashValInr = (parts?.base ?? 0) - (parts?.holdingsBase ?? 0);
+    // A pie chart cannot render a negative slice; an overdrawn off-budget
+    // account is reported by net worth, not here.
+    if (cashValInr > 0) {
+      byType[acc.type] = (byType[acc.type] ?? 0) + cashValInr;
     }
   }
 
