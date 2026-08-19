@@ -3,9 +3,11 @@ import { getDb } from "../db/index";
 import {
   computeSpentByEnvelope,
   listAccounts,
+  createTransaction,
   createTransfer,
   deleteTransaction,
   updateAccount,
+  updateTransaction,
 } from "./budget.service";
 
 vi.mock("../db/index", () => {
@@ -331,6 +333,79 @@ describe("budget.service", () => {
       const spent = await computeSpentByEnvelope("2026-05", {}, []);
       expect(spent).toEqual({});
       expect(fake.selects).toHaveLength(0);
+    });
+  });
+
+  // ─── Envelope-required rule ────────────────────────────────────────────────
+
+  describe("on-budget expenses require an envelope", () => {
+    const expense = {
+      account_id: "acc-1",
+      payee: "Groceries",
+      amount: 500,
+      type: "expense" as const,
+      date: "2026-05-21",
+    };
+
+    it("rejects an on-budget expense with no envelope", async () => {
+      const fake = installFake();
+      fake.selects.push([{ off_budget: false }]);
+
+      await expect(createTransaction(expense)).rejects.toThrow(
+        "An envelope category is required for expenses on On-Budget accounts."
+      );
+      expect(fake.inserted).toHaveLength(0);
+    });
+
+    it("allows an off-budget expense with no envelope", async () => {
+      const fake = installFake();
+      fake.selects.push([{ off_budget: true }]);
+
+      await createTransaction(expense);
+
+      expect(fake.inserted).toHaveLength(1);
+    });
+
+    it("allows an on-budget expense that has an envelope", async () => {
+      const fake = installFake();
+
+      await createTransaction({ ...expense, envelope_id: "env-1" });
+
+      expect(fake.inserted).toHaveLength(1);
+      // no account lookup needed when an envelope is present
+      expect(fake.selects).toHaveLength(0);
+    });
+
+    it("allows income with no envelope", async () => {
+      const fake = installFake();
+
+      await createTransaction({ ...expense, type: "income" });
+
+      expect(fake.inserted).toHaveLength(1);
+    });
+
+    it("rejects clearing the envelope on an on-budget expense", async () => {
+      const fake = installFake();
+      fake.selects.push(
+        [
+          {
+            id: "txn-1",
+            account_id: "acc-1",
+            envelope_id: "env-1",
+            amount: 500,
+            type: "expense",
+            payee: "Groceries",
+            transfer_pair_id: null,
+          },
+        ],
+        [{ off_budget: false }]
+      );
+
+      await expect(
+        updateTransaction("txn-1", { envelope_id: null })
+      ).rejects.toThrow(
+        "An envelope category is required for expenses on On-Budget accounts."
+      );
     });
   });
 

@@ -2,7 +2,7 @@ import { and, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, runTransaction } from "../db/index";
 import { recurring_transactions } from "../db/schema";
-import { insertTransactionTx } from "./budget.service";
+import { assertEnvelopeRequired, insertTransactionTx } from "./budget.service";
 
 export type RecurringTransaction = typeof recurring_transactions.$inferSelect;
 
@@ -92,6 +92,21 @@ export async function listRecurring(): Promise<RecurringTransaction[]> {
     .orderBy(recurring_transactions.next_date);
 }
 
+/**
+ * The envelope rule is enforced when the RULE is created/updated rather than
+ * when it fires: a rule that would generate uncategorised on-budget expenses
+ * every month is the bug, and failing at fire time would break automation
+ * silently instead of telling the user.
+ */
+async function assertRecurringEnvelope(
+  accountId: string | undefined,
+  type: string | undefined,
+  envelopeId: string | null | undefined
+) {
+  if (!accountId || type !== "expense" || envelopeId) return;
+  await assertEnvelopeRequired(getDb(), accountId, type, envelopeId);
+}
+
 export async function createRecurring(data: {
   payee: string;
   amount: number;
@@ -104,6 +119,7 @@ export async function createRecurring(data: {
   notes?: string | null;
 }): Promise<RecurringTransaction> {
   const db = getDb();
+  await assertRecurringEnvelope(data.account_id, data.type, data.envelope_id);
   const [row] = await db
     .insert(recurring_transactions)
     .values({
@@ -134,6 +150,22 @@ export async function updateRecurring(
   }>
 ): Promise<RecurringTransaction> {
   const db = getDb();
+
+  const [existing] = await db
+    .select()
+    .from(recurring_transactions)
+    .where(eq(recurring_transactions.id, id))
+    .limit(1);
+  if (!existing)
+    throw Object.assign(new Error("Recurring transaction not found"), {
+      status: 404,
+    });
+  await assertRecurringEnvelope(
+    data.account_id ?? existing.account_id,
+    data.type ?? existing.type,
+    data.envelope_id !== undefined ? data.envelope_id : existing.envelope_id
+  );
+
   const [row] = await db
     .update(recurring_transactions)
     .set(data)

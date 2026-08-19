@@ -947,6 +947,46 @@ export async function insertTransactionTx(
   return row;
 }
 
+/**
+ * "An expense on an on-budget account must be assigned to an envelope."
+ *
+ * This rule used to live only in TransactionForm.handleSubmit, so five write
+ * paths bypassed it — that same component's edit handler, the Budget page
+ * recategoriser, the Investments value dialog, recurring rules and CSV import.
+ * It belongs next to the on-to-off-budget check in createTransfer: at the
+ * service layer, where every caller has to go through it.
+ *
+ * Off-budget accounts are exempt (they do not participate in envelope
+ * budgeting), as are income and transfer rows.
+ *
+ * @param q a db handle or a transaction handle.
+ */
+export async function assertEnvelopeRequired(
+  q: { select: (...args: any[]) => any },
+  accountId: string,
+  type: string | null | undefined,
+  envelopeId: string | null | undefined
+): Promise<void> {
+  if (type !== "expense" || envelopeId) return;
+
+  const [account] = await q
+    .select({ off_budget: accounts.off_budget })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .limit(1);
+
+  if (!account)
+    throw Object.assign(new Error("Account not found"), { status: 404 });
+  if (account.off_budget) return;
+
+  throw Object.assign(
+    new Error(
+      "An envelope category is required for expenses on On-Budget accounts."
+    ),
+    { status: 400 }
+  );
+}
+
 /** Unique-index violations from concurrent duplicate imports (PG + SQLite). */
 function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string; message?: string };
@@ -962,6 +1002,13 @@ export async function createTransaction(
 ): Promise<TransactionResponse | null> {
   try {
     const result = await runTransaction(async (tx) => {
+      await assertEnvelopeRequired(
+        tx,
+        data.account_id,
+        data.type,
+        data.envelope_id
+      );
+
       // Deduplicate on import_hash — return null to signal "already exists".
       // Checked inside the transaction; concurrent duplicates that slip past
       // the check hit the unique index and are mapped below.
@@ -1039,6 +1086,16 @@ export async function updateTransaction(
     const newEnvelopeId =
       data.envelope_id !== undefined ? data.envelope_id : existing.envelope_id;
     const resolvedEnvId = newType === "income" ? null : newEnvelopeId;
+
+    // Same rule as create: an edit must not leave an on-budget expense
+    // uncategorised (clearing the envelope on the edit screen used to do
+    // exactly that).
+    await assertEnvelopeRequired(
+      tx,
+      existing.account_id,
+      newType,
+      resolvedEnvId
+    );
 
     // No envelope `spent` bookkeeping: it is derived from the transaction rows.
 
@@ -1202,13 +1259,25 @@ type CsvRow = {
   notes?: string;
 };
 
+/**
+ * CSV import is deliberately EXEMPT from the "on-budget expense needs an
+ * envelope" rule enforced by createTransaction/updateTransaction: a bank
+ * export carries no envelope, and refusing whole files would make bulk import
+ * useless. Imported expenses land uncategorised and are counted in
+ * `ImportResult.uncategorised` so the UI can send the user to categorise them.
+ */
 export async function importCSV(
   fileBuffer: Buffer,
   accountId: string,
   _format: string
 ): Promise<ImportResult> {
   const db = getDb();
-  const result: ImportResult = { imported: 0, skipped: 0, errors: [] };
+  const result: ImportResult = {
+    imported: 0,
+    skipped: 0,
+    uncategorised: 0,
+    errors: [],
+  };
 
   let rows: CsvRow[];
   try {
@@ -1218,7 +1287,12 @@ export async function importCSV(
       trim: true,
     });
   } catch (_e) {
-    return { imported: 0, skipped: 0, errors: ["Failed to parse CSV file"] };
+    return {
+      imported: 0,
+      skipped: 0,
+      uncategorised: 0,
+      errors: ["Failed to parse CSV file"],
+    };
   }
 
   // Validate the target account up front — inside the transaction a FK
@@ -1229,7 +1303,12 @@ export async function importCSV(
     .where(eq(accounts.id, accountId))
     .limit(1);
   if (!account) {
-    return { imported: 0, skipped: 0, errors: ["Account not found"] };
+    return {
+      imported: 0,
+      skipped: 0,
+      uncategorised: 0,
+      errors: ["Account not found"],
+    };
   }
 
   // Phase 1: validate and hash every row in memory. Nothing may fail inside
@@ -1296,12 +1375,15 @@ export async function importCSV(
         }
         await insertTransactionTx(tx, candidate);
         result.imported++;
+        if (candidate.type === "expense" && !candidate.envelope_id)
+          result.uncategorised = (result.uncategorised ?? 0) + 1;
       }
     });
   } catch (err) {
     return {
       imported: 0,
       skipped: 0,
+      uncategorised: 0,
       errors: [
         `Import failed — no rows were imported: ${(err as Error).message}`,
       ],

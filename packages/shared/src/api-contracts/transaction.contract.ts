@@ -33,5 +33,12 @@ export type PaginatedTransactionsResponse = {
 export type ImportResult = {
   imported: number;
   skipped: number;
+  /**
+   * Imported expense rows that landed with no envelope. CSV import is exempt
+   * from the "on-budget expense needs an envelope" rule the API enforces on
+   * createTransaction/updateTransaction — a bank export carries no envelope —
+   * so they are reported here instead of rejected.
+   */
+  uncategorised?: number;
   errors: string[];
 };
