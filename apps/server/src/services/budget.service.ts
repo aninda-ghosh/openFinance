@@ -16,6 +16,8 @@ import type {
 } from "@openfinance/shared/api-contracts";
 import {
   BALANCE_ADJUSTMENT_PAYEE,
+  bearsHoldings,
+  isLiabilityType,
   isTransferIn,
 } from "@openfinance/shared/constants";
 import { hashRow } from "@openfinance/shared/utils/hash";
@@ -203,17 +205,15 @@ async function deriveAccountBalances(
   const balances = new Map<string, AccountBalanceParts>();
   for (const r of rows) {
     const currency = r.currency ?? "INR";
-    // Debt accounts (credit/loan) are liabilities — balance must always be negative.
-    // Normalize here so old accounts created with a positive balance still behave correctly.
-    const startBalance =
-      r.type === "credit" || r.type === "loan"
-        ? -Math.abs(r.balance ?? 0)
-        : (r.balance ?? 0);
+    // Liabilities (credit/loan/debt) are stored negative — normalize here so
+    // an account created positive by any dialog still behaves correctly.
+    const startBalance = isLiabilityType(r.type)
+      ? -Math.abs(r.balance ?? 0)
+      : (r.balance ?? 0);
 
-    // For all asset accounts (investment, checking, savings, cash), add the sum of holdings current value linked to it!
-    const holdingsNative = ["investment", "checking", "savings", "cash"].includes(
-      r.type
-    )
+    // Holdings-bearing accounts fold in the current value of the investments
+    // linked to them.
+    const holdingsNative = bearsHoldings(r.type)
       ? (invDeltaNative[r.id] ?? 0)
       : 0;
 
@@ -259,7 +259,7 @@ export async function createAccount(
   const db = getDb();
   const rates = await getLatestRates();
 
-  const isDebt = data.type === "credit" || data.type === "loan";
+  const isDebt = isLiabilityType(data.type);
   const openingBalance = isDebt
     ? -Math.abs(data.balance ?? 0)
     : (data.balance ?? 0);
@@ -344,7 +344,7 @@ export async function updateAccount(
   if (requestedBalance !== undefined) {
     // Liabilities are stored and reported negative; accept either sign from
     // the client and let the server own it (same rule as createAccount).
-    const isDebt = row.type === "credit" || row.type === "loan";
+    const isDebt = isLiabilityType(row.type);
     const target = round2(
       isDebt ? -Math.abs(requestedBalance) : requestedBalance
     );

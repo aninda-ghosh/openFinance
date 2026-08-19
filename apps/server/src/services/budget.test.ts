@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db/index";
 import {
   computeSpentByEnvelope,
+  listAccounts,
   createTransfer,
   deleteTransaction,
   updateAccount,
@@ -276,6 +277,26 @@ describe("budget.service", () => {
       await expect(updateAccount("nope", { name: "x" })).rejects.toThrow(
         "Account not found"
       );
+    });
+  });
+
+  // ─── Liability sign normalisation ──────────────────────────────────────────
+
+  describe("listAccounts liability handling", () => {
+    it("normalises credit, loan AND debt balances to negative", async () => {
+      const fake = installFake();
+      const rows = [
+        { id: "a1", name: "Card", type: "credit", currency: "INR", balance: 1000 },
+        { id: "a2", name: "Mortgage", type: "loan", currency: "INR", balance: 2000 },
+        { id: "a3", name: "Owed to a friend", type: "debt", currency: "INR", balance: 3000 },
+        { id: "a4", name: "Bank", type: "checking", currency: "INR", balance: 4000 },
+      ];
+      // rates, accounts, txn totals, investment totals
+      fake.selects.push([], rows, [], []);
+
+      const accounts = await listAccounts();
+
+      expect(accounts.map((a) => a.balance)).toEqual([-1000, -2000, -3000, 4000]);
     });
   });
 
