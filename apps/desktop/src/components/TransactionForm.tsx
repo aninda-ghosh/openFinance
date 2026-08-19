@@ -26,11 +26,12 @@ import {
   useCreateTransfer,
   useDeleteTransaction,
   useEnvelopes,
+  useExchangeRates,
   useTransactions,
   useUpdateTransaction,
 } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
-import { formatCurrency } from "@openfinance/shared/utils";
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 
 const getCurrencySymbol = (currencyCode: string): string => {
   const map: Record<string, string> = {
@@ -270,6 +271,9 @@ export default function TransactionForm({
   }, [isEdit, date, selectedMonth]);
 
   const { data: envelopesData } = useEnvelopes(envelopeMonth);
+  // Needed to show the server's base-currency `available` in the envelope's
+  // own budget currency.
+  const { data: rates = {} } = useExchangeRates();
   const envelopes = useMemo(
     () => envelopesData?.envelopes ?? [],
     [envelopesData]
@@ -744,15 +748,26 @@ export default function TransactionForm({
                   )}>
                     {items.map((env) => {
                       const isSelected = env.id === envelopeId;
+                      // `spent` and `available` are both base-currency (INR);
+                      // `budgeted` is in the envelope's own budget_currency.
+                      // Nothing budgeted but something spent is 100% over, not
+                      // 0% — the old `budgeted_inr > 0` guard reported 0.
                       const pctSpent =
                         env.budgeted_inr > 0
                           ? (env.spent / env.budgeted_inr) * 100
-                          : 0;
-                      const remaining =
-                        env.budgeted -
-                        (env.budgeted_inr > 0
-                          ? (env.spent / env.budgeted_inr) * env.budgeted
-                          : 0);
+                          : env.spent > 0
+                            ? 100
+                            : 0;
+                      // Use the server's `available` (budgeted_inr − spent)
+                      // rather than reverse-converting spent through a
+                      // budgeted/budgeted_inr ratio, which collapsed to
+                      // `budgeted` whenever budgeted_inr was 0 and so hid
+                      // overspend on unbudgeted envelopes entirely.
+                      const remaining = convertFromINR(
+                        env.available,
+                        env.budget_currency as any,
+                        rates
+                      );
                       return (
                         <button
                           key={env.id}
@@ -795,7 +810,7 @@ export default function TransactionForm({
                                       : "bg-primary"
                                 )}
                                 style={{
-                                  width: `${Math.min(100, pctSpent)}%`,
+                                  width: `${Math.max(0, Math.min(100, pctSpent))}%`,
                                 }}
                               />
                             </div>
