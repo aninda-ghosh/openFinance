@@ -367,11 +367,20 @@ function AddCategoryDialog({
   );
 }
 
+/**
+ * All three numbers are BASE currency and all three come straight off
+ * `listEnvelopes`. `available` is NOT recomputed here as
+ * `budgeted_inr - spent`: the server's `budgeted_inr` already has any rollover
+ * folded in, and having a second definition of "available" on the client is
+ * exactly how the drill-down sheet and the row it was opened from ended up
+ * disagreeing.
+ */
 type DrillEnvelope = {
   id: string;
   name: string;
   spent: number;
   budgeted_inr: number;
+  available: number;
 };
 
 function EnvelopeTransactionsSheet({
@@ -420,7 +429,7 @@ function EnvelopeTransactionsSheet({
     {}
   );
   const txns = txnData?.transactions ?? [];
-  const balance = (envelope?.budgeted_inr ?? 0) - (envelope?.spent ?? 0);
+  const balance = envelope?.available ?? 0;
 
   return (
     <Sheet
@@ -677,12 +686,17 @@ function BudgetTable({
         {groupedEnvelopes.map(({ group, envelopes }) => {
           const isCollapsed = collapsed.has(group.id);
           const totalBudgeted = envelopes.reduce(
-            (s, e) => s + (e.budgeted_inr ?? e.budgeted),
+            (s, e) => s + (e.budgeted_inr ?? 0),
             0
           );
           const totalSpent = envelopes.reduce((s, e) => s + e.spent, 0);
-          const totalBalance = totalBudgeted - totalSpent;
-          const spentPercent = totalBudgeted > 0 ? Math.min(100, (totalSpent / totalBudgeted) * 100) : 0;
+          const totalBalance = envelopes.reduce((s, e) => s + e.available, 0);
+          // `spent` goes NEGATIVE when a transfer-in credits an envelope, so
+          // the bar has to be clamped at both ends, not just at 100.
+          const spentPercent =
+            totalBudgeted > 0
+              ? Math.max(0, Math.min(100, (totalSpent / totalBudgeted) * 100))
+              : 0;
 
           return (
             <div
@@ -782,11 +796,14 @@ function BudgetTable({
               {!isCollapsed && (
                 <div className="divide-y divide-border/30 border-t border-border/40 bg-card/30">
                   {envelopes.map((env) => {
-                    const budgetedInr = env.budgeted_inr ?? env.budgeted;
-                    const balance = budgetedInr - env.spent;
+                    const budgetedInr = env.budgeted_inr ?? 0;
+                    const balance = env.available;
                     const isEditing = editingBudget?.envId === env.id;
                     const hasForeignCurrency = env.budget_currency && env.budget_currency !== "INR";
-                    const envSpentPercent = budgetedInr > 0 ? Math.min(100, (env.spent / budgetedInr) * 100) : 0;
+                    const envSpentPercent =
+                      budgetedInr > 0
+                        ? Math.max(0, Math.min(100, (env.spent / budgetedInr) * 100))
+                        : 0;
 
                     return (
                       <div
@@ -800,7 +817,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1064,11 +1082,11 @@ function BudgetTable({
           {groupedEnvelopes.map(({ group, envelopes }) => {
             const isCollapsed = collapsed.has(group.id);
             const totalBudgeted = envelopes.reduce(
-              (s, e) => s + (e.budgeted_inr ?? e.budgeted),
+              (s, e) => s + (e.budgeted_inr ?? 0),
               0
             );
             const totalSpent = envelopes.reduce((s, e) => s + e.spent, 0);
-            const totalBalance = totalBudgeted - totalSpent;
+            const totalBalance = envelopes.reduce((s, e) => s + e.available, 0);
             return (
               <Fragment key={group.id}>
                 {/* Group header row */}
@@ -1141,8 +1159,8 @@ function BudgetTable({
                 {/* Envelope rows */}
                 {!isCollapsed &&
                   envelopes.map((env) => {
-                    const budgetedInr = env.budgeted_inr ?? env.budgeted;
-                    const balance = budgetedInr - env.spent;
+                    const budgetedInr = env.budgeted_inr ?? 0;
+                    const balance = env.available;
                     const isEditing = editingBudget?.envId === env.id;
                     const hasForeignCurrency =
                       env.budget_currency && env.budget_currency !== "INR";
@@ -1158,7 +1176,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1219,7 +1238,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1852,7 +1872,7 @@ export default function BudgetPage() {
   // Exclude income groups — they don't consume budget
   const totalBudgeted = allEnvelopes
     .filter((e) => !incomeGroupIds.has(e.group_id))
-    .reduce((s, e) => s + (e.budgeted_inr ?? e.budgeted), 0);
+    .reduce((s, e) => s + (e.budgeted_inr ?? 0), 0);
   const carryover = summary?.carryover_from_previous ?? 0;
   const toBudget = summary
     ? summary.total_income + carryover - totalBudgeted
@@ -1897,6 +1917,11 @@ export default function BudgetPage() {
                         name: "Uncategorised Transactions",
                         spent: uncategorizedAmount,
                         budgeted_inr: 0,
+                        // Synthetic envelope: nothing was budgeted, so the
+                        // whole uncategorised total is negative available.
+                        // The sheet does not render this for _uncategorised_,
+                        // but it must stay consistent with budgeted − spent.
+                        available: -uncategorizedAmount,
                       })
                     }
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-negative/10 text-negative hover:bg-negative/20 active:scale-95 transition-all duration-150 border border-negative/20 cursor-pointer shadow-sm"
