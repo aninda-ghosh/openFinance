@@ -1145,7 +1145,6 @@ export async function updateTransaction(
     }
 
     const newType = data.type ?? existing.type;
-    const newAmount = data.amount ?? existing.amount;
     const newEnvelopeId =
       data.envelope_id !== undefined ? data.envelope_id : existing.envelope_id;
     const resolvedEnvId = newType === "income" ? null : newEnvelopeId;
