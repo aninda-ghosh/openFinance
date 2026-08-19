@@ -1,3 +1,9 @@
+import {
+  TRANSFER_IN,
+  TRANSFER_OUT,
+  isTransferIn,
+  isTransferOut,
+} from "@openfinance/shared/constants";
 import { convertFromINR, convertToINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   CalendarClock,
@@ -483,8 +489,7 @@ function EnvelopeTransactionsSheet({
               {txns.map((t: any) => {
                 const acct = accountMap[t.account_id];
                 const currency = acct?.currency ?? t.currency ?? "INR";
-                const isCredit =
-                  t.type === "transfer" && t.payee === "Transfer in";
+                const isCredit = isTransferIn(t);
                 const amountColor = isCredit
                   ? "text-positive"
                   : "text-negative";
@@ -497,8 +502,7 @@ function EnvelopeTransactionsSheet({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">
-                          {t.payee === "Transfer in" ||
-                          t.payee === "Transfer out"
+                          {isTransferIn(t) || isTransferOut(t)
                             ? t.notes || t.payee
                             : t.payee}
                         </span>
@@ -512,9 +516,9 @@ function EnvelopeTransactionsSheet({
                           }`}
                         >
                           {isCredit
-                            ? "Transfer in"
+                            ? TRANSFER_IN
                             : t.type === "transfer"
-                              ? "Transfer out"
+                              ? TRANSFER_OUT
                               : t.type}
                         </span>
                       </div>
