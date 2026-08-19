@@ -908,7 +908,10 @@ export async function listTransactions(
       .leftJoin(envelopes, eq(transactions.envelope_id, envelopes.id))
       .leftJoin(accounts, eq(transactions.account_id, accounts.id))
       .where(where)
-      .orderBy(desc(transactions.date))
+      // created_at breaks same-day ties. Without it the order of same-day rows
+      // is whatever the planner returns, so a client running-balance column
+      // reshuffles between refetches for no reason.
+      .orderBy(desc(transactions.date), desc(transactions.created_at))
       .limit(limit)
       .offset(offset),
     db
