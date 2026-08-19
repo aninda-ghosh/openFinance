@@ -35,9 +35,21 @@ function toInr(
   return amount * (rates[currency] ?? 1.0);
 }
 
-function computeTotalInvested(policy: typeof policies.$inferSelect): number {
+/**
+ * Premiums actually paid into a policy as of a date, in the policy's currency.
+ *
+ * Exported because the net-worth breakdown values unlinked policies with it.
+ * That used to be `premium × payments-per-year × premium_term_years` — the
+ * whole-term total — which overstated a young policy today and, worse, was
+ * applied unchanged at every month-end, so a policy's contribution to
+ * historical net worth was a flat line at its final value.
+ */
+export function computeInvestedAt(
+  policy: typeof policies.$inferSelect,
+  asOf: Date | string
+): number {
   const start = new Date(policy.start_date);
-  const today = new Date();
+  const cutoff = typeof asOf === "string" ? new Date(asOf) : asOf;
   const endOfPremiumTerm = new Date(start);
   endOfPremiumTerm.setFullYear(
     endOfPremiumTerm.getFullYear() + policy.premium_term_years
@@ -48,12 +60,16 @@ function computeTotalInvested(policy: typeof policies.$inferSelect): number {
 
   let count = 0;
   const cursor = new Date(start);
-  while (cursor <= today && cursor < endOfPremiumTerm) {
+  while (cursor <= cutoff && cursor < endOfPremiumTerm) {
     count++;
     cursor.setMonth(cursor.getMonth() + monthsInterval);
   }
 
   return policy.premium_amount * count;
+}
+
+function computeTotalInvested(policy: typeof policies.$inferSelect): number {
+  return computeInvestedAt(policy, new Date());
 }
 
 async function getAccountLiveBalance(db: any, accountId: string): Promise<number> {
