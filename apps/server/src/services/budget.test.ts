@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db/index";
-import { createTransfer, updateAccount } from "./budget.service";
+import {
+  computeSpentByEnvelope,
+  createTransfer,
+  deleteTransaction,
+  updateAccount,
+} from "./budget.service";
 
 vi.mock("../db/index", () => {
   const mockDb = {
@@ -271,6 +276,80 @@ describe("budget.service", () => {
       await expect(updateAccount("nope", { name: "x" })).rejects.toThrow(
         "Account not found"
       );
+    });
+  });
+
+  // ─── Envelope spend derivation ─────────────────────────────────────────────
+
+  describe("computeSpentByEnvelope", () => {
+    it("nets spend per envelope in base currency, crediting transfers in", async () => {
+      const fake = installFake();
+      fake.selects.push([
+        // account-native amounts; USD converts at 80
+        { envelope_id: "e1", amount: 100, currency: "USD", type: "expense", payee: "Coffee" },
+        { envelope_id: "e1", amount: 50, currency: "INR", type: "expense", payee: "Tea" },
+        { envelope_id: "e2", amount: 200, currency: "INR", type: "transfer", payee: "Transfer in" },
+        { envelope_id: "e2", amount: 20, currency: "INR", type: "transfer", payee: "Transfer out" },
+      ]);
+
+      const spent = await computeSpentByEnvelope(
+        "2026-05",
+        { USD: 80 },
+        ["e1", "e2", "e3"]
+      );
+
+      expect(spent.e1).toBe(100 * 80 + 50);
+      // 200 credited, 20 debited → net credit of 180
+      expect(spent.e2).toBe(-180);
+      // an envelope with no transactions is reported, as zero
+      expect(spent.e3).toBe(0);
+    });
+
+    it("short-circuits when the month has no envelopes", async () => {
+      const fake = installFake();
+      const spent = await computeSpentByEnvelope("2026-05", {}, []);
+      expect(spent).toEqual({});
+      expect(fake.selects).toHaveLength(0);
+    });
+  });
+
+  describe("envelopes.spent is never written", () => {
+    it("deleting a transaction only deletes rows, no spent bookkeeping", async () => {
+      const fake = installFake();
+      fake.selects.push([
+        {
+          id: "txn-1",
+          account_id: "acc-1",
+          envelope_id: "env-1",
+          amount: 500,
+          type: "expense",
+          payee: "Groceries",
+          transfer_pair_id: null,
+        },
+      ]);
+
+      await deleteTransaction("txn-1");
+
+      expect(fake.updated).toHaveLength(0);
+    });
+
+    it("deleting one leg of a transfer deletes the pair without spent bookkeeping", async () => {
+      const fake = installFake();
+      fake.selects.push([
+        {
+          id: "txn-1",
+          account_id: "acc-1",
+          envelope_id: "env-1",
+          amount: 500,
+          type: "transfer",
+          payee: "Transfer out",
+          transfer_pair_id: "pair-1",
+        },
+      ]);
+
+      await deleteTransaction("txn-1");
+
+      expect(fake.updated).toHaveLength(0);
     });
   });
 });

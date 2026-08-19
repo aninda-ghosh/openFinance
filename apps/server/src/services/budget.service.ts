@@ -14,7 +14,10 @@ import type {
   UpdateEnvelopeRequest,
   UpdateTransactionRequest,
 } from "@openfinance/shared/api-contracts";
-import { BALANCE_ADJUSTMENT_PAYEE } from "@openfinance/shared/constants";
+import {
+  BALANCE_ADJUSTMENT_PAYEE,
+  isTransferIn,
+} from "@openfinance/shared/constants";
 import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
 import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
@@ -375,25 +378,9 @@ export async function updateAccount(
 export async function deleteAccount(id: string): Promise<void> {
   const db = getDb();
   await runTransaction(async (tx) => {
-    // Reverse envelope charges before deleting transactions so envelopes stay accurate.
-    const acctTxns = await tx
-      .select()
-      .from(transactions)
-      .where(eq(transactions.account_id, id));
-    for (const t of acctTxns) {
-      if (t.envelope_id && (t.type === "expense" || t.type === "transfer")) {
-        const wasCredit = t.type === "transfer" && t.payee === "Transfer in";
-        await tx
-          .update(envelopes)
-          .set({
-            spent: wasCredit
-              ? sql`${envelopes.spent} + ${t.amount}` // undo credit
-              : sql`${envelopes.spent} - ${t.amount}`, // undo debit
-          })
-          .where(eq(envelopes.id, t.envelope_id));
-      }
-    }
-
+    // No envelope bookkeeping to undo: envelope spend is derived from the
+    // transactions themselves (see computeSpentByEnvelope), so deleting them
+    // is the reversal.
     await tx
       .delete(recurring_transactions)
       .where(eq(recurring_transactions.account_id, id));
@@ -472,6 +459,81 @@ async function seedMonthFromTemplate(
   }
 }
 
+/**
+ * THE definition of "how much has been spent against each envelope of `month`",
+ * in BASE currency, keyed by envelope id.
+ *
+ * Expenses and the outgoing leg of a transfer debit their envelope; the
+ * incoming leg credits it, so a credited envelope can come back negative.
+ * Amounts are stored in the account's native currency and converted here.
+ *
+ * The `envelopes.spent` column is NOT used: it used to be maintained
+ * incrementally in account-native currency by four writers and overwritten
+ * wholesale in base currency by a fifth, so it was only ever right for the
+ * last month someone happened to open a report on. The column still exists
+ * (dropping it needs a migration) but nothing reads or writes it — this
+ * function is the only source of truth.
+ *
+ * Off-budget accounts are deliberately NOT excluded: if a transaction was
+ * assigned an envelope, the user meant it to count against that envelope
+ * (this is also how on-to-off-budget transfers are budgeted).
+ *
+ * @param envelopeIds pass the month's envelope ids when the caller already has
+ *   them, to skip a lookup. Every id passed (or found) appears in the result.
+ */
+export async function computeSpentByEnvelope(
+  month: string,
+  rates: Record<string, number>,
+  envelopeIds?: string[]
+): Promise<Record<string, number>> {
+  const db = getDb();
+
+  const ids =
+    envelopeIds ??
+    (
+      await db
+        .select({ id: envelopes.id })
+        .from(envelopes)
+        .where(eq(envelopes.month, month))
+    ).map((r) => r.id);
+
+  const spent: Record<string, number> = {};
+  for (const id of ids) spent[id] = 0;
+  if (ids.length === 0) return spent;
+
+  const [year, mon] = month.split("-").map(Number);
+  const dateFrom = `${month}-01`;
+  const dateTo = `${month}-${String(new Date(year, mon, 0).getDate()).padStart(2, "0")}`;
+
+  const rows = await db
+    .select({
+      envelope_id: transactions.envelope_id,
+      amount: transactions.amount,
+      currency: accounts.currency,
+      type: transactions.type,
+      payee: transactions.payee,
+    })
+    .from(transactions)
+    .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+    .where(
+      and(
+        or(eq(transactions.type, "expense"), eq(transactions.type, "transfer")),
+        gte(transactions.date, dateFrom),
+        lte(transactions.date, dateTo),
+        inArray(transactions.envelope_id, ids)
+      )
+    );
+
+  for (const r of rows) {
+    if (!r.envelope_id) continue;
+    const base = toInr(r.amount, r.currency ?? "INR", rates);
+    const isCredit = isTransferIn(r);
+    spent[r.envelope_id] = (spent[r.envelope_id] ?? 0) + (isCredit ? -base : base);
+  }
+
+  return spent;
+}
+
 export async function listEnvelopes(
   month: string
 ): Promise<EnvelopeWithGroupResponse[]> {
@@ -518,46 +580,9 @@ export async function listEnvelopes(
       .orderBy(envelope_groups.sort_order, envelopes.name);
   }
 
-  // Compute spent in INR from transactions — join with account currency
-  const [year, mon] = month.split("-").map(Number);
-  const dateFrom = `${month}-01`;
-  const dateTo = `${month}-${String(new Date(year, mon, 0).getDate()).padStart(2, "0")}`;
-
+  // Net spent per envelope, in base currency (single source of truth).
   const envIds = rows.map((r) => r.id);
-  const spentRows =
-    envIds.length > 0
-      ? await db
-          .select({
-            envelope_id: transactions.envelope_id,
-            amount: transactions.amount,
-            currency: accounts.currency,
-            type: transactions.type,
-            payee: transactions.payee,
-          })
-          .from(transactions)
-          .leftJoin(accounts, eq(transactions.account_id, accounts.id))
-          .where(
-            and(
-              or(
-                eq(transactions.type, "expense"),
-                eq(transactions.type, "transfer")
-              ),
-              gte(transactions.date, dateFrom),
-              lte(transactions.date, dateTo)
-            )
-          )
-      : [];
-
-  // Sum net spent per envelope in INR.
-  // Transfer in with envelope_id credits the envelope (negative spent).
-  const spentMap: Record<string, number> = {};
-  for (const r of spentRows) {
-    if (!r.envelope_id) continue;
-    const inr = toInr(r.amount, r.currency ?? "INR", rates);
-    const isCredit = r.type === "transfer" && r.payee === "Transfer in";
-    spentMap[r.envelope_id] =
-      (spentMap[r.envelope_id] ?? 0) + (isCredit ? -inr : inr);
-  }
+  const spentMap = await computeSpentByEnvelope(month, rates, envIds);
 
   // ── Rollover: fetch previous month's envelopes for any that have rollover set ─
   const hasRollover = rows.some(
@@ -582,44 +607,12 @@ export async function listEnvelopes(
       .from(envelopes)
       .where(eq(envelopes.month, prevMonth));
 
-    // Sum spent for previous month envelopes
-    const prevDateFrom = `${prevMonth}-01`;
-    const [py, pm] = prevMonth.split("-").map(Number);
-    const prevDateTo = `${prevMonth}-${String(new Date(py, pm, 0).getDate()).padStart(2, "0")}`;
-    const prevEnvIds = prevRows.map((r) => r.id);
-
-    const prevSpentRows =
-      prevEnvIds.length > 0
-        ? await db
-            .select({
-              envelope_id: transactions.envelope_id,
-              amount: transactions.amount,
-              currency: accounts.currency,
-              type: transactions.type,
-              payee: transactions.payee,
-            })
-            .from(transactions)
-            .leftJoin(accounts, eq(transactions.account_id, accounts.id))
-            .where(
-              and(
-                or(
-                  eq(transactions.type, "expense"),
-                  eq(transactions.type, "transfer")
-                ),
-                gte(transactions.date, prevDateFrom),
-                lte(transactions.date, prevDateTo)
-              )
-            )
-        : [];
-
-    const prevSpentById: Record<string, number> = {};
-    for (const r of prevSpentRows) {
-      if (!r.envelope_id) continue;
-      const inr = toInr(r.amount, r.currency ?? "INR", rates);
-      const isCredit = r.type === "transfer" && r.payee === "Transfer in";
-      prevSpentById[r.envelope_id] =
-        (prevSpentById[r.envelope_id] ?? 0) + (isCredit ? -inr : inr);
-    }
+    // Same spent definition as the current month, one month back.
+    const prevSpentById = await computeSpentByEnvelope(
+      prevMonth,
+      rates,
+      prevRows.map((r) => r.id)
+    );
 
     for (const pr of prevRows) {
       const key = `${pr.group_id}|${pr.name}`;
@@ -697,6 +690,7 @@ export async function createEnvelope(data: CreateEnvelopeRequest) {
 
 export async function updateEnvelope(id: string, data: UpdateEnvelopeRequest) {
   const db = getDb();
+  const rates = await getLatestRates();
   const [row] = await db
     .update(envelopes)
     .set(data)
@@ -704,13 +698,24 @@ export async function updateEnvelope(id: string, data: UpdateEnvelopeRequest) {
     .returning();
   if (!row)
     throw Object.assign(new Error("Envelope not found"), { status: 404 });
+
+  // `spent` and `available` are always base currency, derived from
+  // transactions — never read back from the dead `spent` column.
+  const budgetCurrency = row.budget_currency ?? "INR";
+  const budgetedInr = toInr(row.budgeted ?? 0, budgetCurrency, rates);
+  const spent = (await computeSpentByEnvelope(row.month, rates, [row.id]))[
+    row.id
+  ];
+
   return {
     id: row.id,
     group_id: row.group_id,
     name: row.name,
     budgeted: row.budgeted ?? 0,
-    spent: row.spent ?? 0,
-    available: (row.budgeted ?? 0) - (row.spent ?? 0),
+    budget_currency: budgetCurrency,
+    budgeted_inr: budgetedInr,
+    spent,
+    available: budgetedInr - spent,
     month: row.month,
     rollover_type: (row.rollover_type ?? "none") as
       | "none"
@@ -926,34 +931,19 @@ export async function listTransactions(
 }
 
 /**
- * The single write path for inserting a transaction row. Applies the envelope
- * `spent` accounting alongside the insert so every caller (UI create,
- * transfers, CSV import, recurring, account seeding) gets identical
- * bookkeeping. Must be called with a runTransaction handle.
+ * The single write path for inserting a transaction row, shared by every
+ * caller (UI create, transfers, CSV import, recurring, account seeding and
+ * reconciliation). Must be called with a runTransaction handle.
  *
- * Expenses and Transfer Out debit the envelope; Transfer In credits it.
+ * It deliberately does NOT touch `envelopes.spent`: envelope spend is derived
+ * from the transactions by `computeSpentByEnvelope`, so the row itself is the
+ * whole bookkeeping.
  */
 export async function insertTransactionTx(
   tx: any,
   data: typeof transactions.$inferInsert
 ): Promise<typeof transactions.$inferSelect> {
   const [row] = await tx.insert(transactions).values(data).returning();
-
-  if (
-    data.envelope_id &&
-    (data.type === "expense" || data.type === "transfer")
-  ) {
-    const isCredit = data.type === "transfer" && data.payee === "Transfer in";
-    await tx
-      .update(envelopes)
-      .set({
-        spent: isCredit
-          ? sql`${envelopes.spent} - ${data.amount}`
-          : sql`${envelopes.spent} + ${data.amount}`,
-      })
-      .where(eq(envelopes.id, data.envelope_id));
-  }
-
   return row;
 }
 
@@ -1050,38 +1040,7 @@ export async function updateTransaction(
       data.envelope_id !== undefined ? data.envelope_id : existing.envelope_id;
     const resolvedEnvId = newType === "income" ? null : newEnvelopeId;
 
-    // Reverse old envelope contribution (use opposite sign of what was applied)
-    const wasTracked =
-      existing.envelope_id &&
-      (existing.type === "expense" || existing.type === "transfer");
-    if (wasTracked) {
-      const wasCredit =
-        existing.type === "transfer" && existing.payee === "Transfer in";
-      await tx
-        .update(envelopes)
-        .set({
-          spent: wasCredit
-            ? sql`${envelopes.spent} + ${existing.amount}` // undo credit
-            : sql`${envelopes.spent} - ${existing.amount}`, // undo debit
-        })
-        .where(eq(envelopes.id, existing.envelope_id!));
-    }
-
-    // Apply new envelope contribution
-    const willTrack =
-      resolvedEnvId && (newType === "expense" || newType === "transfer");
-    if (willTrack) {
-      const newPayee = data.payee ?? existing.payee;
-      const willCredit = newType === "transfer" && newPayee === "Transfer in";
-      await tx
-        .update(envelopes)
-        .set({
-          spent: willCredit
-            ? sql`${envelopes.spent} - ${newAmount}` // credit
-            : sql`${envelopes.spent} + ${newAmount}`, // debit
-        })
-        .where(eq(envelopes.id, resolvedEnvId));
-    }
+    // No envelope `spent` bookkeeping: it is derived from the transaction rows.
 
     // Build a properly-typed partial to avoid Drizzle rejecting unknown keys
     const setData: Partial<typeof transactions.$inferInsert> = {};
@@ -1122,48 +1081,15 @@ export async function deleteTransaction(id: string): Promise<void> {
     if (!existing)
       throw Object.assign(new Error("Transaction not found"), { status: 404 });
 
+    // Envelope spend is derived from the rows, so deleting them is the whole
+    // reversal — no `spent` bookkeeping to undo.
     if (existing.transfer_pair_id) {
-      // Fetch all legs of the pair so we can reverse whichever side was envelope-charged
-      // (the outgoing leg carries the envelope_id; the incoming leg does not).
-      // Without this, deleting the "Transfer in" leg would skip the reversal entirely.
-      const pairTxns = await tx
-        .select()
-        .from(transactions)
-        .where(eq(transactions.transfer_pair_id, existing.transfer_pair_id));
-
-      for (const t of pairTxns) {
-        if (t.envelope_id) {
-          const wasCredit = t.type === "transfer" && t.payee === "Transfer in";
-          await tx
-            .update(envelopes)
-            .set({
-              spent: wasCredit
-                ? sql`${envelopes.spent} + ${t.amount}` // undo credit
-                : sql`${envelopes.spent} - ${t.amount}`, // undo debit
-            })
-            .where(eq(envelopes.id, t.envelope_id));
-        }
-      }
-
+      // Both legs go together: a half-deleted transfer would leave an orphan
+      // leg that no balance derivation can classify.
       await tx
         .delete(transactions)
         .where(eq(transactions.transfer_pair_id, existing.transfer_pair_id));
     } else {
-      if (
-        existing.envelope_id &&
-        (existing.type === "expense" || existing.type === "transfer")
-      ) {
-        const wasCredit =
-          existing.type === "transfer" && existing.payee === "Transfer in";
-        await tx
-          .update(envelopes)
-          .set({
-            spent: wasCredit
-              ? sql`${envelopes.spent} + ${existing.amount}` // undo credit
-              : sql`${envelopes.spent} - ${existing.amount}`, // undo debit
-          })
-          .where(eq(envelopes.id, existing.envelope_id));
-      }
       await tx.delete(transactions).where(eq(transactions.id, id));
     }
   });
@@ -1420,12 +1346,30 @@ export async function computeCarryoverForMonth(
   // All envelopes in months prior to `month` to compute both prior budgeted and overspending
   const priorEnvelopes = await db
     .select({
+      id: envelopes.id,
+      month: envelopes.month,
       budgeted: envelopes.budgeted,
       budget_currency: envelopes.budget_currency,
-      spent: envelopes.spent,
     })
     .from(envelopes)
     .where(lt(envelopes.month, month));
+
+  // Spend is derived per month from the transactions — the `spent` column it
+  // used to read was an incrementally-maintained mix of account-native
+  // amounts, so carryover was wrong for every month whose summary endpoint
+  // had never been hit and wrong in any multi-currency setup regardless.
+  const priorMonths = [...new Set(priorEnvelopes.map((e) => e.month))];
+  const spentByMonth = new Map<string, Record<string, number>>();
+  for (const m of priorMonths) {
+    spentByMonth.set(
+      m,
+      await computeSpentByEnvelope(
+        m,
+        rates,
+        priorEnvelopes.filter((e) => e.month === m).map((e) => e.id)
+      )
+    );
+  }
 
   let totalPriorBudgeted = 0;
   let totalPriorOverspent = 0;
@@ -1433,11 +1377,11 @@ export async function computeCarryoverForMonth(
   for (const env of priorEnvelopes) {
     const currency = env.budget_currency ?? "INR";
     const budgetedInr = toInr(env.budgeted ?? 0, currency, rates);
-    const spentInr = env.spent ?? 0;
+    const spentInr = spentByMonth.get(env.month)?.[env.id] ?? 0;
 
     totalPriorBudgeted += budgetedInr;
     if (spentInr > budgetedInr) {
-      totalPriorOverspent += (spentInr - budgetedInr);
+      totalPriorOverspent += spentInr - budgetedInr;
     }
   }
 
@@ -1496,33 +1440,12 @@ export async function getMonthlySummary(
       return s + (isCredit ? -inr : inr);
     }, 0);
 
-  // Compute envelope net spent in INR from transactions atomically.
-  // Transfer In with envelope_id credits the envelope (negative spent).
+  // Envelope spend comes from listEnvelopes, which uses computeSpentByEnvelope
+  // — the same numbers the Budget page renders. This endpoint used to
+  // recompute them AND overwrite the `envelopes.spent` column with the result,
+  // which is what left that column holding base-currency values on top of the
+  // account-native increments every write path was making.
   const envRows = await listEnvelopes(month);
-
-  const spentByEnvelopeInr = txns
-    .filter(
-      (t) => t.envelope_id && (t.type === "expense" || t.type === "transfer")
-    )
-    .reduce<Record<string, number>>((acc, t) => {
-      const inr = toInrAmount(t.amount, t.currency);
-      const isCredit = t.type === "transfer" && t.payee === "Transfer in";
-      acc[t.envelope_id!] =
-        (acc[t.envelope_id!] ?? 0) + (isCredit ? -inr : inr);
-      return acc;
-    }, {});
-
-  // Sync denormalised spent column (in INR) so it stays consistent
-  await Promise.all([
-    ...Object.entries(spentByEnvelopeInr).map(([envId, spent]) =>
-      db.update(envelopes).set({ spent }).where(eq(envelopes.id, envId))
-    ),
-    ...envRows
-      .filter((env) => !(env.id in spentByEnvelopeInr))
-      .map((env) =>
-        db.update(envelopes).set({ spent: 0 }).where(eq(envelopes.id, env.id))
-      ),
-  ]);
 
   return {
     month,
@@ -1530,41 +1453,67 @@ export async function getMonthlySummary(
     total_expenses: totalExpenses,
     net: totalIncome - totalExpenses,
     carryover_from_previous: carryoverFromPrevious,
-    envelope_summaries: envRows.map((e) => {
-      const spent = spentByEnvelopeInr[e.id] ?? 0;
-      return {
-        envelope_id: e.id,
-        envelope_name: e.name,
-        budgeted: e.budgeted,
-        spent,
-        available: e.budgeted - spent,
-      };
-    }),
+    envelope_summaries: envRows.map((e) => ({
+      envelope_id: e.id,
+      envelope_name: e.name,
+      budgeted: e.budgeted,
+      spent: e.spent,
+      available: e.available,
+    })),
   };
 }
 
+/**
+ * Budgeted vs spent for one envelope over the last `months` months, both in
+ * base currency.
+ *
+ * Envelope rows are per-month with distinct ids, so the previous
+ * `where(envelopes.id = envelopeId)` could only ever match a single row and
+ * the trend chart always rendered one point. The envelope's identity across
+ * months is `group_id|name`, the same key the rollover logic uses.
+ */
 export async function getEnvelopeTrends(
   envelopeId: string,
   months: number
 ): Promise<TrendResponse[]> {
   const db = getDb();
+  const rates = await getLatestRates();
+
+  const [anchor] = await db
+    .select({ group_id: envelopes.group_id, name: envelopes.name })
+    .from(envelopes)
+    .where(eq(envelopes.id, envelopeId))
+    .limit(1);
+  if (!anchor)
+    throw Object.assign(new Error("Envelope not found"), { status: 404 });
 
   const rows = await db
     .select({
+      id: envelopes.id,
       month: envelopes.month,
       budgeted: envelopes.budgeted,
-      spent: envelopes.spent,
+      budget_currency: envelopes.budget_currency,
     })
     .from(envelopes)
-    .where(eq(envelopes.id, envelopeId))
+    .where(
+      and(
+        eq(envelopes.group_id, anchor.group_id),
+        eq(envelopes.name, anchor.name)
+      )
+    )
     .orderBy(desc(envelopes.month))
     .limit(months);
 
-  return rows.map((r) => ({
-    month: r.month,
-    budgeted: r.budgeted ?? 0,
-    spent: r.spent ?? 0,
-  }));
+  const trends: TrendResponse[] = [];
+  for (const r of rows) {
+    const spent = await computeSpentByEnvelope(r.month, rates, [r.id]);
+    trends.push({
+      month: r.month,
+      budgeted: toInr(r.budgeted ?? 0, r.budget_currency ?? "INR", rates),
+      spent: spent[r.id] ?? 0,
+    });
+  }
+  return trends;
 }
 
 export async function scaleBudgetEnvelopes(conversionRate: number, newBase: string) {
