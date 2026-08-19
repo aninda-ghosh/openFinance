@@ -549,14 +549,24 @@ function EnvelopeTransactionsSheet({
                             value={t.envelope_id ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-updateTxn({
+                              updateTxn({
                                 id: t.id,
                                 data: { envelope_id: val || null }
                               }, {
-                                onSuccess: () => toast.success("Transaction categorized"),
+                                onSuccess: () =>
+                                  toast.success(
+                                    val ? "Transaction categorised" : "Envelope cleared"
+                                  ),
                                 onError: (err) => {
-                                  toast.error("Intent Unfulfilled: Categorization Failed", {
-                                    description: err?.message || "Failed to update transaction category. Please check your connection and try again.",
+                                  // `apiFetch` puts the server's `error` string
+                                  // on `message`, so a 400 from the
+                                  // on-budget-expense rule already explains
+                                  // itself — do not bury it under a generic
+                                  // "check your connection".
+                                  toast.error("Could not change the envelope", {
+                                    description:
+                                      err?.message ||
+                                      "The server rejected the change and gave no reason.",
                                     duration: 6000,
                                   });
                                 }
@@ -564,7 +574,20 @@ updateTxn({
                             }}
                             className="text-[11px] border border-border rounded px-1.5 py-0.5 bg-background truncate max-w-[180px] focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground cursor-pointer hover:border-muted-foreground/30 transition-colors"
                           >
-                            <option value="">📁 Uncategorised</option>
+                            {/*
+                              An expense on an on-budget account MUST keep an
+                              envelope — the server 400s otherwise. The option
+                              stays rendered (disabled) rather than being
+                              removed, so a legacy uncategorised row still
+                              shows its real state instead of silently
+                              displaying the first envelope in the list.
+                            */}
+                            <option value="" disabled={acct?.off_budget === false}>
+                              📁 Uncategorised
+                              {acct?.off_budget === false
+                                ? " (not allowed on-budget)"
+                                : ""}
+                            </option>
                             {allowedEnvelopes.map((env: any) => (
                               <option key={env.id} value={env.id}>
                                 📁 {env.name}
