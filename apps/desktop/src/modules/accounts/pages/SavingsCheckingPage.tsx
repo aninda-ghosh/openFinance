@@ -462,6 +462,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
         <div className="flex justify-end items-center">
           <AccountFormDialog
             title="Add Liquid Account"
+            mode="create"
             trigger={
               <Button size="sm" className="font-semibold text-xs h-9">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -485,6 +486,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
           </div>
           <AccountFormDialog
             title="Add Liquid Account"
+            mode="create"
             trigger={
               <Button size="sm" className="font-semibold text-xs h-9">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -726,6 +728,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
                   >
                     <AccountFormDialog
                       title="Edit Account"
+                      mode="edit"
                       initial={{
                         name: a.name,
                         type: a.type,

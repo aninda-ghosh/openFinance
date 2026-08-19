@@ -346,6 +346,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
         <div className="flex justify-end items-center">
           <AccountFormDialog
             title="Add Debt Account"
+            mode="create"
             trigger={
               <Button size="sm">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -357,7 +358,9 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
               type: "credit",
               currency: defaultCurrency,
               balance: 0,
-              off_budget: true,
+              // No `off_budget` override: every type this page creates is a
+              // liability, which the dialog already defaults to off-budget, and
+              // omitting it lets the default follow the type picker.
             }}
             isPending={creating}
             onSubmit={(data) => {
@@ -387,6 +390,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
           </div>
           <AccountFormDialog
             title="Add Debt Account"
+            mode="create"
             trigger={
               <Button size="sm">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -398,7 +402,9 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
               type: "credit",
               currency: defaultCurrency,
               balance: 0,
-              off_budget: true,
+              // No `off_budget` override: every type this page creates is a
+              // liability, which the dialog already defaults to off-budget, and
+              // omitting it lets the default follow the type picker.
             }}
             isPending={creating}
             onSubmit={(data) => {
@@ -596,6 +602,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                           />
                           <AccountFormDialog
                             title="Edit Debt Account"
+                            mode="edit"
                             trigger={
                               <Button
                                 variant="ghost"
@@ -613,7 +620,8 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                               balance: a.balance,
                               institution: a.institution ?? "",
                               is_active: a.is_active ?? true,
-                              off_budget: a.off_budget ?? true,
+                              // Edit reflects what is stored, not a default.
+                              off_budget: a.off_budget,
                             }}
                             onSubmit={(data) => {
                               // No client-side negation: the server owns the

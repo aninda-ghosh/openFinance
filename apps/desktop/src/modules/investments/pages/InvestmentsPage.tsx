@@ -407,6 +407,7 @@ function LinkedAccountEditDialog({
   return (
     <AccountFormDialog
       title="Edit Account"
+      mode="edit"
       trigger={trigger}
       initial={account}
       onSubmit={submit}
@@ -436,13 +437,17 @@ function AddLinkedAccountDialog({ trigger }: { trigger: React.ReactNode }) {
   return (
     <AccountFormDialog
       title="Add Investment Account"
+      mode="create"
       trigger={trigger}
       initial={{
         name: "",
         type: "investment",
         currency: defaultCurrency,
         balance: 0,
-        off_budget: true,
+        // No `off_budget` override: the dialog derives it from the type and
+        // keeps deriving it if the user switches the type picker. Pinning
+        // `true` here fixed it to the investment default even when the user
+        // picked Checking.
       }}
       onSubmit={submit}
       isPending={isPending}
