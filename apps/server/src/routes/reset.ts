@@ -11,6 +11,7 @@ import {
   exchange_rates,
   investment_value_history,
   investments,
+  life_insurance,
   policies,
   policy_payouts,
   price_history,
@@ -38,6 +39,7 @@ resetRouter.post("/", async (c) => {
       await tx.delete(price_history);
       await tx.delete(investment_value_history);
       await tx.delete(investment_documents);
+      await tx.delete(life_insurance);
       await tx.delete(policy_payouts);
       await tx.delete(policies);
       await tx.delete(investments);

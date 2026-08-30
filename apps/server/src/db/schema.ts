@@ -171,6 +171,34 @@ export const policy_payouts = sqliteTable("policy_payouts", {
   is_received: integer("is_received", { mode: "boolean" }).default(false),
 });
 
+// ─── Life Insurance ───────────────────────────────────────────────────────────
+//
+// Pure protection cover (term / group life). Deliberately NOT an asset: nothing
+// here feeds the net-worth breakdown or the portfolio donut — a death benefit is
+// a contingent payout, not something you own today. It lives under Investments
+// only because that is where the user looks for "what am I holding".
+
+export const life_insurance = sqliteTable("life_insurance", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  name: text("name").notNull(),
+  insured_person: text("insured_person").notNull(),
+  provider: text("provider").notNull(),
+  policy_number: text("policy_number"),
+  currency: text("currency")
+    .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
+    .default("INR"),
+  coverage_amount: real("coverage_amount").notNull(),
+  renewal_date: text("renewal_date").notNull(), // YYYY-MM-DD
+  premium_amount: real("premium_amount"),
+  premium_frequency: text("premium_frequency").$type<
+    "monthly" | "quarterly" | "annual"
+  >(),
+  created_at: text("created_at").$defaultFn(now),
+  updated_at: text("updated_at").$defaultFn(now),
+});
+
 // ─── Price History ────────────────────────────────────────────────────────────
 
 export const price_history = sqliteTable("price_history", {
@@ -216,6 +244,10 @@ export const investment_documents = sqliteTable("investment_documents", {
   account_id: text("account_id").references(() => accounts.id, {
     onDelete: "cascade",
   }),
+  life_insurance_id: text("life_insurance_id").references(
+    () => life_insurance.id,
+    { onDelete: "cascade" }
+  ),
   name: text("name").notNull(),
   file_name: text("file_name").notNull(),
   file_size: integer("file_size").notNull(),

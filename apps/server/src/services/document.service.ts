@@ -6,6 +6,7 @@ import {
   accounts,
   investment_documents,
   investments,
+  life_insurance,
 } from "../db/schema";
 import { nanoid } from "nanoid";
 import {
@@ -24,7 +25,11 @@ function ensureUploadsDir() {
 }
 
 export async function createDocument(
-  parentId: { investmentId?: string | null; accountId?: string | null },
+  parentId: {
+    investmentId?: string | null;
+    accountId?: string | null;
+    lifeInsuranceId?: string | null;
+  },
   name: string,
   fileBuffer: Buffer,
   originalName: string,
@@ -49,6 +54,7 @@ export async function createDocument(
     .values({
       investment_id: parentId.investmentId || null,
       account_id: parentId.accountId || null,
+      life_insurance_id: parentId.lifeInsuranceId || null,
       name: name || originalName,
       file_name: diskFileName,
       file_size: size,
@@ -86,6 +92,7 @@ export function migratePlaintextDocuments(): number {
 export async function listAllDocuments(filters?: {
   investmentId?: string | null;
   accountId?: string | null;
+  lifeInsuranceId?: string | null;
 }) {
   const db = getDb();
   let query = db
@@ -93,6 +100,7 @@ export async function listAllDocuments(filters?: {
       id: investment_documents.id,
       investment_id: investment_documents.investment_id,
       account_id: investment_documents.account_id,
+      life_insurance_id: investment_documents.life_insurance_id,
       name: investment_documents.name,
       file_name: investment_documents.file_name,
       file_size: investment_documents.file_size,
@@ -114,13 +122,24 @@ export async function listAllDocuments(filters?: {
       account_currency: accounts.currency,
       account_balance: accounts.balance,
       account_institution: accounts.institution,
+      // Joined life-insurance metadata
+      life_insurance_name: life_insurance.name,
+      life_insurance_insured_person: life_insurance.insured_person,
+      life_insurance_provider: life_insurance.provider,
+      life_insurance_currency: life_insurance.currency,
+      life_insurance_coverage_amount: life_insurance.coverage_amount,
+      life_insurance_renewal_date: life_insurance.renewal_date,
     })
     .from(investment_documents)
     .leftJoin(
       investments,
       eq(investment_documents.investment_id, investments.id)
     )
-    .leftJoin(accounts, eq(investment_documents.account_id, accounts.id));
+    .leftJoin(accounts, eq(investment_documents.account_id, accounts.id))
+    .leftJoin(
+      life_insurance,
+      eq(investment_documents.life_insurance_id, life_insurance.id)
+    );
 
   const conditions = [];
   if (filters?.investmentId) {
@@ -130,6 +149,11 @@ export async function listAllDocuments(filters?: {
   }
   if (filters?.accountId) {
     conditions.push(eq(investment_documents.account_id, filters.accountId));
+  }
+  if (filters?.lifeInsuranceId) {
+    conditions.push(
+      eq(investment_documents.life_insurance_id, filters.lifeInsuranceId)
+    );
   }
 
   if (conditions.length > 0) {

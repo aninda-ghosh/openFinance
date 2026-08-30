@@ -124,7 +124,9 @@ export default function DocumentsPage() {
         doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (doc.notes && doc.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (doc.investment_name && doc.investment_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (doc.account_name && doc.account_name.toLowerCase().includes(searchTerm.toLowerCase()));
+        (doc.account_name && doc.account_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (doc.life_insurance_name && doc.life_insurance_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (doc.life_insurance_insured_person && doc.life_insurance_insured_person.toLowerCase().includes(searchTerm.toLowerCase()));
 
       if (!matchesSearch) return false;
 
@@ -144,6 +146,7 @@ export default function DocumentsPage() {
       if (selectedParentGroup !== "all") {
         if (selectedParentGroup === "investments" && !doc.investment_id) return false;
         if (selectedParentGroup === "accounts" && !doc.account_id) return false;
+        if (selectedParentGroup === "life_insurance" && !doc.life_insurance_id) return false;
       }
 
       return true;
@@ -440,6 +443,7 @@ export default function DocumentsPage() {
               <option value="all">All Sources</option>
               <option value="investments">Investments Only</option>
               <option value="accounts">Accounts Only</option>
+              <option value="life_insurance">Life Insurance Only</option>
             </select>
           </div>
         </div>
@@ -474,15 +478,27 @@ export default function DocumentsPage() {
           <div className="grid grid-cols-1 gap-3">
             {filteredDocs.map((doc: any) => {
               // Resolve metadata dynamically based on joined account or investment
-              const parentName = doc.investment_name || doc.account_name || "—";
-              const parentCategory = doc.investment_id 
-                ? (doc.investment_asset_type || "HOLDING").toUpperCase() 
+              const isLifeInsurance = !!doc.life_insurance_id;
+              const parentName =
+                doc.investment_name || doc.account_name || doc.life_insurance_name || "—";
+              const parentCategory = doc.investment_id
+                ? (doc.investment_asset_type || "HOLDING").toUpperCase()
+                : isLifeInsurance
+                ? "LIFE INSURANCE"
                 : (doc.account_type || "ACCOUNT").toUpperCase();
-              const parentCurrency = doc.investment_currency || doc.account_currency || "INR";
-              const parentValue = doc.investment_id 
-                ? (doc.investment_current_value ?? 0) 
+              const parentCurrency =
+                doc.investment_currency ||
+                doc.account_currency ||
+                doc.life_insurance_currency ||
+                "INR";
+              // Life cover is a payout figure, not a holding value — label it so
+              // it can't be read as money sitting in an account.
+              const parentValue = doc.investment_id
+                ? (doc.investment_current_value ?? 0)
+                : isLifeInsurance
+                ? (doc.life_insurance_coverage_amount ?? 0)
                 : (doc.account_balance ?? 0);
-              
+
               const isInvestment = !!doc.investment_id;
 
               return (
@@ -525,6 +541,7 @@ export default function DocumentsPage() {
                         </span>
                         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 border border-green-500/20">
                           {formatCurrency(parentValue, parentCurrency)}
+                          {isLifeInsurance ? " cover" : ""}
                         </span>
                       </div>
                     </div>

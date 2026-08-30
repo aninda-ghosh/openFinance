@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { documentsApi } from "./api";
 
-export function useDocumentsList(filters?: { investmentId?: string; accountId?: string }) {
+export function useDocumentsList(filters?: {
+  investmentId?: string;
+  accountId?: string;
+  lifeInsuranceId?: string;
+}) {
   return useQuery({
     queryKey: ["documents", filters],
     queryFn: () => documentsApi.getDocuments(filters),
@@ -17,7 +21,11 @@ export function useUploadDocumentMutation() {
       file,
       notes,
     }: {
-      parentId: { investmentId?: string | null; accountId?: string | null };
+      parentId: {
+        investmentId?: string | null;
+        accountId?: string | null;
+        lifeInsuranceId?: string | null;
+      };
       name: string;
       file: File;
       notes?: string;

@@ -12,6 +12,7 @@ import {
   exchange_rates,
   investment_value_history,
   investments,
+  life_insurance,
   policies,
   policy_payouts,
   price_history,
@@ -50,6 +51,7 @@ backupRouter.get("/export", async (c) => {
       aiToolCallRows,
       investmentValueHistoryRows,
       investmentDocumentRows,
+      lifeInsuranceRows,
     ] = await Promise.all([
       db.select().from(accounts),
       db.select().from(envelope_groups),
@@ -67,6 +69,7 @@ backupRouter.get("/export", async (c) => {
       db.select().from(ai_tool_calls),
       db.select().from(investment_value_history),
       db.select().from(investment_documents),
+      db.select().from(life_insurance),
     ]);
 
     const backupData = {
@@ -89,6 +92,7 @@ backupRouter.get("/export", async (c) => {
         ai_tool_calls: aiToolCallRows,
         investment_value_history: investmentValueHistoryRows,
         investment_documents: investmentDocumentRows,
+        life_insurance: lifeInsuranceRows,
       },
     };
 
@@ -209,6 +213,8 @@ backupRouter.post("/import", async (c) => {
     if (!d.investment_documents) d.investment_documents = [];
     if (!d.investments) d.investments = [];
     if (!d.policies) d.policies = [];
+    // Backups written before life insurance existed simply have no such key.
+    if (!d.life_insurance) d.life_insurance = [];
     if (!d.exchange_rates) d.exchange_rates = [];
     else {
       d.exchange_rates = d.exchange_rates.filter(
@@ -307,6 +313,7 @@ backupRouter.post("/import", async (c) => {
       await tx.delete(price_history);
       await tx.delete(investment_value_history);
       await tx.delete(investment_documents);
+      await tx.delete(life_insurance);
       await tx.delete(policy_payouts);
       await tx.delete(policies);
       await tx.delete(investments);
@@ -340,6 +347,8 @@ backupRouter.post("/import", async (c) => {
         await batchInsert(price_history, d.price_history);
       if (d.investment_value_history?.length)
         await batchInsert(investment_value_history, d.investment_value_history);
+      if (d.life_insurance?.length)
+        await batchInsert(life_insurance, d.life_insurance);
       if (d.investment_documents?.length)
         await batchInsert(investment_documents, d.investment_documents);
       if (d.policies?.length) await batchInsert(policies, d.policies);

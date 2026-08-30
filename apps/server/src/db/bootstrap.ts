@@ -253,6 +253,23 @@ export async function bootstrapSchema(): Promise<void> {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS life_insurance (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      insured_person TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      policy_number TEXT,
+      currency TEXT DEFAULT 'INR',
+      coverage_amount REAL NOT NULL,
+      renewal_date TEXT NOT NULL,
+      premium_amount REAL,
+      premium_frequency TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `;
+
   // ── Incremental column additions ────────────────────────────────────────────
   addColumnIfMissing("transactions", "transfer_pair_id", "TEXT");
   addColumnIfMissing(
@@ -267,6 +284,11 @@ export async function bootstrapSchema(): Promise<void> {
     "investment_documents",
     "account_id",
     "TEXT REFERENCES accounts(id) ON DELETE CASCADE"
+  );
+  addColumnIfMissing(
+    "investment_documents",
+    "life_insurance_id",
+    "TEXT REFERENCES life_insurance(id) ON DELETE CASCADE"
   );
   addColumnIfMissing("users", "backup_key", "TEXT");
   addColumnIfMissing("app_settings", "ollama_url", "TEXT");
@@ -287,4 +309,6 @@ export async function bootstrapSchema(): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS idx_price_investment ON price_history (investment_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_msg_conversation ON ai_messages (conversation_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_fx_currency ON exchange_rates (from_currency)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_life_insurance_renewal ON life_insurance (renewal_date)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_doc_life_insurance ON investment_documents (life_insurance_id)`;
 }

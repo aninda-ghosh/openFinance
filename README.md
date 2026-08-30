@@ -1,4 +1,4 @@
-# 🦉 openFinance (v4.1.0) — Your Money. Your Rules. 💸
+# 🦉 openFinance (v4.2.0) — Your Money. Your Rules. 💸
 
 A self-hosted personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards and secure offline AI chat, running 100% on your own hardware.
 
@@ -14,6 +14,7 @@ openFinance ships as a native macOS app you install from a `.dmg` like anything 
 - 💸 **Envelope Budgeting** — Dynamic zero-based budgeting with custom rollovers (carry it forward, cap it, or reset it).
 - 🏦 **Unified Balance Sheet** — Scannable tracking across Checking, Savings, Credit Cards, Cash, Investments, and Loans.
 - 📈 **Tax-Loss & Portfolio Tracking** — Real-time performance metrics across mutual funds, stocks, bonds, high-yield deposits, real estate, and crypto.
+- 🛟 **Life Insurance Register** — Who is covered, how much cover, when it renews, and the policy document itself — with renewal warnings ahead of the date. Cover is tracked for reference and deliberately kept out of your net worth, because a death benefit is not an asset you hold.
 - 🧠 **100% Offline Local AI Chat** — Talk to your database! Ask natural-language questions like *"How much did I spend on Starbucks this month?"* powered by a local Ollama model. Your data never leaves your machine.
 - 💱 **Global Multi-Currency Engine** — Native support for INR, USD, SGD, GBP, EUR, JPY, and NTD with dynamic exchange rates and localized formatting.
 - 🌿 **Tactile Obsidian Theme** — A stunning, tactile user experience with rich layered depth, sage-green dark mode undertones, elegant brand gradients, and fluid transitions.
@@ -138,7 +139,7 @@ Earlier versions of openFinance ran as a Docker stack against PostgreSQL. Moving
 3. **In the Mac app**, go to **Settings → Backup & Restore**, choose the `.ofb` file, and import it.
 4. The app notices the backup was made by a different install and asks for the **username and password** you used on the hosted instance. Enter those and the restore runs.
 
-Everything transfers: accounts, envelopes and their budgets, transactions, investments, policies, recurring rules, exchange rates, AI conversations, and uploaded documents. The documents are re-encrypted under your new passcode on the way in.
+Everything transfers: accounts, envelopes and their budgets, transactions, investments, policies, life insurance, recurring rules, exchange rates, AI conversations, and uploaded documents. The documents are re-encrypted under your new passcode on the way in.
 
 > ⚠️ **Import replaces all existing data** in the Mac app. Do it before you start entering anything by hand.
 

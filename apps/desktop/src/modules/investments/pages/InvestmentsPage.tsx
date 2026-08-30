@@ -66,6 +66,7 @@ import {
 } from "../hooks/useInvestments";
 import { budgetApi } from "@/modules/budget/api";
 import { InvestmentDocuments } from "../components/InvestmentDocuments";
+import { LifeInsuranceCard } from "@/modules/life-insurance/components/LifeInsuranceCard";
 import {
   holdingsValueForAccount,
   useHoldingsExcludedBalance,
@@ -1512,6 +1513,10 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
           </CardContent>
         )}
       </Card>
+
+      {/* Life Insurance — protection cover, deliberately excluded from the
+          portfolio totals and net worth above. */}
+      <LifeInsuranceCard />
 
       {sheetAccount && (
         <LinkedAccountSheet
