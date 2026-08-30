@@ -16,10 +16,12 @@ function handleError(c: any, err: unknown) {
 documentsRouter.get("/", async (c) => {
   const investmentId = c.req.query("investment_id") || null;
   const accountId = c.req.query("account_id") || null;
+  const lifeInsuranceId = c.req.query("life_insurance_id") || null;
   try {
     const docs = await documentService.listAllDocuments({
       investmentId,
       accountId,
+      lifeInsuranceId,
     });
     return c.json({ documents: docs });
   } catch (err) {
@@ -35,6 +37,7 @@ documentsRouter.post("/", async (c) => {
     const notes = body.notes as string;
     const investmentId = (body.investment_id as string) || null;
     const accountId = (body.account_id as string) || null;
+    const lifeInsuranceId = (body.life_insurance_id as string) || null;
 
     if (!file || !(file instanceof File)) {
       return c.json({ error: "File upload is required" }, 400);
@@ -42,7 +45,7 @@ documentsRouter.post("/", async (c) => {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const doc = await documentService.createDocument(
-      { investmentId, accountId },
+      { investmentId, accountId, lifeInsuranceId },
       name || file.name,
       buffer,
       file.name,

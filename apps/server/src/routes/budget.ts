@@ -1,11 +1,13 @@
 import {
   CreateAccountSchema,
   CreateEnvelopeSchema,
+  CreateRecurringSchema,
   CreateTransactionSchema,
   CreateTransferSchema,
   TransactionFiltersSchema,
   UpdateAccountSchema,
   UpdateEnvelopeSchema,
+  UpdateRecurringSchema,
   UpdateTransactionSchema,
 } from "@openfinance/shared/schemas";
 import { type Context, Hono } from "hono";
@@ -346,9 +348,12 @@ budgetRouter.get("/recurring", async (c) => {
 
 budgetRouter.post("/recurring", async (c) => {
   const body = await c.req.json().catch(() => null);
-  if (!body) return c.json({ error: "Invalid body" }, 400);
+  const parsed = CreateRecurringSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
+  }
   try {
-    const row = await recurringService.createRecurring(body);
+    const row = await recurringService.createRecurring(parsed.data);
     return c.json(row, 201);
   } catch (err) {
     return handleError(c, err);
@@ -357,9 +362,15 @@ budgetRouter.post("/recurring", async (c) => {
 
 budgetRouter.patch("/recurring/:id", async (c) => {
   const body = await c.req.json().catch(() => null);
-  if (!body) return c.json({ error: "Invalid body" }, 400);
+  const parsed = UpdateRecurringSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
+  }
   try {
-    const row = await recurringService.updateRecurring(c.req.param("id"), body);
+    const row = await recurringService.updateRecurring(
+      c.req.param("id"),
+      parsed.data
+    );
     return c.json(row);
   } catch (err) {
     return handleError(c, err);

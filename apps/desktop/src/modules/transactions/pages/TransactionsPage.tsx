@@ -20,8 +20,14 @@ import {
 } from "@/components/ui/dialog";
 import TransactionForm from "@/components/TransactionForm";
 import { cn } from "@/lib/utils";
+import {
+  useHoldingsExcludedBalances,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
 import { useAccounts, useTransactions, useEnvelopes, useDeleteTransaction, useExchangeRates } from "@/modules/budget/hooks/useBudget";
+import { useInvestments } from "@/modules/investments/hooks/useInvestments";
 import { useAppStore } from "@/stores/app.store";
+import { isTransferIn, isTransferOut } from "@openfinance/shared/constants";
 import { formatCurrency } from "@openfinance/shared/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,17 +47,18 @@ const EMPTY: Filters = { page: 1, limit: 50 };
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(amount: number, type: string, currency: string, payee?: string) {
+  // An orphan transfer leg (payee matching neither direction) deliberately
+  // gets no sign — it contributes nothing to the account balance either.
+  const row = { type, payee: payee ?? "" };
   let sign = "";
   if (type === "income") {
     sign = "+";
   } else if (type === "expense") {
     sign = "−";
-  } else if (type === "transfer") {
-    if (payee === "Transfer in") {
-      sign = "+";
-    } else if (payee === "Transfer out") {
-      sign = "−";
-    }
+  } else if (isTransferIn(row)) {
+    sign = "+";
+  } else if (isTransferOut(row)) {
+    sign = "−";
   }
   return `${sign}${formatCurrency(amount, currency as any)}`;
 }
@@ -305,34 +312,19 @@ export default function TransactionsPage() {
     accountCurrencyMap[a.id] = a.currency ?? "INR";
   }
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    const accountBalances: Record<string, number> = {};
-    for (const a of accounts) {
-      accountBalances[a.id] = a.balance ?? 0;
-    }
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = accountBalances[t.account_id] ?? 0;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      if (t.account_id) {
-        accountBalances[t.account_id] = (accountBalances[t.account_id] ?? 0) - delta;
-      }
-    }
-    return balances;
-  }, [txns, accounts]);
+  // This ledger mixes accounts, so the walk needs one seed per account. The
+  // seeds must exclude linked holdings: `account.balance` off the API folds in
+  // the `current_value` of every linked investment for investment / checking /
+  // savings / cash accounts, and transaction deltas cannot walk that back —
+  // seeding from it offsets every row of a holdings-bearing account by the
+  // account's whole portfolio value.
+  const { data: investmentsData } = useInvestments();
+  const seeds = useHoldingsExcludedBalances(
+    accounts,
+    investmentsData?.investments,
+    rates
+  );
+  const runningBalances = useRunningBalances(txns, seeds);
 
   const { selectedMonth } = useAppStore();
   useEnvelopes(selectedMonth);
@@ -433,7 +425,7 @@ export default function TransactionsPage() {
                 </h3>
                 <div className="space-y-2">
                   {items.map((txn: any) => {
-                    const isCredit = txn.type === "income" || (txn.type === "transfer" && txn.payee === "Transfer in");
+                    const isCredit = txn.type === "income" || isTransferIn(txn);
                     const amtColor = isCredit ? "text-positive" : "text-negative";
                     const acctName = accountMap[txn.account_id] ?? "—";
                     const currency = accountCurrencyMap[txn.account_id] ?? "INR";
@@ -447,7 +439,7 @@ export default function TransactionsPage() {
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold text-sm text-foreground truncate max-w-[160px]">
-                              {txn.payee === "Transfer in" || txn.payee === "Transfer out"
+                              {isTransferIn(txn) || isTransferOut(txn)
                                 ? txn.notes || txn.payee
                                 : txn.payee}
                             </span>
@@ -471,7 +463,7 @@ export default function TransactionsPage() {
                               )}
                             </span>
                           </div>
-                          {txn.notes && txn.payee !== "Transfer in" && txn.payee !== "Transfer out" && (
+                          {txn.notes && !isTransferIn(txn) && !isTransferOut(txn) && (
                             <p className="text-[11px] text-muted-foreground/80 italic truncate mt-0.5 font-medium">
                               {txn.notes}
                             </p>

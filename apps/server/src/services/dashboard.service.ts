@@ -1,5 +1,12 @@
 import type { DashboardResponse } from "@openfinance/shared/api-contracts";
-import { and, eq, gte, lte, or } from "drizzle-orm";
+import {
+  STARTING_BALANCE_PAYEE,
+  balanceDelta,
+  bearsHoldings,
+  isLiabilityType,
+  isTransferIn,
+} from "@openfinance/shared/constants";
+import { and, eq, gt, gte, lte, or } from "drizzle-orm";
 import { getDb } from "../db/index";
 import {
   accounts,
@@ -10,92 +17,308 @@ import {
 } from "../db/schema";
 import {
   computeCarryoverForMonth,
+  getAccountBalances,
   listAccounts,
   listEnvelopes,
 } from "./budget.service";
 import { getLatestRates } from "./exchange-rate.service";
 import { listInvestments } from "./investment.service";
+import { computeInvestedAt } from "./policy.service";
 
 // ─── Net Worth ────────────────────────────────────────────────────────────────
+//
+// There is exactly ONE net-worth formula: `computeNetWorthAt(asOf, ctx)`.
+// `getNetWorth()` is that formula evaluated today and `getNetWorthHistory()` is
+// the same formula evaluated at a series of month-ends, so the headline figure,
+// the last point of the history chart and the Accounts page tile cannot drift
+// apart. They previously disagreed in three ways: the history recomputed
+// balances from the *stored* `accounts.balance` column (an opening balance, not
+// a live one), it silently dropped every off-budget asset account, and it
+// valued unlinked policies at their whole-term premium total in every month.
+//
+// The anchor is `getAccountBalances()` — the same derivation `listAccounts()`
+// returns. A past date is reached by rolling that live balance BACKWARDS over
+// the transactions dated after it, so "today" needs no rollback at all and is
+// identical to what the account cards show.
 
-export async function getNetWorth() {
+/** Local-calendar YYYY-MM-DD, matching how the month loops build their keys. */
+function isoDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+type NetWorthAccount = {
+  id: string;
+  type: string;
+  currency: string;
+  off_budget: boolean;
+  is_active: boolean;
+  /** Live derived balance, native currency, holdings included. */
+  liveNative: number;
+  /** The linked-holdings term of `liveNative`, native currency. */
+  holdingsNative: number;
+};
+
+type NetWorthTxn = {
+  date: string;
+  type: string;
+  payee: string;
+  amount: number;
+};
+
+/**
+ * Everything `computeNetWorthAt` reads, loaded once. Hoisted out of the
+ * computation so evaluating N month-ends costs O(1) queries, not O(N).
+ */
+export type NetWorthContext = {
+  /** Earliest date this context can answer for; see `loadNetWorthContext`. */
+  since: string;
+  accounts: NetWorthAccount[];
+  /** Only transactions dated AFTER `since` — that is all a rollback needs. */
+  txnsByAccount: Map<string, NetWorthTxn[]>;
+  investments: { account_id: string | null; purchase_date: string; current_value_inr: number }[];
+  policies: (typeof policies.$inferSelect)[];
+  rates: Record<string, number>;
+};
+
+/**
+ * Loads the shared inputs for one or more net-worth snapshots.
+ *
+ * `since` is the earliest date that will be asked for. Because a snapshot is
+ * produced by rolling the live balance back over later transactions, only
+ * transactions dated after `since` are ever needed — asking for today therefore
+ * reads (usually zero) future-dated rows rather than the whole ledger.
+ */
+export async function loadNetWorthContext(
+  since: string
+): Promise<NetWorthContext> {
   const db = getDb();
 
-  const [liveAccounts, allPolicies, invList, rates] = await Promise.all([
-    listAccounts(),
-    db.select().from(policies),
-    listInvestments(),
+  const [rates, balances, invList] = await Promise.all([
     getLatestRates(),
+    getAccountBalances(),
+    listInvestments(),
   ]);
 
-  const active = liveAccounts.filter((a) => a.is_active);
+  const accountRows = await db.select().from(accounts);
+  const policyRows = await db.select().from(policies);
+  const txnRows = await db
+    .select({
+      account_id: transactions.account_id,
+      amount: transactions.amount,
+      type: transactions.type,
+      payee: transactions.payee,
+      date: transactions.date,
+    })
+    .from(transactions)
+    .where(gt(transactions.date, since));
 
-  const cashInr = active
-    .filter((a) => !a.off_budget && a.type !== "policy")
-    .reduce((s, a) => {
-      const accInvs = invList.filter((i) => i.account_id === a.id);
-      const holdingsValInr = accInvs.reduce((sum, i) => sum + i.current_value_inr, 0);
-      return s + Math.max(0, a.balance_inr - holdingsValInr);
-    }, 0);
-
-  // Linked account balances (off-budget savings accounts + investment account cash balances)
-  const linkedAccountsInr = active
-    .filter(
-      (a) => a.off_budget && ["investment", "savings", "checking", "cash"].includes(a.type)
-    )
-    .reduce((s, a) => {
-      const accInvs = invList.filter((i) => i.account_id === a.id);
-      const holdingsValInr = accInvs.reduce((sum, i) => sum + i.current_value_inr, 0);
-      return s + Math.max(0, a.balance_inr - holdingsValInr);
-    }, 0);
-
-  // Investment holdings from the investments table
-  const holdingsInr = invList.reduce((s, i) => s + i.current_value_inr, 0);
-
-  const investmentsInr = linkedAccountsInr + holdingsInr;
-
-  // Sum the amount owed per debt account individually (matches the Debt page formula)
-  const debtInr = active
-    .filter(
-      (a) => a.type === "credit" || a.type === "loan" || a.type === "debt"
-    )
-    .reduce((s, a) => s + a.balance_inr, 0);
-
-  // Value policies strictly by current invested amount (linked account balance or fallback formula)
-  const policiesInr = allPolicies.reduce((s, p) => {
-    const linkedAcc = p.account_id
-      ? active.find((a) => a.id === p.account_id)
-      : null;
-    if (linkedAcc) {
-      return s + linkedAcc.balance_inr;
+  const txnsByAccount = new Map<string, NetWorthTxn[]>();
+  let orphanLegs = 0;
+  for (const t of txnRows) {
+    if (!t.account_id) continue;
+    // An orphan transfer leg (payee is neither direction) has no signed effect
+    // on a balance, so `getAccountBalances` leaves it out of the live figure.
+    // Leave it out of the rollback too — dropping it here and there is what
+    // keeps the two consistent — but say that it happened.
+    if (balanceDelta(t) === null) {
+      orphanLegs++;
+      continue;
     }
-    const freq = p.premium_frequency;
-    const paymentsPerYear =
-      freq === "monthly" ? 12 : freq === "quarterly" ? 4 : 1;
-    const calculatedInvested =
-      p.premium_amount * paymentsPerYear * p.premium_term_years;
-    const currency = (p as any).currency ?? "INR";
-    const calculatedInvestedInr = calculatedInvested * (rates[currency] ?? 1.0);
-    return s + calculatedInvestedInr;
-  }, 0);
+    const list = txnsByAccount.get(t.account_id);
+    if (list) list.push(t);
+    else txnsByAccount.set(t.account_id, [t]);
+  }
+  if (orphanLegs > 0) {
+    console.error(
+      `[net-worth] ${orphanLegs} transfer row(s) have no direction and are ` +
+        `excluded from historical rollback (same as the live balance)`
+    );
+  }
 
   return {
+    since,
+    accounts: accountRows.map((r) => {
+      const parts = balances.get(r.id);
+      return {
+        id: r.id,
+        type: r.type,
+        currency: r.currency ?? "INR",
+        off_budget: r.off_budget ?? false,
+        is_active: r.is_active ?? true,
+        liveNative: parts?.native ?? 0,
+        holdingsNative: parts?.holdingsNative ?? 0,
+      };
+    }),
+    txnsByAccount,
+    investments: invList.map((i) => ({
+      account_id: i.account_id,
+      purchase_date: i.purchase_date,
+      current_value_inr: i.current_value_inr,
+    })),
+    policies: policyRows,
+    rates,
+  };
+}
+
+export type NetWorthSnapshot = {
+  as_of: string;
+  total_inr: number;
+  breakdown: {
+    /** On-budget asset accounts, holdings excluded. */
+    cash_inr: number;
+    /** Investment holdings + the cash sleeve of off-budget asset accounts. */
+    investments_inr: number;
+    policies_inr: number;
+    /** Negative: liabilities reduce net worth. */
+    debt_inr: number;
+    /** Holdings alone — the `investments` table. Included in investments_inr. */
+    holdings_inr: number;
+    /** Off-budget asset cash alone. Included in investments_inr. */
+    off_budget_cash_inr: number;
+  };
+};
+
+/**
+ * The one net-worth formula.
+ *
+ * Decisions baked in here, all of which apply identically to every date:
+ *
+ * - **Off-budget asset accounts count.** They are real assets. They land in
+ *   `investments_inr` (the "stash" bucket), which is where the current figure
+ *   has always put them and what `getPortfolioBreakdown` assumes; the history
+ *   used to drop them entirely, which is what made an off-budget savings
+ *   account visible in the headline number and absent from the chart.
+ * - **No `Math.max(0, …)` floor on the cash sleeve.** The old floor was there
+ *   to defend against double-counting linked holdings, but the holdings term is
+ *   now exact (`getAccountBalances().holdingsNative`), so a negative sleeve is
+ *   never a double-count artefact — it is a genuinely overdrawn account, and
+ *   net worth must show it.
+ * - **Policies are valued as of the date**, not at their whole-term premium
+ *   total. An unlinked policy is worth the premiums actually paid by `asOf`
+ *   (the same number the Policies page shows); a linked policy is worth its
+ *   account balance rolled back to `asOf`.
+ * - **Holdings a user did not own yet do not count.** An `investments` row
+ *   contributes nothing before its `purchase_date`. There is no price history,
+ *   so on/after that date it contributes its current value — an approximation,
+ *   but a far smaller one than back-dating the whole portfolio.
+ */
+export function computeNetWorthAt(
+  asOf: string,
+  ctx: NetWorthContext
+): NetWorthSnapshot {
+  if (asOf < ctx.since) {
+    throw new Error(
+      `net-worth context was loaded for dates >= ${ctx.since}, cannot answer ${asOf}`
+    );
+  }
+
+  const toInr = (amount: number, currency: string) =>
+    amount * (ctx.rates[currency] ?? 1.0);
+
+  // Rolling the live balance back over everything dated after `asOf`. Summed by
+  // filtering rather than by breaking out of a sorted scan, so the result does
+  // not depend on the order the query happened to return rows in.
+  const nativeAt = (acc: NetWorthAccount) => {
+    let after = 0;
+    for (const t of ctx.txnsByAccount.get(acc.id) ?? []) {
+      if (t.date <= asOf) continue;
+      after += balanceDelta(t) ?? 0; // nulls were dropped at load time
+    }
+    return acc.liveNative - after;
+  };
+
+  // An account a policy points at is valued as a policy, never as cash, even if
+  // it is not of type `policy` — otherwise it counts twice.
+  const policyAccountIds = new Set(
+    ctx.policies.map((p) => p.account_id).filter((id): id is string => !!id)
+  );
+
+  let cashInr = 0;
+  let offBudgetCashInr = 0;
+  let debtInr = 0;
+  const policyAccountInr = new Map<string, number>();
+
+  for (const acc of ctx.accounts) {
+    if (!acc.is_active) continue;
+    const balanceInr = toInr(nativeAt(acc), acc.currency);
+
+    if (isLiabilityType(acc.type)) {
+      // Stored sign is normalised to negative by `getAccountBalances`, so a
+      // liability always subtracts its magnitude regardless of how it was saved.
+      debtInr += balanceInr;
+      continue;
+    }
+    if (acc.type === "policy" || policyAccountIds.has(acc.id)) {
+      policyAccountInr.set(acc.id, balanceInr);
+      continue;
+    }
+
+    // Holdings are counted once, from the investments table, so the account
+    // contributes only its cash sleeve.
+    const sleeveInr = balanceInr - toInr(acc.holdingsNative, acc.currency);
+    if (acc.off_budget) offBudgetCashInr += sleeveInr;
+    else cashInr += sleeveInr;
+  }
+
+  const holdingsInr = ctx.investments
+    .filter((i) => i.purchase_date <= asOf)
+    .reduce((s, i) => s + i.current_value_inr, 0);
+
+  let policiesInr = 0;
+  const valuedPolicyAccounts = new Set<string>();
+  for (const p of ctx.policies) {
+    const linked = p.account_id ? policyAccountInr.get(p.account_id) : undefined;
+    if (linked !== undefined) {
+      policiesInr += linked;
+      valuedPolicyAccounts.add(p.account_id as string);
+      continue;
+    }
+    // No linked account (or it was deleted/deactivated): value the premiums
+    // actually paid by `asOf`.
+    policiesInr += toInr(computeInvestedAt(p, asOf), p.currency ?? "INR");
+  }
+  // A `policy` account with no policy row left pointing at it is still a real
+  // balance; count it rather than dropping it.
+  for (const [id, value] of policyAccountInr) {
+    if (!valuedPolicyAccounts.has(id)) policiesInr += value;
+  }
+
+  const investmentsInr = holdingsInr + offBudgetCashInr;
+
+  return {
+    as_of: asOf,
     total_inr: cashInr + investmentsInr + policiesInr + debtInr,
     breakdown: {
       cash_inr: cashInr,
       investments_inr: investmentsInr,
       policies_inr: policiesInr,
       debt_inr: debtInr,
+      holdings_inr: holdingsInr,
+      off_budget_cash_inr: offBudgetCashInr,
     },
   };
+}
+
+/**
+ * Net worth right now. Identical by construction to the last point of
+ * `getNetWorthHistory`, which clamps its final month-end to today.
+ */
+export async function getNetWorth(
+  ctx?: NetWorthContext
+): Promise<NetWorthSnapshot> {
+  const today = isoDate(new Date());
+  return computeNetWorthAt(today, ctx ?? (await loadNetWorthContext(today)));
 }
 
 // ─── Portfolio Breakdown ───────────────────────────────────────────────────────
 
 export async function getPortfolioBreakdown() {
-  const [invList, allAccounts] = await Promise.all([
+  const [invList, allAccounts, balances] = await Promise.all([
     listInvestments(),
     listAccounts(),
+    getAccountBalances(),
   ]);
 
   const byType: Record<string, number> = {};
@@ -105,18 +328,17 @@ export async function getPortfolioBreakdown() {
       (byType[inv.asset_type] ?? 0) + inv.current_value_inr;
   }
 
-  // Include linked account cash balances (off-budget savings / investment accounts cash portions)
+  // Include the cash sleeve of off-budget asset accounts — the same bucket
+  // `computeNetWorthAt` folds into `investments_inr`. The sleeve comes from the
+  // shared balance derivation rather than a second holdings subtraction here.
   for (const acc of allAccounts) {
-    if (
-      acc.off_budget &&
-      ["investment", "savings", "checking", "cash"].includes(acc.type)
-    ) {
-      const accInvs = invList.filter((i) => i.account_id === acc.id);
-      const holdingsValInr = accInvs.reduce((sum, i) => sum + i.current_value_inr, 0);
-      const cashValInr = Math.max(0, acc.balance_inr - holdingsValInr);
-      if (cashValInr > 0) {
-        byType[acc.type] = (byType[acc.type] ?? 0) + cashValInr;
-      }
+    if (!acc.is_active || !acc.off_budget || !bearsHoldings(acc.type)) continue;
+    const parts = balances.get(acc.id);
+    const cashValInr = (parts?.base ?? 0) - (parts?.holdingsBase ?? 0);
+    // A pie chart cannot render a negative slice; an overdrawn off-budget
+    // account is reported by net worth, not here.
+    if (cashValInr > 0) {
+      byType[acc.type] = (byType[acc.type] ?? 0) + cashValInr;
     }
   }
 
@@ -284,7 +506,7 @@ export async function getCashFlow(month: string) {
 
   const incomeByPayee: Record<string, number> = {};
   for (const t of incomeTxns) {
-    if (t.payee === "Starting Balance") continue;
+    if (t.payee === STARTING_BALANCE_PAYEE) continue;
     incomeByPayee[t.payee] =
       (incomeByPayee[t.payee] ?? 0) + toInrLocal(t.amount, t.currency);
   }
@@ -321,7 +543,7 @@ export async function getCashFlow(month: string) {
 
   for (const t of expenseTxns) {
     if (!t.envelope_id) continue;
-    const isCredit = t.type === "transfer" && t.payee === "Transfer in";
+    const isCredit = isTransferIn(t);
     const inr = toInrLocal(t.amount, t.currency);
     const net = isCredit ? -inr : inr;
     if (net <= 0) continue;
@@ -363,115 +585,48 @@ export async function getCashFlow(month: string) {
 
 // ─── Net Worth History ─────────────────────────────────────────────────────────
 
-export async function getNetWorthHistory(months: number) {
-  const db = getDb();
-  const rates = await getLatestRates();
-
-  function toInrLocal(amount: number, currency: string | null) {
-    return currency ? amount * (rates[currency] ?? 1.0) : amount;
-  }
-
-  // Fetch all accounts and all transactions once
-  const allAccountRows = await db.select().from(accounts);
-  const allTxns = await db
-    .select({
-      account_id: transactions.account_id,
-      amount: transactions.amount,
-      type: transactions.type,
-      payee: transactions.payee,
-      date: transactions.date,
-    })
-    .from(transactions)
-    .orderBy(transactions.date);
-
-  const invList = await listInvestments();
-  const investmentsCurrentInr = invList.reduce(
-    (s, i) => s + i.current_value_inr,
-    0
-  );
-  const allPolicies = await db.select().from(policies);
-
-  const txnsByAccount: Record<string, typeof allTxns> = {};
-  for (const t of allTxns) {
-    if (!t.account_id) continue;
-    (txnsByAccount[t.account_id] ??= []).push(t);
-  }
-
+/**
+ * The same snapshot as `getNetWorth`, evaluated at each month-end.
+ *
+ * The final month-end is clamped to today, so the last point of the series is
+ * literally `getNetWorth()` — a transaction dated in the future belongs to
+ * neither.
+ *
+ * Row shape is unchanged for the chart: `investments_inr` here still bundles
+ * policies in with the investment assets (the Net Worth page stacks
+ * `investments_inr + policies_inr` for the current figure to get the same
+ * thing). `as_of` is new and reports the date each point was valued at.
+ */
+export async function getNetWorthHistory(
+  months: number,
+  ctx?: NetWorthContext
+) {
   const today = new Date();
-  const results: {
-    month: string;
-    total_inr: number;
-    cash_inr: number;
-    investments_inr: number;
-    debt_inr: number;
-  }[] = [];
+  const todayIso = isoDate(today);
 
+  const points: { month: string; asOf: string }[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
     const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const monthEnd = `${month}-${String(new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()).padStart(2, "0")}`;
-
-    let cashInr = 0;
-    let debtInr = 0;
-    let policiesInr = 0;
-
-    for (const acc of allAccountRows) {
-      if (!acc.is_active) continue;
-      const currency = acc.currency ?? "INR";
-      const isDebt =
-        acc.type === "credit" || acc.type === "loan" || acc.type === "debt";
-      const isOffBudget = acc.off_budget;
-
-      const openingBalance = isDebt
-        ? -Math.abs(acc.balance ?? 0)
-        : (acc.balance ?? 0);
-      let delta = 0;
-
-      for (const t of txnsByAccount[acc.id] ?? []) {
-        if (t.date > monthEnd) break;
-        if (t.type === "income") delta += t.amount;
-        else if (t.type === "expense") delta -= t.amount;
-        else if (t.type === "transfer" && t.payee === "Transfer in")
-          delta += t.amount;
-        else if (t.type === "transfer" && t.payee === "Transfer out")
-          delta -= t.amount;
-      }
-
-      const balanceNative = openingBalance + delta;
-      const balanceInr = toInrLocal(balanceNative, currency);
-
-      if (isDebt) {
-        debtInr += balanceInr;
-      } else if (acc.type === "policy") {
-        policiesInr += balanceInr;
-      } else if (!isOffBudget) {
-        cashInr += balanceInr;
-      }
-    }
-
-    // Add policies that do NOT have a linked account as a fallback
-    for (const p of allPolicies) {
-      if (!p.account_id || !allAccountRows.some((a) => a.id === p.account_id)) {
-        const freq = p.premium_frequency;
-        const paymentsPerYear =
-          freq === "monthly" ? 12 : freq === "quarterly" ? 4 : 1;
-        const calculatedInvested =
-          p.premium_amount * paymentsPerYear * p.premium_term_years;
-        const currency = (p as any).currency ?? "INR";
-        policiesInr += toInrLocal(calculatedInvested, currency);
-      }
-    }
-
-    results.push({
-      month,
-      total_inr: cashInr + investmentsCurrentInr + policiesInr + debtInr,
-      cash_inr: cashInr,
-      investments_inr: investmentsCurrentInr + policiesInr, // policy net worth counts as investment assets
-      debt_inr: debtInr,
-    });
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const monthEnd = isoDate(lastDay);
+    points.push({ month, asOf: monthEnd > todayIso ? todayIso : monthEnd });
   }
 
-  return results;
+  const loaded = ctx ?? (await loadNetWorthContext(points[0].asOf));
+
+  return points.map(({ month, asOf }) => {
+    const snap = computeNetWorthAt(asOf, loaded);
+    return {
+      month,
+      as_of: asOf,
+      total_inr: snap.total_inr,
+      cash_inr: snap.breakdown.cash_inr,
+      investments_inr:
+        snap.breakdown.investments_inr + snap.breakdown.policies_inr,
+      debt_inr: snap.breakdown.debt_inr,
+    };
+  });
 }
 
 // ─── Full Dashboard ───────────────────────────────────────────────────────────

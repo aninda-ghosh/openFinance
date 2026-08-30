@@ -1,17 +1,11 @@
-import {
-  boolean,
-  doublePrecision,
-  integer,
-  pgTable,
-  text,
-} from "drizzle-orm/pg-core";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 const now = () => new Date().toISOString();
 
 // ─── Accounts ────────────────────────────────────────────────────────────────
 
-export const accounts = pgTable("accounts", {
+export const accounts = sqliteTable("accounts", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -31,17 +25,17 @@ export const accounts = pgTable("accounts", {
   currency: text("currency")
     .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
     .default("INR"),
-  balance: doublePrecision("balance").default(0),
+  balance: real("balance").default(0),
   institution: text("institution"),
-  is_active: boolean("is_active").default(true),
-  off_budget: boolean("off_budget").default(false),
+  is_active: integer("is_active", { mode: "boolean" }).default(true),
+  off_budget: integer("off_budget", { mode: "boolean" }).default(false),
   created_at: text("created_at").$defaultFn(now),
   updated_at: text("updated_at").$defaultFn(now),
 });
 
 // ─── Envelope Groups ─────────────────────────────────────────────────────────
 
-export const envelope_groups = pgTable("envelope_groups", {
+export const envelope_groups = sqliteTable("envelope_groups", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -52,7 +46,7 @@ export const envelope_groups = pgTable("envelope_groups", {
 
 // ─── Envelopes ───────────────────────────────────────────────────────────────
 
-export const envelopes = pgTable("envelopes", {
+export const envelopes = sqliteTable("envelopes", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -60,22 +54,22 @@ export const envelopes = pgTable("envelopes", {
     .notNull()
     .references(() => envelope_groups.id),
   name: text("name").notNull(),
-  budgeted: doublePrecision("budgeted").default(0),
+  budgeted: real("budgeted").default(0),
   budget_currency: text("budget_currency")
     .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
     .default("INR"),
-  spent: doublePrecision("spent").default(0),
+  spent: real("spent").default(0),
   month: text("month").notNull(), // format: "YYYY-MM"
   rollover_type: text("rollover_type")
     .$type<"none" | "amount" | "leftover">()
     .default("none"),
-  rollover_amount: doublePrecision("rollover_amount").default(0),
+  rollover_amount: real("rollover_amount").default(0),
   created_at: text("created_at").$defaultFn(now),
 });
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
-export const transactions = pgTable("transactions", {
+export const transactions = sqliteTable("transactions", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -84,7 +78,7 @@ export const transactions = pgTable("transactions", {
     .references(() => accounts.id),
   envelope_id: text("envelope_id").references(() => envelopes.id), // nullable
   payee: text("payee").notNull(),
-  amount: doublePrecision("amount").notNull(),
+  amount: real("amount").notNull(),
   type: text("type").$type<"income" | "expense" | "transfer">().notNull(),
   date: text("date").notNull(), // ISO date string
   notes: text("notes"),
@@ -98,7 +92,7 @@ export const transactions = pgTable("transactions", {
 
 // ─── Investments ──────────────────────────────────────────────────────────────
 
-export const investments = pgTable("investments", {
+export const investments = sqliteTable("investments", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -120,10 +114,10 @@ export const investments = pgTable("investments", {
   currency: text("currency")
     .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
     .default("INR"),
-  purchase_value: doublePrecision("purchase_value").notNull(),
-  units: doublePrecision("units"), // nullable
+  purchase_value: real("purchase_value").notNull(),
+  units: real("units"), // nullable
   purchase_date: text("purchase_date").notNull(),
-  current_value: doublePrecision("current_value").notNull(),
+  current_value: real("current_value").notNull(),
   current_value_source: text("current_value_source"),
   current_value_at: text("current_value_at"),
   notes: text("notes"),
@@ -135,7 +129,7 @@ export const investments = pgTable("investments", {
 
 // ─── Policies ─────────────────────────────────────────────────────────────────
 
-export const policies = pgTable("policies", {
+export const policies = sqliteTable("policies", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -146,16 +140,16 @@ export const policies = pgTable("policies", {
     .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
     .default("INR"),
   start_date: text("start_date").notNull(),
-  premium_amount: doublePrecision("premium_amount").notNull(),
+  premium_amount: real("premium_amount").notNull(),
   premium_frequency: text("premium_frequency")
     .$type<"monthly" | "quarterly" | "annual">()
     .notNull(),
   premium_term_years: integer("premium_term_years").notNull(),
   policy_term_years: integer("policy_term_years").notNull(),
   maturity_date: text("maturity_date").notNull(),
-  sum_assured: doublePrecision("sum_assured").notNull(),
-  maturity_value: doublePrecision("maturity_value").notNull(),
-  surrender_value: doublePrecision("surrender_value"), // nullable
+  sum_assured: real("sum_assured").notNull(),
+  maturity_value: real("maturity_value").notNull(),
+  surrender_value: real("surrender_value"), // nullable
   notes: text("notes"),
   account_id: text("account_id").references(() => accounts.id),
   created_at: text("created_at").$defaultFn(now),
@@ -164,7 +158,7 @@ export const policies = pgTable("policies", {
 
 // ─── Policy Payouts ───────────────────────────────────────────────────────────
 
-export const policy_payouts = pgTable("policy_payouts", {
+export const policy_payouts = sqliteTable("policy_payouts", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -172,51 +166,88 @@ export const policy_payouts = pgTable("policy_payouts", {
     .notNull()
     .references(() => policies.id),
   payout_date: text("payout_date").notNull(),
-  amount: doublePrecision("amount").notNull(),
+  amount: real("amount").notNull(),
   label: text("label").notNull(),
-  is_received: boolean("is_received").default(false),
+  is_received: integer("is_received", { mode: "boolean" }).default(false),
+});
+
+// ─── Life Insurance ───────────────────────────────────────────────────────────
+//
+// Pure protection cover (term / group life). Deliberately NOT an asset: nothing
+// here feeds the net-worth breakdown or the portfolio donut — a death benefit is
+// a contingent payout, not something you own today. It lives under Investments
+// only because that is where the user looks for "what am I holding".
+
+export const life_insurance = sqliteTable("life_insurance", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => nanoid()),
+  name: text("name").notNull(),
+  insured_person: text("insured_person").notNull(),
+  provider: text("provider").notNull(),
+  policy_number: text("policy_number"),
+  currency: text("currency")
+    .$type<"INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD">()
+    .default("INR"),
+  coverage_amount: real("coverage_amount").notNull(),
+  renewal_date: text("renewal_date").notNull(), // YYYY-MM-DD
+  premium_amount: real("premium_amount"),
+  premium_frequency: text("premium_frequency").$type<
+    "monthly" | "quarterly" | "annual"
+  >(),
+  created_at: text("created_at").$defaultFn(now),
+  updated_at: text("updated_at").$defaultFn(now),
 });
 
 // ─── Price History ────────────────────────────────────────────────────────────
 
-export const price_history = pgTable("price_history", {
+export const price_history = sqliteTable("price_history", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   investment_id: text("investment_id")
     .notNull()
     .references(() => investments.id),
-  price: doublePrecision("price").notNull(), // in investment's native currency
+  price: real("price").notNull(), // in investment's native currency
   source_url: text("source_url"),
   fetched_at: text("fetched_at").$defaultFn(now),
 });
 
 // ─── Investment Value History ─────────────────────────────────────────────────
 
-export const investment_value_history = pgTable("investment_value_history", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => nanoid()),
-  investment_id: text("investment_id")
-    .notNull()
-    .references(() => investments.id),
-  previous_value: doublePrecision("previous_value"),
-  new_value: doublePrecision("new_value").notNull(),
-  source: text("source").$type<"manual" | "price_refresh">().notNull(),
-  notes: text("notes"),
-  changed_at: text("changed_at").$defaultFn(now),
-});
+export const investment_value_history = sqliteTable(
+  "investment_value_history",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => nanoid()),
+    investment_id: text("investment_id")
+      .notNull()
+      .references(() => investments.id),
+    previous_value: real("previous_value"),
+    new_value: real("new_value").notNull(),
+    source: text("source").$type<"manual" | "price_refresh">().notNull(),
+    notes: text("notes"),
+    changed_at: text("changed_at").$defaultFn(now),
+  }
+);
 
 // ─── Investment Documents ──────────────────────────────────────────────────────
 
-export const investment_documents = pgTable("investment_documents", {
+export const investment_documents = sqliteTable("investment_documents", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
-  investment_id: text("investment_id")
-    .references(() => investments.id, { onDelete: "cascade" }),
-  account_id: text("account_id")
-    .references(() => accounts.id, { onDelete: "cascade" }),
+  investment_id: text("investment_id").references(() => investments.id, {
+    onDelete: "cascade",
+  }),
+  account_id: text("account_id").references(() => accounts.id, {
+    onDelete: "cascade",
+  }),
+  life_insurance_id: text("life_insurance_id").references(
+    () => life_insurance.id,
+    { onDelete: "cascade" }
+  ),
   name: text("name").notNull(),
   file_name: text("file_name").notNull(),
   file_size: integer("file_size").notNull(),
@@ -228,19 +259,19 @@ export const investment_documents = pgTable("investment_documents", {
 
 // ─── Exchange Rates ───────────────────────────────────────────────────────────
 
-export const exchange_rates = pgTable("exchange_rates", {
+export const exchange_rates = sqliteTable("exchange_rates", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   from_currency: text("from_currency").notNull(), // e.g. "USD", "SGD", "NTD"
-  rate_to_base: doublePrecision("rate_to_base").notNull(), // 1 unit of from_currency = rate_to_base base currency
+  rate_to_base: real("rate_to_base").notNull(), // 1 unit of from_currency = rate_to_base base currency
   source: text("source"), // "web_search" | "manual"
   fetched_at: text("fetched_at").$defaultFn(now),
 });
 
 // ─── AI Conversations ─────────────────────────────────────────────────────────
 
-export const ai_conversations = pgTable("ai_conversations", {
+export const ai_conversations = sqliteTable("ai_conversations", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -251,7 +282,7 @@ export const ai_conversations = pgTable("ai_conversations", {
 
 // ─── AI Messages ──────────────────────────────────────────────────────────────
 
-export const ai_messages = pgTable("ai_messages", {
+export const ai_messages = sqliteTable("ai_messages", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -267,7 +298,7 @@ export const ai_messages = pgTable("ai_messages", {
 
 // ─── AI Tool Calls ────────────────────────────────────────────────────────────
 
-export const ai_tool_calls = pgTable("ai_tool_calls", {
+export const ai_tool_calls = sqliteTable("ai_tool_calls", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -282,7 +313,7 @@ export const ai_tool_calls = pgTable("ai_tool_calls", {
 
 // ─── Budget Alerts ────────────────────────────────────────────────────────────
 
-export const budget_alerts = pgTable("budget_alerts", {
+export const budget_alerts = sqliteTable("budget_alerts", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -290,19 +321,19 @@ export const budget_alerts = pgTable("budget_alerts", {
     .notNull()
     .references(() => envelopes.id),
   type: text("type").$type<"over_budget" | "approaching">().notNull(),
-  threshold_pct: doublePrecision("threshold_pct").notNull(),
-  is_active: boolean("is_active").default(true),
+  threshold_pct: real("threshold_pct").notNull(),
+  is_active: integer("is_active", { mode: "boolean" }).default(true),
   triggered_at: text("triggered_at"), // nullable
 });
 
 // ─── Recurring Transactions ───────────────────────────────────────────────────
 
-export const recurring_transactions = pgTable("recurring_transactions", {
+export const recurring_transactions = sqliteTable("recurring_transactions", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
   payee: text("payee").notNull(),
-  amount: doublePrecision("amount").notNull(),
+  amount: real("amount").notNull(),
   type: text("type").$type<"income" | "expense">().notNull(),
   account_id: text("account_id")
     .notNull()
@@ -314,13 +345,13 @@ export const recurring_transactions = pgTable("recurring_transactions", {
   next_date: text("next_date").notNull(), // YYYY-MM-DD — when it will next fire
   end_date: text("end_date"), // nullable — stop generating after this date
   notes: text("notes"),
-  is_active: boolean("is_active").default(true),
+  is_active: integer("is_active", { mode: "boolean" }).default(true),
   created_at: text("created_at").$defaultFn(now),
 });
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
-export const users = pgTable("users", {
+export const users = sqliteTable("users", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => nanoid()),
@@ -335,7 +366,7 @@ export const users = pgTable("users", {
 
 // ─── App Settings ─────────────────────────────────────────────────────────────
 
-export const app_settings = pgTable("app_settings", {
+export const app_settings = sqliteTable("app_settings", {
   id: text("id")
     .primaryKey()
     .$defaultFn(() => "system"),

@@ -10,8 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/stores/app.store";
+import {
+  BALANCE_ADJUSTMENT_PAYEE,
+  STARTING_BALANCE_PAYEE,
+  isLiabilityType,
+} from "@openfinance/shared/constants";
 
 const CURRENCIES = ["USD", "INR", "SGD", "GBP", "EUR", "JPY", "NTD"];
+
+const DEFAULT_TYPE = "checking";
 
 const ALL_ACCOUNT_TYPES = [
   { value: "checking", label: "Checking" },
@@ -24,12 +31,48 @@ const ALL_ACCOUNT_TYPES = [
   { value: "debt", label: "Other Debt / Liability" },
 ];
 
+/**
+ * What `off_budget` should be for a given account type when the caller has not
+ * said. Liquid accounts fund envelopes so they belong on-budget; investments,
+ * policies and liabilities are tracked for net worth only.
+ *
+ * This used to be a flat `false` on the dialog, which callers then contradicted
+ * per-page: DebtPage and InvestmentsPage forced `true` through `initial`, while
+ * the Savings/Checking "Add Account" button passed no `initial` at all — so
+ * picking "Investment" or "Credit Card" from that button produced an on-budget
+ * liability by accident.
+ */
+const DEFAULT_OFF_BUDGET_BY_TYPE: Record<string, boolean> = {
+  checking: false,
+  savings: false,
+  cash: false,
+  investment: true,
+  policy: true,
+  credit: true,
+  loan: true,
+  debt: true,
+};
+
+/** The documented `off_budget` default for a type. Unknown types are on-budget. */
+export function defaultOffBudgetForType(type: string): boolean {
+  return DEFAULT_OFF_BUDGET_BY_TYPE[type] ?? false;
+}
+
 export interface AccountFormValues {
   name: string;
   type: string;
   currency: string;
+  /**
+   * CREATE: the opening balance. EDIT: the balance to reconcile TO — the
+   * server posts the difference against the derived balance as a
+   * "Balance Adjustment" transaction rather than overwriting the stored column.
+   *
+   * Always the user-facing MAGNITUDE. Do not negate liability balances here;
+   * the server owns that sign via `isLiabilityType()`.
+   */
   balance: number;
-  off_budget: boolean;
+  /** Omit to accept `defaultOffBudgetForType(type)`, which tracks the type picker. */
+  off_budget?: boolean;
   institution?: string;
   is_active?: boolean;
 }
@@ -38,33 +81,51 @@ export function AccountFormDialog({
   trigger,
   title,
   initial,
+  mode,
   onSubmit,
   isPending,
 }: {
   trigger: React.ReactNode;
   title: string;
   initial?: AccountFormValues;
+  /**
+   * Drives the balance field's meaning: an opening balance on create, a
+   * reconcile-to target on edit. Defaults by inspecting `initial` — a
+   * prefilled name means an existing account — but pass it explicitly.
+   */
+  mode?: "create" | "edit";
   onSubmit: (data: Required<AccountFormValues>) => void;
   isPending: boolean;
 }) {
   const defaultCurrency = useAppStore((s) => s.defaultCurrency);
+  const resolvedMode = mode ?? (initial?.name?.trim() ? "edit" : "create");
+  const isEdit = resolvedMode === "edit";
+
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initial?.name ?? "");
-  const [type, setType] = useState(initial?.type ?? "checking");
+  const [type, setType] = useState(initial?.type ?? DEFAULT_TYPE);
   const [currency, setCurrency] = useState(
     initial?.currency ?? defaultCurrency
   );
   const [balance, setBalance] = useState(String(initial?.balance ?? 0));
-  const [offBudget, setOffBudget] = useState(initial?.off_budget ?? false);
+  const [offBudget, setOffBudget] = useState(
+    initial?.off_budget ?? defaultOffBudgetForType(initial?.type ?? DEFAULT_TYPE)
+  );
+  // Once the user touches the checkbox we stop deriving it from the type.
+  const [offBudgetTouched, setOffBudgetTouched] = useState(
+    initial?.off_budget !== undefined
+  );
   const [institution, setInstitution] = useState(initial?.institution ?? "");
   const [isActive, setIsActive] = useState(initial?.is_active ?? true);
 
   const reset = () => {
+    const nextType = initial?.type ?? DEFAULT_TYPE;
     setName(initial?.name ?? "");
-    setType(initial?.type ?? "checking");
+    setType(nextType);
     setCurrency(initial?.currency ?? defaultCurrency);
     setBalance(String(initial?.balance ?? 0));
-    setOffBudget(initial?.off_budget ?? false);
+    setOffBudget(initial?.off_budget ?? defaultOffBudgetForType(nextType));
+    setOffBudgetTouched(initial?.off_budget !== undefined);
     setInstitution(initial?.institution ?? "");
     setIsActive(initial?.is_active ?? true);
   };
@@ -72,6 +133,17 @@ export function AccountFormDialog({
   useEffect(() => {
     if (open) reset();
   }, [open, initial]);
+
+  /**
+   * Keep `off_budget` in step with the type picker until the user overrides it,
+   * so a caller that supplied no `off_budget` gets the documented default for
+   * whatever type is actually selected rather than the default for whatever
+   * type the dialog happened to open on.
+   */
+  const handleTypeChange = (nextType: string) => {
+    setType(nextType);
+    if (!offBudgetTouched) setOffBudget(defaultOffBudgetForType(nextType));
+  };
 
   const handleSave = () => {
     if (!name.trim()) return;
@@ -119,7 +191,7 @@ export function AccountFormDialog({
               <Label className="text-xs">Type</Label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value)}
+                onChange={(e) => handleTypeChange(e.target.value)}
                 className={sel}
               >
                 {ALL_ACCOUNT_TYPES.map((t) => (
@@ -145,7 +217,9 @@ export function AccountFormDialog({
             </div>
           </div>
           <div>
-            <Label className="text-xs">Current Balance</Label>
+            <Label className="text-xs">
+              {isEdit ? "Reconcile To Balance" : "Opening Balance"}
+            </Label>
             <Input
               type="number"
               step="any"
@@ -153,6 +227,13 @@ export function AccountFormDialog({
               onChange={(e) => setBalance(e.target.value)}
               className="mt-1 text-sm h-9"
             />
+            <p className="text-xs text-muted-foreground leading-normal mt-1">
+              {isEdit
+                ? `The balance this account should read after saving. Any difference from its current balance is recorded as a dated “${BALANCE_ADJUSTMENT_PAYEE}” transaction — the stored balance is never overwritten and your existing transactions stay intact.`
+                : `What this account holds before any transaction you log against it. Recorded as a “${STARTING_BALANCE_PAYEE}” entry.`}
+              {isLiabilityType(type) &&
+                " Enter what you owe as a positive number — it is stored as a liability for you."}
+            </p>
           </div>
           <div>
             <Label className="text-xs">Institution / Bank Name</Label>
@@ -168,7 +249,10 @@ export function AccountFormDialog({
               <input
                 type="checkbox"
                 checked={offBudget}
-                onChange={(e) => setOffBudget(e.target.checked)}
+                onChange={(e) => {
+                  setOffBudget(e.target.checked);
+                  setOffBudgetTouched(true);
+                }}
                 className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
               />
               <div>

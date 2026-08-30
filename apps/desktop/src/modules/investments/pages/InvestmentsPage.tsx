@@ -66,6 +66,13 @@ import {
 } from "../hooks/useInvestments";
 import { budgetApi } from "@/modules/budget/api";
 import { InvestmentDocuments } from "../components/InvestmentDocuments";
+import { LifeInsuranceCard } from "@/modules/life-insurance/components/LifeInsuranceCard";
+import {
+  holdingsValueForAccount,
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
 
 const COLORS = [
   "var(--chart-1)",
@@ -204,36 +211,28 @@ function LinkedAccountSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data } = useTransactions({ account_id: account.id, limit: 200 });
+  const { data } = useTransactions({
+    account_id: account.id,
+    limit: ACCOUNT_LEDGER_PAGE_SIZE,
+  });
   const { mutate: deleteTxn } = useDeleteTransaction();
   const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
+  const { data: investmentsData } = useInvestments();
 
   const txns = data?.transactions ?? [];
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    let current = account?.balance ?? 0;
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = current;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      current -= delta;
-    }
-    return balances;
-  }, [txns, account?.balance]);
+  // `account.balance` off the API is holdings-INCLUSIVE for investment accounts
+  // (the server folds in Σ current_value of the linked investments), so seeding
+  // the backwards walk from it offset every row in this ledger by the whole
+  // portfolio value — the worst case of the bug, since these are exactly the
+  // accounts that carry holdings. Seed from the cash sleeve only.
+  const seedBalance = useHoldingsExcludedBalance(
+    account,
+    investmentsData?.investments,
+    rates
+  );
+  const runningBalances = useRunningBalances(txns, seedBalance);
 
   const showHint = account.currency !== defaultCurrency;
   const fmtDefault = (inr: number) =>
@@ -409,6 +408,7 @@ function LinkedAccountEditDialog({
   return (
     <AccountFormDialog
       title="Edit Account"
+      mode="edit"
       trigger={trigger}
       initial={account}
       onSubmit={submit}
@@ -438,13 +438,17 @@ function AddLinkedAccountDialog({ trigger }: { trigger: React.ReactNode }) {
   return (
     <AccountFormDialog
       title="Add Investment Account"
+      mode="create"
       trigger={trigger}
       initial={{
         name: "",
         type: "investment",
         currency: defaultCurrency,
         balance: 0,
-        off_budget: true,
+        // No `off_budget` override: the dialog derives it from the type and
+        // keeps deriving it if the user switches the type picker. Pinning
+        // `true` here fixed it to the investment default even when the user
+        // picked Checking.
       }}
       onSubmit={submit}
       isPending={isPending}
@@ -454,6 +458,24 @@ function AddLinkedAccountDialog({ trigger }: { trigger: React.ReactNode }) {
 
 // ─── Update Value Dialog ──────────────────────────────────────────────────────
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Reconciles the CASH part of a linked account by posting the difference as a
+ * transaction.
+ *
+ * This used to target `account.balance`, which for a holdings-bearing account
+ * is `stored + Σ transactions + Σ linked investments` — the holdings are
+ * already in there. Recording the difference as a transaction therefore added a
+ * SECOND contribution on top of holdings the balance had already counted, and
+ * because the next open re-read the (now inflated) balance, every use pushed
+ * the account further from the sum of its parts. Two clicks and the drift is
+ * permanent.
+ *
+ * Holdings revalue themselves through the `investments` rows, so the only
+ * component a transaction can legitimately move is the cash sleeve. The dialog
+ * now states that split explicitly rather than presenting one opaque "value".
+ */
 function UpdateValueDialog({
   account,
   trigger,
@@ -464,15 +486,29 @@ function UpdateValueDialog({
   const [open, setOpen] = useState(false);
   const [newValue, setNewValue] = useState("");
   const { mutate: createTxn, isPending } = useCreateTransaction();
+  const { data: rates = {} } = useExchangeRates();
+  const { data: investmentsData } = useInvestments();
 
-  const currentBalance = account.balance as number;
+  const totalBalance = round2((account.balance as number) ?? 0);
+  const holdingsValue = round2(
+    holdingsValueForAccount(account, investmentsData?.investments, rates)
+  );
+  const cashBalance = round2(totalBalance - holdingsValue);
+
   const parsed = parseFloat(newValue);
-  const delta = !Number.isNaN(parsed) ? parsed - currentBalance : null;
+  const delta = !Number.isNaN(parsed) ? round2(parsed - cashBalance) : null;
   const isGain = delta !== null && delta > 0;
 
+  // A shortfall posts an `expense`, and this dialog has no envelope picker, so
+  // on an on-budget account the server's "on-budget expenses need an envelope"
+  // rule would reject it. Linked accounts are off-budget by construction, but
+  // an account flipped on-budget mid-session must not get a 400 it can't act
+  // on — say so up front, and point at the form that can categorise it.
+  const needsEnvelope = !account.off_budget && delta !== null && delta < 0;
+
   const submit = () => {
-    if (delta === null || delta === 0) {
-      setOpen(false);
+    if (delta === null || delta === 0 || needsEnvelope) {
+      if (delta === null || delta === 0) setOpen(false);
       return;
     }
     createTxn(
@@ -482,11 +518,15 @@ function UpdateValueDialog({
         amount: Math.abs(delta),
         type: isGain ? "income" : "expense",
         date: new Date().toISOString().slice(0, 10),
-        notes: `Value updated from ${formatCurrency(currentBalance, account.currency)} to ${formatCurrency(parsed, account.currency)}`,
+        notes: `Cash balance updated from ${formatCurrency(cashBalance, account.currency)} to ${formatCurrency(parsed, account.currency)}${
+          holdingsValue !== 0
+            ? ` (holdings of ${formatCurrency(holdingsValue, account.currency)} unchanged)`
+            : ""
+        }`,
       },
       {
         onSuccess: () => {
-          toast.success("Value updated");
+          toast.success("Cash balance updated");
           setOpen(false);
           setNewValue("");
         },
@@ -500,45 +540,89 @@ function UpdateValueDialog({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setNewValue(String(currentBalance));
+        if (o) setNewValue(String(cashBalance));
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Update Value — {account.name}</DialogTitle>
+          <DialogTitle>Update Cash Balance — {account.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
-          <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-            <span className="text-muted-foreground">Current value: </span>
-            <span className="font-semibold">
-              {formatCurrency(currentBalance, account.currency)}
-            </span>
+          <div className="rounded-md bg-muted/50 px-3 py-2 text-sm space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Cash balance</span>
+              <span className="font-semibold tabular-nums">
+                {formatCurrency(cashBalance, account.currency)}
+              </span>
+            </div>
+            {holdingsValue !== 0 && (
+              <>
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>+ Linked holdings</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(holdingsValue, account.currency)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-1">
+                  <span className="text-muted-foreground">Total balance</span>
+                  <span className="font-semibold tabular-nums">
+                    {formatCurrency(totalBalance, account.currency)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
+          {holdingsValue !== 0 && (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Holdings linked to this account already revalue themselves from
+              their own current value, so they are not editable here. This form
+              only adjusts the cash sitting alongside them.
+            </p>
+          )}
           <div>
-            <Label>New Value ({account.currency})</Label>
+            <Label>New Cash Balance ({account.currency})</Label>
             <Input
               type="number"
               value={newValue}
               onChange={(e) => setNewValue(e.target.value)}
-              placeholder={String(currentBalance)}
+              placeholder={String(cashBalance)}
               className="mt-1"
               autoFocus
             />
           </div>
-          {delta !== null && delta !== 0 && (
+          {delta !== null && delta !== 0 && !needsEnvelope && (
             <div
               className={`rounded-md px-3 py-2 text-sm font-medium ${isGain ? "bg-positive/10 text-positive" : "bg-negative/10 text-negative"}`}
             >
               {isGain ? "Gain" : "Loss"}: {isGain ? "+" : "−"}
               {formatCurrency(Math.abs(delta), account.currency)} will be
               recorded as a {isGain ? "income" : "expense"} transaction.
+              {holdingsValue !== 0 && (
+                <span className="block font-normal opacity-90 mt-0.5">
+                  Total balance becomes{" "}
+                  {formatCurrency(
+                    round2(parsed + holdingsValue),
+                    account.currency
+                  )}
+                  .
+                </span>
+              )}
+            </div>
+          )}
+          {needsEnvelope && (
+            <div className="rounded-md px-3 py-2 text-sm bg-negative/10 text-negative leading-relaxed">
+              This account is on-budget, so reducing its cash balance has to be
+              recorded against a budget envelope. Add the expense from the
+              account's transaction form, where you can pick one.
             </div>
           )}
           <Button
             className="w-full"
             onClick={submit}
-            disabled={isPending || delta === null || delta === 0}
+            disabled={
+              isPending || delta === null || delta === 0 || needsEnvelope
+            }
           >
             Record Update
           </Button>
@@ -1429,6 +1513,10 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
           </CardContent>
         )}
       </Card>
+
+      {/* Life Insurance — protection cover, deliberately excluded from the
+          portfolio totals and net worth above. */}
+      <LifeInsuranceCard />
 
       {sheetAccount && (
         <LinkedAccountSheet

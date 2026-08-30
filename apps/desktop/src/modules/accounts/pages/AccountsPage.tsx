@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAccounts, useExchangeRates } from "@/modules/budget/hooks/useBudget";
+import { useExchangeRates } from "@/modules/budget/hooks/useBudget";
 import { useNetWorth } from "@/modules/dashboard/hooks/useDashboard";
 import { useAppStore } from "@/stores/app.store";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
@@ -30,7 +30,6 @@ export default function AccountsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = (searchParams.get("tab") as typeof TABS[number]["id"]) || "cash";
 
-  const { data: accountsData, isLoading: accountsLoading } = useAccounts();
   const { data: nwData, isLoading: nwLoading } = useNetWorth();
   const { data: rates = {} } = useExchangeRates();
   const { defaultCurrency } = useAppStore();
@@ -41,43 +40,41 @@ export default function AccountsPage() {
       defaultCurrency as any
     );
 
-  const allAccounts = accountsData?.accounts ?? [];
-
-  // Liquid assets (Checking, Savings, Cash) - on budget only
-  const liquidAccounts = allAccounts.filter(
-    (a) => ["checking", "savings", "cash"].includes(a.type) && !a.off_budget && a.is_active
-  );
-  const liquidTotalInr = liquidAccounts.reduce(
-    (sum, a) => sum + (a.balance_inr ?? 0),
-    0
-  );
-
-  // Investments (holdings + off-budget investment/savings accounts)
+  // ── Balance-sheet tiles ─────────────────────────────────────────────────────
+  //
+  // These read the server's net-worth breakdown verbatim. This page used to
+  // re-derive its own assets total from `useAccounts()` — on-budget
+  // checking/savings/cash only — which made it a THIRD net-worth formula
+  // alongside `getNetWorth` and `getNetWorthHistory`. It disagreed with the
+  // dashboard's headline number in two ways: it dropped off-budget savings
+  // accounts from assets entirely (the server counts them, minus their linked
+  // holdings, inside `investments_inr`), and it double-counted the cash sleeve
+  // of any on-budget account with linked holdings, because `balance_inr` folds
+  // those holdings in while `investments_inr` counts them again.
+  const cashInr = nwData?.breakdown.cash_inr ?? 0;
   const investmentsTotalInr = nwData?.breakdown.investments_inr ?? 0;
-
-  // Insurance Policies (total premium invested)
   const policiesTotalInr = nwData?.breakdown.policies_inr ?? 0;
+  // SIGNED, and negative: liabilities are stored with a negative balance and
+  // the server sums them as-is so that total = cash + investments + policies +
+  // debt. Keep this signed in all arithmetic.
+  const debtInr = nwData?.breakdown.debt_inr ?? 0;
 
-  // Total Assets
-  const totalAssetsInr = liquidTotalInr + investmentsTotalInr + policiesTotalInr;
+  const totalAssetsInr = cashInr + investmentsTotalInr + policiesTotalInr;
 
-  // Liabilities (Credit Cards, Loans)
-  const debtAccounts = allAccounts.filter(
-    (a) => ["credit", "loan", "debt"].includes(a.type) && a.is_active
-  );
-  const totalLiabilitiesInr = debtAccounts.reduce(
-    (sum, a) => sum + Math.abs(a.balance_inr ?? 0),
-    0
-  );
+  // Presentation only: the Liabilities tile shows the amount owed as a positive
+  // magnitude because the label already says "Liabilities". This Math.abs must
+  // NOT leak into the Net Position arithmetic below, which uses the signed
+  // `debtInr`.
+  const totalLiabilitiesInr = Math.abs(debtInr);
 
-  // Net position
-  const netPositionInr = totalAssetsInr - totalLiabilitiesInr;
+  // Identical to the server's `total_inr`, by construction.
+  const netPositionInr = totalAssetsInr + debtInr;
 
   const handleTabChange = (tabId: typeof TABS[number]["id"]) => {
     setSearchParams({ tab: tabId });
   };
 
-  const isLoading = accountsLoading || nwLoading;
+  const isLoading = nwLoading;
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-7xl mx-auto">
@@ -110,7 +107,7 @@ export default function AccountsPage() {
               </p>
             )}
             <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
-              Liquid Cash + Investments + Policies
+              Cash + Investments + Policies
             </p>
           </CardContent>
         </Card>

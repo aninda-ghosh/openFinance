@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.2.0] — 2026-08-30
+
+### Added
+
+- **Life Insurance Register.** Added a Life Insurance card to the Investments tab tracking the person covered, the cover amount, the renewal date, the insurer and policy number, and an optional premium with its frequency. Each policy carries its own documents — the policy PDF, endorsements, premium receipts — through the same encrypted document store as investment statements, and the table shows how many files are attached.
+- **Renewal warnings.** Every policy row carries a live badge (`in 3 months`, `in 12 days`, `5 days overdue`) computed from calendar dates in UTC, plus an amber strip above the table whenever anything renews inside 30 days. `GET /api/life-insurance/alerts?days=N` exposes the same list.
+- **Life insurance in the AI context.** The local assistant now sees each policy's covered person, cover, renewal date and premium, labelled explicitly as protection cover rather than an asset, so it can answer "when does my term plan renew?" without folding the death benefit into net worth.
+
+### Changed
+
+- **Native macOS app.** openFinance now ships as a `.dmg` you drag into Applications. The React UI, the Hono API server, its Node runtime and an encrypted SQLite database all live inside one app bundle — no Docker, no PostgreSQL, no network. `./scripts/build-mac.sh` builds the whole installer.
+- **SQLite + SQLCipher.** Moved the Drizzle schema from `pg-core` to `sqlite-core` and opened the database through `better-sqlite3-multiple-ciphers`, unlocked with the passcode set on first launch.
+- **Startup schema bootstrap.** Extracted the inline `CREATE TABLE` statements from `index.ts` into `db/bootstrap.ts`, which applies the schema and its incremental column additions idempotently on every startup.
+- **Data directory paths.** Uploads and chat memories resolve through `utils/paths.ts` into the app's Application Support folder instead of `process.cwd()`.
+- **Documents vault.** The Documents page gained a "Life Insurance Only" source filter, and life-insurance files show their policy and cover amount instead of a dash.
+
+### Fixed
+
+- **Backup and reset now cover life insurance.** Both `/api/backup` and `/api/reset` enumerate tables by hand, so the new table is registered in each — exported and restored in FK-safe order (before `investment_documents`, which references it), and cleared on a wipe. Older backups without the key restore unchanged.
+- **Policy deletion removes its documents.** Deleting a policy deletes its attached documents and their files explicitly rather than relying on `ON DELETE CASCADE`, which SQLite only honours when the `foreign_keys` pragma is on — and this codebase does not set it.
+
+### Removed
+
+- **Docker deployment.** Removed `docker-compose.yml`, `.dockerignore`, `scripts/deploy.sh` and `scripts/deploy-remote.sh`. Existing self-hosted instances migrate through **Settings → Backup & Restore**; see the README.
+
+---
+
 ## [4.1.6] — 2026-07-11
 
 ### Added

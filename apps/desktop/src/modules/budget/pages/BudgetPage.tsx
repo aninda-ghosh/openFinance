@@ -1,3 +1,9 @@
+import {
+  TRANSFER_IN,
+  TRANSFER_OUT,
+  isTransferIn,
+  isTransferOut,
+} from "@openfinance/shared/constants";
 import { convertFromINR, convertToINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   CalendarClock,
@@ -361,11 +367,20 @@ function AddCategoryDialog({
   );
 }
 
+/**
+ * All three numbers are BASE currency and all three come straight off
+ * `listEnvelopes`. `available` is NOT recomputed here as
+ * `budgeted_inr - spent`: the server's `budgeted_inr` already has any rollover
+ * folded in, and having a second definition of "available" on the client is
+ * exactly how the drill-down sheet and the row it was opened from ended up
+ * disagreeing.
+ */
 type DrillEnvelope = {
   id: string;
   name: string;
   spent: number;
   budgeted_inr: number;
+  available: number;
 };
 
 function EnvelopeTransactionsSheet({
@@ -414,7 +429,7 @@ function EnvelopeTransactionsSheet({
     {}
   );
   const txns = txnData?.transactions ?? [];
-  const balance = (envelope?.budgeted_inr ?? 0) - (envelope?.spent ?? 0);
+  const balance = envelope?.available ?? 0;
 
   return (
     <Sheet
@@ -483,8 +498,7 @@ function EnvelopeTransactionsSheet({
               {txns.map((t: any) => {
                 const acct = accountMap[t.account_id];
                 const currency = acct?.currency ?? t.currency ?? "INR";
-                const isCredit =
-                  t.type === "transfer" && t.payee === "Transfer in";
+                const isCredit = isTransferIn(t);
                 const amountColor = isCredit
                   ? "text-positive"
                   : "text-negative";
@@ -497,8 +511,7 @@ function EnvelopeTransactionsSheet({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">
-                          {t.payee === "Transfer in" ||
-                          t.payee === "Transfer out"
+                          {isTransferIn(t) || isTransferOut(t)
                             ? t.notes || t.payee
                             : t.payee}
                         </span>
@@ -512,9 +525,9 @@ function EnvelopeTransactionsSheet({
                           }`}
                         >
                           {isCredit
-                            ? "Transfer in"
+                            ? TRANSFER_IN
                             : t.type === "transfer"
-                              ? "Transfer out"
+                              ? TRANSFER_OUT
                               : t.type}
                         </span>
                       </div>
@@ -536,14 +549,24 @@ function EnvelopeTransactionsSheet({
                             value={t.envelope_id ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-updateTxn({
+                              updateTxn({
                                 id: t.id,
                                 data: { envelope_id: val || null }
                               }, {
-                                onSuccess: () => toast.success("Transaction categorized"),
+                                onSuccess: () =>
+                                  toast.success(
+                                    val ? "Transaction categorised" : "Envelope cleared"
+                                  ),
                                 onError: (err) => {
-                                  toast.error("Intent Unfulfilled: Categorization Failed", {
-                                    description: err?.message || "Failed to update transaction category. Please check your connection and try again.",
+                                  // `apiFetch` puts the server's `error` string
+                                  // on `message`, so a 400 from the
+                                  // on-budget-expense rule already explains
+                                  // itself — do not bury it under a generic
+                                  // "check your connection".
+                                  toast.error("Could not change the envelope", {
+                                    description:
+                                      err?.message ||
+                                      "The server rejected the change and gave no reason.",
                                     duration: 6000,
                                   });
                                 }
@@ -551,7 +574,20 @@ updateTxn({
                             }}
                             className="text-[11px] border border-border rounded px-1.5 py-0.5 bg-background truncate max-w-[180px] focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground cursor-pointer hover:border-muted-foreground/30 transition-colors"
                           >
-                            <option value="">📁 Uncategorised</option>
+                            {/*
+                              An expense on an on-budget account MUST keep an
+                              envelope — the server 400s otherwise. The option
+                              stays rendered (disabled) rather than being
+                              removed, so a legacy uncategorised row still
+                              shows its real state instead of silently
+                              displaying the first envelope in the list.
+                            */}
+                            <option value="" disabled={acct?.off_budget === false}>
+                              📁 Uncategorised
+                              {acct?.off_budget === false
+                                ? " (not allowed on-budget)"
+                                : ""}
+                            </option>
                             {allowedEnvelopes.map((env: any) => (
                               <option key={env.id} value={env.id}>
                                 📁 {env.name}
@@ -673,12 +709,17 @@ function BudgetTable({
         {groupedEnvelopes.map(({ group, envelopes }) => {
           const isCollapsed = collapsed.has(group.id);
           const totalBudgeted = envelopes.reduce(
-            (s, e) => s + (e.budgeted_inr ?? e.budgeted),
+            (s, e) => s + (e.budgeted_inr ?? 0),
             0
           );
           const totalSpent = envelopes.reduce((s, e) => s + e.spent, 0);
-          const totalBalance = totalBudgeted - totalSpent;
-          const spentPercent = totalBudgeted > 0 ? Math.min(100, (totalSpent / totalBudgeted) * 100) : 0;
+          const totalBalance = envelopes.reduce((s, e) => s + e.available, 0);
+          // `spent` goes NEGATIVE when a transfer-in credits an envelope, so
+          // the bar has to be clamped at both ends, not just at 100.
+          const spentPercent =
+            totalBudgeted > 0
+              ? Math.max(0, Math.min(100, (totalSpent / totalBudgeted) * 100))
+              : 0;
 
           return (
             <div
@@ -778,11 +819,14 @@ function BudgetTable({
               {!isCollapsed && (
                 <div className="divide-y divide-border/30 border-t border-border/40 bg-card/30">
                   {envelopes.map((env) => {
-                    const budgetedInr = env.budgeted_inr ?? env.budgeted;
-                    const balance = budgetedInr - env.spent;
+                    const budgetedInr = env.budgeted_inr ?? 0;
+                    const balance = env.available;
                     const isEditing = editingBudget?.envId === env.id;
                     const hasForeignCurrency = env.budget_currency && env.budget_currency !== "INR";
-                    const envSpentPercent = budgetedInr > 0 ? Math.min(100, (env.spent / budgetedInr) * 100) : 0;
+                    const envSpentPercent =
+                      budgetedInr > 0
+                        ? Math.max(0, Math.min(100, (env.spent / budgetedInr) * 100))
+                        : 0;
 
                     return (
                       <div
@@ -796,7 +840,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1060,11 +1105,11 @@ function BudgetTable({
           {groupedEnvelopes.map(({ group, envelopes }) => {
             const isCollapsed = collapsed.has(group.id);
             const totalBudgeted = envelopes.reduce(
-              (s, e) => s + (e.budgeted_inr ?? e.budgeted),
+              (s, e) => s + (e.budgeted_inr ?? 0),
               0
             );
             const totalSpent = envelopes.reduce((s, e) => s + e.spent, 0);
-            const totalBalance = totalBudgeted - totalSpent;
+            const totalBalance = envelopes.reduce((s, e) => s + e.available, 0);
             return (
               <Fragment key={group.id}>
                 {/* Group header row */}
@@ -1137,8 +1182,8 @@ function BudgetTable({
                 {/* Envelope rows */}
                 {!isCollapsed &&
                   envelopes.map((env) => {
-                    const budgetedInr = env.budgeted_inr ?? env.budgeted;
-                    const balance = budgetedInr - env.spent;
+                    const budgetedInr = env.budgeted_inr ?? 0;
+                    const balance = env.available;
                     const isEditing = editingBudget?.envId === env.id;
                     const hasForeignCurrency =
                       env.budget_currency && env.budget_currency !== "INR";
@@ -1154,7 +1199,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1215,7 +1261,8 @@ function BudgetTable({
                               id: env.id,
                               name: env.name,
                               spent: env.spent,
-                              budgeted_inr: env.budgeted_inr ?? env.budgeted,
+                              budgeted_inr: budgetedInr,
+                              available: env.available,
                             })
                           }
                         >
@@ -1848,7 +1895,7 @@ export default function BudgetPage() {
   // Exclude income groups — they don't consume budget
   const totalBudgeted = allEnvelopes
     .filter((e) => !incomeGroupIds.has(e.group_id))
-    .reduce((s, e) => s + (e.budgeted_inr ?? e.budgeted), 0);
+    .reduce((s, e) => s + (e.budgeted_inr ?? 0), 0);
   const carryover = summary?.carryover_from_previous ?? 0;
   const toBudget = summary
     ? summary.total_income + carryover - totalBudgeted
@@ -1893,6 +1940,11 @@ export default function BudgetPage() {
                         name: "Uncategorised Transactions",
                         spent: uncategorizedAmount,
                         budgeted_inr: 0,
+                        // Synthetic envelope: nothing was budgeted, so the
+                        // whole uncategorised total is negative available.
+                        // The sheet does not render this for _uncategorised_,
+                        // but it must stay consistent with budgeted − spent.
+                        available: -uncategorizedAmount,
                       })
                     }
                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-negative/10 text-negative hover:bg-negative/20 active:scale-95 transition-all duration-150 border border-negative/20 cursor-pointer shadow-sm"

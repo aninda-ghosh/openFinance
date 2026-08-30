@@ -27,14 +27,39 @@ interface InvestmentDocumentsProps {
   investmentId: string;
   investment: any;
   isAccount?: boolean;
+  /**
+   * Which table the document hangs off. `isAccount` is the older boolean form
+   * of the same question and is still honoured; this prop wins when both are
+   * given.
+   */
+  parentKind?: "investment" | "account" | "life_insurance";
+  /** Noun used in empty-state copy, e.g. "policy". */
+  parentLabel?: string;
 }
 
 export function InvestmentDocuments({
   investmentId,
   investment,
   isAccount = false,
+  parentKind,
+  parentLabel,
 }: InvestmentDocumentsProps) {
-  const filters = isAccount ? { accountId: investmentId } : { investmentId };
+  const kind: "investment" | "account" | "life_insurance" =
+    parentKind ?? (isAccount ? "account" : "investment");
+  const parentId =
+    kind === "account"
+      ? { accountId: investmentId }
+      : kind === "life_insurance"
+      ? { lifeInsuranceId: investmentId }
+      : { investmentId };
+  const noun =
+    parentLabel ??
+    (kind === "account"
+      ? "account"
+      : kind === "life_insurance"
+      ? "policy"
+      : "investment");
+  const filters = parentId;
   const { data = { documents: [] }, isLoading } = useDocumentsList(filters);
   const { mutate: uploadDoc, isPending: uploading } = useUploadDocumentMutation();
   const { mutate: deleteDoc, isPending: deleting } = useDeleteDocumentMutation();
@@ -134,7 +159,7 @@ export function InvestmentDocuments({
 
     uploadDoc(
       {
-        parentId: isAccount ? { accountId: investmentId } : { investmentId },
+        parentId,
         name: docName || selectedFile.name,
         file: selectedFile,
         notes: docNotes || undefined,
@@ -278,7 +303,7 @@ export function InvestmentDocuments({
             <FileIcon className="w-10 h-10 text-muted-foreground/50 mb-2" />
             <p className="text-sm font-medium text-foreground">No documents uploaded</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Upload statements or contracts above to secure them for this {isAccount ? "account" : "investment"}.
+              Upload statements or contracts above to secure them for this {noun}.
             </p>
           </div>
         ) : (
@@ -315,15 +340,23 @@ export function InvestmentDocuments({
                         {investment.name}
                       </span>
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
-                        {(investment.asset_type || investment.type || "generic").toUpperCase()}
+                        {(kind === "life_insurance"
+                          ? "life insurance"
+                          : investment.asset_type || investment.type || "generic"
+                        ).toUpperCase()}
                       </span>
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 border border-green-500/20">
-                        {formatCurrency(
-                          investment.current_value !== undefined
-                            ? investment.current_value
-                            : (investment.balance ?? 0),
-                          investment.currency
-                        )}
+                        {kind === "life_insurance"
+                          ? `${formatCurrency(
+                              investment.coverage_amount ?? 0,
+                              investment.currency
+                            )} cover`
+                          : formatCurrency(
+                              investment.current_value !== undefined
+                                ? investment.current_value
+                                : (investment.balance ?? 0),
+                              investment.currency
+                            )}
                       </span>
                       {investment.units && (
                         <span className="text-[10px] text-muted-foreground font-mono">

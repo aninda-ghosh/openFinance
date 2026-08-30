@@ -141,14 +141,20 @@ export const budgetApi = {
       body: JSON.stringify(data),
     }),
 
-  importCSV: (file: File, accountId: string) => {
-    const body = new FormData();
-    body.append("file", file);
-    return apiFetch<ImportResult>(`${BASE}/import?account_id=${accountId}`, {
-      method: "POST",
-      body: file,
-    });
-  },
+  /**
+   * POST /import takes the CSV as the RAW request body — the route reads
+   * `c.req.arrayBuffer()`. There is no multipart handler on the other end, so
+   * do not reintroduce a FormData wrapper; the file goes on the wire as-is and
+   * fetch derives Content-Type from its own type.
+   */
+  importCSV: (file: File, accountId: string) =>
+    apiFetch<ImportResult>(
+      `${BASE}/import?account_id=${encodeURIComponent(accountId)}`,
+      {
+        method: "POST",
+        body: file,
+      }
+    ),
 
   getMonthlySummary: (month: string) =>
     apiFetch<MonthlySummaryResponse>(`${BASE}/reports/summary?month=${month}`),

@@ -5,6 +5,7 @@ import { listAccounts, listEnvelopes } from "../services/budget.service";
 import { getNetWorth } from "../services/dashboard.service";
 import { getLatestRates } from "../services/exchange-rate.service";
 import { listInvestments } from "../services/investment.service";
+import { listLifeInsurance } from "../services/life-insurance.service";
 import { listPolicies } from "../services/policy.service";
 
 function labelAssetType(t: string) {
@@ -81,15 +82,23 @@ export async function buildSystemContext(
   const today = new Date().toISOString().slice(0, 10);
   const currentMonth = today.slice(0, 7);
 
-  const [netWorth, accounts_, envelopes, investments, policies, rates] =
-    await Promise.all([
-      getNetWorth(),
-      listAccounts(),
-      listEnvelopes(currentMonth),
-      listInvestments(),
-      listPolicies(),
-      getLatestRates(),
-    ]);
+  const [
+    netWorth,
+    accounts_,
+    envelopes,
+    investments,
+    policies,
+    lifeInsurance,
+    rates,
+  ] = await Promise.all([
+    getNetWorth(),
+    listAccounts(),
+    listEnvelopes(currentMonth),
+    listInvestments(),
+    listPolicies(),
+    listLifeInsurance(),
+    getLatestRates(),
+  ]);
 
   // Helper: format an INR value in display currency, with INR shown alongside if different
   const fmtDisplay = (inr: number) => {
@@ -194,6 +203,27 @@ export async function buildSystemContext(
             `\n    Premium: ${fmtDisplay(p.premium_amount)} paid ${labelFrequency(p.premium_frequency)}` +
             `\n    Sum Assured: ${fmtDisplay(p.sum_assured)} | Maturity Value: ${fmtDisplay(p.maturity_value ?? 0)} on ${p.maturity_date}`
         )),
+    "",
+    `## Life Insurance (protection cover — NOT an asset, excluded from net worth)`,
+    ...(lifeInsurance.length === 0
+      ? ["  No life insurance tracked."]
+      : lifeInsurance.map((l) => {
+          const premium =
+            l.premium_amount == null
+              ? "not recorded"
+              : `${fmt(l.premium_amount, l.currency)} ${labelFrequency(
+                  l.premium_frequency ?? "annual"
+                )}`;
+          const renewal =
+            l.days_to_renewal < 0
+              ? `${Math.abs(l.days_to_renewal)} days overdue`
+              : `in ${l.days_to_renewal} days`;
+          return (
+            `  ${l.name} by ${l.provider} — covers ${l.insured_person}` +
+            `\n    Cover: ${fmt(l.coverage_amount, l.currency)}${l.currency !== "INR" ? ` (${fmtDisplay(l.coverage_amount_inr)})` : ""}` +
+            `\n    Renews: ${l.renewal_date} (${renewal}) | Premium: ${premium}`
+          );
+        })),
     "",
     `## Recent Transactions (last 15)`,
     ...(recentTxns.length === 0

@@ -6,6 +6,11 @@ import type {
   UpdatePayoutRequest,
   UpdatePolicyRequest,
 } from "@openfinance/shared/api-contracts";
+import {
+  TRANSFER_IN,
+  TRANSFER_OUT,
+  balanceDelta,
+} from "@openfinance/shared/constants";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/index";
@@ -35,9 +40,21 @@ function toInr(
   return amount * (rates[currency] ?? 1.0);
 }
 
-function computeTotalInvested(policy: typeof policies.$inferSelect): number {
+/**
+ * Premiums actually paid into a policy as of a date, in the policy's currency.
+ *
+ * Exported because the net-worth breakdown values unlinked policies with it.
+ * That used to be `premium × payments-per-year × premium_term_years` — the
+ * whole-term total — which overstated a young policy today and, worse, was
+ * applied unchanged at every month-end, so a policy's contribution to
+ * historical net worth was a flat line at its final value.
+ */
+export function computeInvestedAt(
+  policy: typeof policies.$inferSelect,
+  asOf: Date | string
+): number {
   const start = new Date(policy.start_date);
-  const today = new Date();
+  const cutoff = typeof asOf === "string" ? new Date(asOf) : asOf;
   const endOfPremiumTerm = new Date(start);
   endOfPremiumTerm.setFullYear(
     endOfPremiumTerm.getFullYear() + policy.premium_term_years
@@ -48,12 +65,16 @@ function computeTotalInvested(policy: typeof policies.$inferSelect): number {
 
   let count = 0;
   const cursor = new Date(start);
-  while (cursor <= today && cursor < endOfPremiumTerm) {
+  while (cursor <= cutoff && cursor < endOfPremiumTerm) {
     count++;
     cursor.setMonth(cursor.getMonth() + monthsInterval);
   }
 
   return policy.premium_amount * count;
+}
+
+function computeTotalInvested(policy: typeof policies.$inferSelect): number {
+  return computeInvestedAt(policy, new Date());
 }
 
 async function getAccountLiveBalance(db: any, accountId: string): Promise<number> {
@@ -77,10 +98,23 @@ async function getAccountLiveBalance(db: any, accountId: string): Promise<number
 
   let delta = 0;
   for (const t of txnTotals) {
-    if (t.type === "income") delta += t.total;
-    else if (t.type === "expense") delta -= t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer in") delta += t.total;
-    else if (t.type === "transfer" && t.payee === "Transfer out") delta -= t.total;
+    const signed = balanceDelta({
+      type: t.type,
+      payee: t.payee,
+      amount: t.total,
+    });
+    if (signed === null) {
+      // A transfer leg that is neither direction cannot be signed. It used to
+      // fall through every branch and count as zero, quietly understating the
+      // policy's invested amount; report it instead of hiding it.
+      console.error(
+        `[policy] account ${accountId}: ${t.type} rows with payee "${t.payee}" ` +
+          `have no balance direction and are excluded from the invested total ` +
+          `(transfer legs must be "${TRANSFER_IN}" or "${TRANSFER_OUT}")`
+      );
+      continue;
+    }
+    delta += signed;
   }
 
   return (account.balance ?? 0) + delta;

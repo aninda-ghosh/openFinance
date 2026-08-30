@@ -1,3 +1,4 @@
+import { balanceDelta, isLiabilityType } from "@openfinance/shared/constants";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import { CreditCard, Coins, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -33,6 +34,11 @@ import { useAppStore } from "@/stores/app.store";
 import { AccountFormDialog } from "@/components/AccountFormDialog";
 import { budgetApi } from "@/modules/budget/api";
 import TransactionForm from "@/components/TransactionForm";
+import {
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
 
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
@@ -98,36 +104,23 @@ function TransactionSheet({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { data } = useTransactions({ account_id: account.id, limit: 100 });
+  const { data } = useTransactions({
+    account_id: account.id,
+    limit: ACCOUNT_LEDGER_PAGE_SIZE,
+  });
   const { mutate: deleteTxn } = useDeleteTransaction();
   const { defaultCurrency } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
 
   const txns = data?.transactions ?? [];
 
-  const runningBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-    let current = account?.balance ?? 0;
-    for (let i = 0; i < txns.length; i++) {
-      const t = txns[i];
-      balances[t.id] = current;
-      
-      let delta = 0;
-      if (t.type === "income") {
-        delta = t.amount;
-      } else if (t.type === "expense") {
-        delta = -t.amount;
-      } else if (t.type === "transfer") {
-        if (t.payee === "Transfer in") {
-          delta = t.amount;
-        } else {
-          delta = -t.amount;
-        }
-      }
-      current -= delta;
-    }
-    return balances;
-  }, [txns, account?.balance]);
+  // Debt accounts never carry linked investments, so the API balance is already
+  // holdings-excluded — `undefined` / `{}` make the seed helper a no-op here.
+  // The shared hook still matters: it drops the hand-rolled delta switch that
+  // silently treated an orphan transfer leg (payee matching neither direction)
+  // as an outflow, which desynced the walk from the balance it started at.
+  const seedBalance = useHoldingsExcludedBalance(account, undefined, {});
+  const runningBalances = useRunningBalances(txns, seedBalance);
 
   const showHint = account.currency !== defaultCurrency;
 
@@ -189,6 +182,15 @@ function TransactionSheet({
             <div className="flex flex-col">
               {txns.map((t: any, i: number) => {
                 const showDateHeader = i === 0 || t.date !== txns[i - 1].date;
+                // Sign the amount off the same `balanceDelta` the running
+                // balance walks, so the two columns can never disagree. An
+                // orphan transfer leg (payee matching neither direction) moves
+                // the balance by nothing, so it gets no sign rather than the
+                // "−" the old `payee === "Transfer in" ? "+" : "−"` fallback
+                // showed for it.
+                const delta = balanceDelta(t);
+                const amountSign =
+                  delta === null ? "" : delta >= 0 ? "+" : "−";
                 return (
                   <div key={t.id} className="flex flex-col">
                     {showDateHeader && (
@@ -232,13 +234,7 @@ function TransactionSheet({
                                   : "text-negative"
                             }`}
                           >
-                            {t.type === "transfer"
-                              ? t.payee === "Transfer in"
-                                ? "+"
-                                : "−"
-                              : t.type === "income"
-                                ? "+"
-                                : "−"}
+                            {amountSign}
                             {formatCurrency(t.amount, account.currency)}
                           </p>
                           {showHint && (
@@ -314,7 +310,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
 
   const allAccounts = accountsData?.accounts ?? [];
   const debtAccounts = allAccounts.filter(
-    (a: any) => ["credit", "loan", "debt"].includes(a.type) && a.is_active
+    (a: any) => isLiabilityType(a.type) && a.is_active
   );
 
   const totalDebtInr = debtAccounts.reduce(
@@ -350,6 +346,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
         <div className="flex justify-end items-center">
           <AccountFormDialog
             title="Add Debt Account"
+            mode="create"
             trigger={
               <Button size="sm">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -361,14 +358,16 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
               type: "credit",
               currency: defaultCurrency,
               balance: 0,
-              off_budget: true,
+              // No `off_budget` override: every type this page creates is a
+              // liability, which the dialog already defaults to off-budget, and
+              // omitting it lets the default follow the type picker.
             }}
             isPending={creating}
             onSubmit={(data) => {
-              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                ? -data.balance 
-                : data.balance;
-              createAccount({ ...data, balance: finalBalance } as any, {
+              // Send the magnitude the user typed. `createAccount` normalizes
+              // the liability sign via `isLiabilityType`; negating here as well
+              // made the stored sign depend on which page opened the dialog.
+              createAccount(data as any, {
                 onSuccess: () => toast.success("Debt account added"),
                 onError: (e) => toast.error(e.message),
               });
@@ -391,6 +390,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
           </div>
           <AccountFormDialog
             title="Add Debt Account"
+            mode="create"
             trigger={
               <Button size="sm">
                 <PlusCircle className="w-4 h-4 mr-1.5" />
@@ -402,14 +402,16 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
               type: "credit",
               currency: defaultCurrency,
               balance: 0,
-              off_budget: true,
+              // No `off_budget` override: every type this page creates is a
+              // liability, which the dialog already defaults to off-budget, and
+              // omitting it lets the default follow the type picker.
             }}
             isPending={creating}
             onSubmit={(data) => {
-              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                ? -data.balance 
-                : data.balance;
-              createAccount({ ...data, balance: finalBalance } as any, {
+              // Send the magnitude the user typed. `createAccount` normalizes
+              // the liability sign via `isLiabilityType`; negating here as well
+              // made the stored sign depend on which page opened the dialog.
+              createAccount(data as any, {
                 onSuccess: () => toast.success("Debt account added"),
                 onError: (e) => toast.error(e.message),
               });
@@ -600,6 +602,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                           />
                           <AccountFormDialog
                             title="Edit Debt Account"
+                            mode="edit"
                             trigger={
                               <Button
                                 variant="ghost"
@@ -617,12 +620,14 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                               balance: a.balance,
                               institution: a.institution ?? "",
                               is_active: a.is_active ?? true,
-                              off_budget: a.off_budget ?? true,
+                              // Edit reflects what is stored, not a default.
+                              off_budget: a.off_budget,
                             }}
                             onSubmit={(data) => {
-                              const finalBalance = ["credit", "loan", "debt"].includes(data.type) && data.balance > 0 
-                                ? -data.balance 
-                                : data.balance;
+                              // No client-side negation: the server owns the
+                              // liability sign (`-Math.abs(...)` in
+                              // updateAccount), so either sign reconciles to the
+                              // same target.
                               updateAccount(
                                 {
                                   id: a.id,
@@ -630,7 +635,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                                     name: data.name,
                                     type: data.type,
                                     currency: data.currency,
-                                    balance: finalBalance,
+                                    balance: data.balance,
                                     institution: data.institution,
                                     is_active: data.is_active,
                                     off_budget: data.off_budget,
