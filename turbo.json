@@ -1,26 +1,34 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalPassThroughEnv": [
-    "DATABASE_URL",
+    "DB_PATH",
+    "OPENFINANCE_DB_KEY",
+    "OPENFINANCE_DESKTOP",
     "JWT_SECRET",
-    "POSTGRES_USER",
-    "POSTGRES_PASSWORD",
-    "POSTGRES_DB",
+    "ENCRYPTION_KEY",
     "OLLAMA_URL",
-    "PORT",
-    "APP_PORT"
+    "OLLAMA_MODEL",
+    "PORT"
   ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "out/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "out/**"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "lint": {}
   }

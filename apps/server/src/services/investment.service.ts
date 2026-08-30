@@ -176,6 +176,7 @@ export async function refreshPrice(id: string): Promise<{
     current_value_at: inv.current_value_at ?? null,
     notes: inv.notes ?? null,
     account_id: inv.account_id ?? null,
+    maturity_date: inv.maturity_date ?? null,
     created_at: inv.created_at ?? "",
     updated_at: inv.updated_at ?? "",
   };

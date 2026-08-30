@@ -2,11 +2,20 @@ import * as fs from "fs";
 import * as path from "path";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../db/index";
-import { accounts, investment_documents, investments } from "../db/schema";
+import {
+  accounts,
+  investment_documents,
+  investments,
+} from "../db/schema";
 import { nanoid } from "nanoid";
-import { encryptBuffer, getFileEncryptionKey, isEncryptedFile } from "../utils/crypto";
+import {
+  encryptBuffer,
+  getFileEncryptionKey,
+  isEncryptedFile,
+} from "../utils/crypto";
+import { DATA_DIR } from "../utils/paths";
 
-export const UPLOADS_DIR = path.join(process.cwd(), "uploads", "documents");
+export const UPLOADS_DIR = path.join(DATA_DIR, "uploads", "documents");
 
 function ensureUploadsDir() {
   if (!fs.existsSync(UPLOADS_DIR)) {
@@ -107,12 +116,17 @@ export async function listAllDocuments(filters?: {
       account_institution: accounts.institution,
     })
     .from(investment_documents)
-    .leftJoin(investments, eq(investment_documents.investment_id, investments.id))
+    .leftJoin(
+      investments,
+      eq(investment_documents.investment_id, investments.id)
+    )
     .leftJoin(accounts, eq(investment_documents.account_id, accounts.id));
 
   const conditions = [];
   if (filters?.investmentId) {
-    conditions.push(eq(investment_documents.investment_id, filters.investmentId));
+    conditions.push(
+      eq(investment_documents.investment_id, filters.investmentId)
+    );
   }
   if (filters?.accountId) {
     conditions.push(eq(investment_documents.account_id, filters.accountId));
@@ -152,5 +166,7 @@ export async function deleteDocument(docId: string) {
     fs.unlinkSync(filePath);
   }
 
-  await db.delete(investment_documents).where(eq(investment_documents.id, docId));
+  await db
+    .delete(investment_documents)
+    .where(eq(investment_documents.id, docId));
 }

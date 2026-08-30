@@ -1,8 +1,13 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { encryptString, decryptString, getFileEncryptionKey } from "../utils/crypto";
+import {
+  encryptString,
+  decryptString,
+  getFileEncryptionKey,
+} from "../utils/crypto";
+import { DATA_DIR } from "../utils/paths";
 
-const MEMORIES_DIR = path.join(process.cwd(), "chat-memories");
+const MEMORIES_DIR = path.join(DATA_DIR, "chat-memories");
 
 async function ensureDir() {
   await fs.mkdir(MEMORIES_DIR, { recursive: true });
