@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.2.1] — 2026-09-16
+
+### Added
+
+- **Investment Cost Basis & Contribution Tracking.** Record new money paid into an existing holding (such as 401(k) payroll contributions, SIP instalments, or account top-ups) separately from market movement.
+  - **Accurate Gain/Loss Measurement:** Unrealised gains and return percentages are now calculated against the true cost basis (`purchase_value + total_contributions`) rather than initial purchase price alone, preventing fresh deposits from being misreported as investment profits.
+  - **Inline History Contribution Editor:** In the Value History sheet, each historical change now details how much was capital contributed versus market movement, and can be edited inline with real-time feedback.
+  - **Bulk Reclassification:** Added a "Mark all as paid in" one-click action in the Value History sheet to attribute all past value changes to direct contributions (and "Clear all" to reset), tailored for retirement accounts and recurring investment portfolios.
+  - **Database Schema Migration:** Added a `contribution` column (`REAL DEFAULT 0`) to `investment_value_history` with automatic idempotent schema bootstrapping on startup.
+
+### Changed
+
+- **Investments Table:** Renamed the "Purchase" column to "Invested", displaying the updated cost basis in both native currency and INR.
+- **Group Aggregates:** Investment category summaries and return percentages now aggregate cost basis (`cost_basis_inr`) rather than initial outlay, ensuring group metrics align with underlying holdings.
+- **FAQ Documentation:** Updated the investment gain/loss formula in the FAQ to explain the cost basis calculation and contribution attribution.
+
+---
+
 ## [4.2.0] — 2026-08-30
 
 ### Added
