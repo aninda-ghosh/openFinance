@@ -226,6 +226,11 @@ export const investment_value_history = sqliteTable(
       .references(() => investments.id),
     previous_value: real("previous_value"),
     new_value: real("new_value").notNull(),
+    // How much of (new_value - previous_value) was new money paid in rather
+    // than market movement. Cost basis is purchase_value + Σ contribution, so
+    // a 401k deposit raises the basis with the value and leaves gain alone.
+    // Negative for a withdrawal. Never null — 0 means "all market movement".
+    contribution: real("contribution").default(0),
     source: text("source").$type<"manual" | "price_refresh">().notNull(),
     notes: text("notes"),
     changed_at: text("changed_at").$defaultFn(now),

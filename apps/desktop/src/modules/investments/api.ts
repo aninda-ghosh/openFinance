@@ -4,6 +4,7 @@ import type {
   InvestmentResponse,
   PriceHistoryResponse,
   UpdateInvestmentRequest,
+  ValueHistoryResponse,
 } from "@openfinance/shared/api-contracts";
 import { apiFetch } from "@/lib/api";
 
@@ -38,16 +39,22 @@ export const investmentsApi = {
   getPriceHistory: (id: string) =>
     apiFetch<PriceHistoryResponse>(`${BASE}/${id}/price-history`),
   getValueHistory: (id: string) =>
-    apiFetch<{
-      history: {
-        id: string;
-        previous_value: number | null;
-        new_value: number;
-        source: "manual" | "price_refresh";
-        notes: string | null;
-        changed_at: string;
-      }[];
-    }>(`${BASE}/${id}/value-history`),
+    apiFetch<ValueHistoryResponse>(`${BASE}/${id}/value-history`),
+  setEntryContribution: (id: string, entryId: string, contribution: number) =>
+    apiFetch<InvestmentResponse>(`${BASE}/${id}/value-history/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contribution }),
+    }),
+  bulkContributions: (id: string, mode: "match_delta" | "clear") =>
+    apiFetch<InvestmentResponse>(
+      `${BASE}/${id}/value-history/bulk-contributions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      }
+    ),
   getPortfolioSummary: () =>
     apiFetch<{ total_inr: number; by_asset_type: Record<string, number> }>(
       `${BASE}/portfolio-summary`

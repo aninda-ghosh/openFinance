@@ -18,6 +18,9 @@ import {
   Trash2,
   History,
   FileText,
+  PiggyBank,
+  Check,
+  X,
 } from "lucide-react";
 import { useState, useMemo, Fragment, useEffect } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -63,6 +66,8 @@ import {
   useRefreshPrice,
   useUpdateInvestment,
   useValueHistory,
+  useSetEntryContribution,
+  useBulkContributions,
 } from "../hooks/useInvestments";
 import { budgetApi } from "@/modules/budget/api";
 import { InvestmentDocuments } from "../components/InvestmentDocuments";
@@ -645,6 +650,7 @@ const EMPTY_FORM = {
   notes: "",
   account_id: "",
   maturity_date: "",
+  contribution: "",
 };
 
 function InvestmentFormDialog({
@@ -680,6 +686,22 @@ function InvestmentFormDialog({
 
   const isINR = form.currency === "INR";
 
+  // Editing an existing holding is the only time a contribution makes sense —
+  // on a new one the whole purchase IS the basis.
+  const isEdit = !!initial;
+  const contributionAmount =
+    isEdit && form.contribution.trim() !== ""
+      ? parseFloat(form.contribution) || 0
+      : null;
+  const valueDelta =
+    isEdit && initial && form.current_value !== ""
+      ? parseFloat(form.current_value) - parseFloat(initial.current_value || "0")
+      : null;
+  const marketPart =
+    valueDelta !== null && contributionAmount !== null
+      ? valueDelta - contributionAmount
+      : null;
+
   const submit = () => {
     if (!form.name.trim() || !form.purchase_value || !form.purchase_date)
       return;
@@ -694,6 +716,8 @@ function InvestmentFormDialog({
       notes: form.notes || undefined,
       account_id: form.account_id || null,
       maturity_date: form.maturity_date || null,
+      // Only meaningful on an edit: how much of the value change is new money.
+      ...(contributionAmount !== null ? { contribution: contributionAmount } : {}),
     });
     setOpen(false);
   };
@@ -855,6 +879,48 @@ function InvestmentFormDialog({
             </div>
           </div>
 
+          {isEdit && (
+            <div className="rounded-md border border-info/30 bg-info/5 p-3 space-y-2">
+              <Label className="text-xs">
+                New money in this update{" "}
+                <span className="text-muted-foreground font-normal">
+                  (optional)
+                </span>
+              </Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={form.contribution}
+                onChange={set("contribution")}
+                placeholder="0"
+                className="mt-1"
+              />
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                A payroll deposit or top-up is not profit. Whatever you enter
+                here is added to the cost basis alongside the new value, so only
+                the remainder counts as gain.
+              </p>
+              {valueDelta !== null && valueDelta !== 0 && (
+                <div className="text-[11px] tabular-nums flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span className="text-muted-foreground">
+                    Value change {valueDelta >= 0 ? "+" : ""}
+                    {round2(valueDelta)}
+                  </span>
+                  {marketPart !== null && (
+                    <span
+                      className={
+                        marketPart >= 0 ? "text-positive" : "text-negative"
+                      }
+                    >
+                      counts as gain: {marketPart >= 0 ? "+" : ""}
+                      {round2(marketPart)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <Label>
               Notes{" "}
@@ -883,6 +949,110 @@ function InvestmentFormDialog({
 
 // ─── Investment History Sheet ─────────────────────────────────────────────────
 
+/**
+ * Per-row reclassification of a value change into new money vs market
+ * movement. The basis is derived from these rows on the server, so setting one
+ * updates the holding's gain immediately.
+ */
+function ContributionEditor({
+  entry,
+  investmentId,
+  delta,
+  fmtNative,
+}: {
+  entry: any;
+  investmentId: string;
+  delta: number | null;
+  fmtNative: (v: number) => string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const { mutate: setContribution, isPending } = useSetEntryContribution();
+
+  const contribution = entry.contribution ?? 0;
+  const market = delta !== null ? delta - contribution : null;
+
+  const commit = (value: number) => {
+    setContribution(
+      { id: investmentId, entryId: entry.id, contribution: value },
+      {
+        onSuccess: () => setEditing(false),
+        onError: (e) => toast.error(e.message),
+      }
+    );
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 mt-1.5">
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={draft}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit(parseFloat(draft) || 0);
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="h-7 text-xs w-28"
+          placeholder="0"
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0"
+          disabled={isPending}
+          onClick={() => commit(parseFloat(draft) || 0)}
+          title="Save"
+        >
+          <Check className="w-3.5 h-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0"
+          onClick={() => setEditing(false)}
+          title="Cancel"
+        >
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setDraft(String(contribution || (delta ?? 0)));
+        setEditing(true);
+      }}
+      className="mt-1.5 flex items-center gap-1.5 text-xs rounded px-1.5 py-0.5 -ml-1.5 hover:bg-muted/60 transition-colors text-left"
+      title="Set how much of this change was new money"
+    >
+      {contribution !== 0 ? (
+        <>
+          <PiggyBank className="w-3.5 h-3.5 text-info flex-shrink-0" />
+          <span className="text-info font-medium">
+            {fmtNative(contribution)} in
+          </span>
+          {market !== null && market !== 0 && (
+            <span className="text-muted-foreground/70">
+              · {market >= 0 ? "+" : ""}
+              {fmtNative(market)} market
+            </span>
+          )}
+        </>
+      ) : (
+        <span className="text-muted-foreground/50 group-hover/row:text-muted-foreground transition-colors">
+          All market movement — set contribution
+        </span>
+      )}
+    </button>
+  );
+}
+
 function InvestmentHistorySheet({
   inv,
   open,
@@ -897,6 +1067,10 @@ function InvestmentHistorySheet({
   const { data: historyData, isLoading } = useValueHistory(inv?.id ?? null);
   const history = historyData?.history ?? [];
   const [activeTab, setActiveTab] = useState<"history" | "documents">("history");
+  const { mutate: bulkContributions, isPending: bulkPending } =
+    useBulkContributions();
+
+  const anyContribution = history.some((h: any) => (h.contribution ?? 0) !== 0);
 
   useEffect(() => {
     if (!open) {
@@ -927,12 +1101,14 @@ function InvestmentHistorySheet({
           </div>
           <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
             <div>
-              <p className="text-xs text-muted-foreground">Purchase</p>
+              <p className="text-xs text-muted-foreground">Cost basis</p>
               <p className="font-semibold">
-                {inv ? fmtNative(inv.purchase_value) : "—"}
+                {inv ? fmtNative(inv.cost_basis) : "—"}
               </p>
               <p className="text-xs text-muted-foreground">
-                {inv?.purchase_date}
+                {inv && inv.total_contributions !== 0
+                  ? `${fmtNative(inv.purchase_value)} + ${fmtNative(inv.total_contributions)} in`
+                  : inv?.purchase_date}
               </p>
             </div>
             <div>
@@ -1016,6 +1192,37 @@ function InvestmentHistorySheet({
                 </p>
               ) : (
                 <div className="flex flex-col">
+                  <div className="px-6 py-2.5 flex items-center justify-between gap-3 border-b bg-muted/10">
+                    <p className="text-[11px] text-muted-foreground leading-snug">
+                      Money paid in raises the cost basis; only the rest counts
+                      as gain.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs flex-shrink-0"
+                      disabled={bulkPending || !inv}
+                      onClick={() => {
+                        if (!inv) return;
+                        const mode = anyContribution ? "clear" : "match_delta";
+                        bulkContributions(
+                          { id: inv.id, mode },
+                          {
+                            onSuccess: () =>
+                              toast.success(
+                                mode === "match_delta"
+                                  ? "Every change marked as a contribution"
+                                  : "Contributions cleared"
+                              ),
+                            onError: (e) => toast.error(e.message),
+                          }
+                        );
+                      }}
+                    >
+                      <PiggyBank className="w-3.5 h-3.5 mr-1" />
+                      {anyContribution ? "Clear all" : "Mark all as paid in"}
+                    </Button>
+                  </div>
                   {history.map((entry, idx) => {
                     const dateStr = entry.changed_at.slice(0, 10);
                     const showDateHeader =
@@ -1074,6 +1281,14 @@ function InvestmentHistorySheet({
                               <p className="text-xs text-muted-foreground/60 mt-1 italic truncate">
                                 {entry.notes}
                               </p>
+                            )}
+                            {inv && delta !== null && (
+                              <ContributionEditor
+                                entry={entry}
+                                investmentId={inv.id}
+                                delta={delta}
+                                fmtNative={fmtNative}
+                              />
                             )}
                           </div>
                           <div className="text-right flex-shrink-0">
@@ -1181,7 +1396,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
     });
 
     return Object.entries(groups).map(([type, items]) => {
-      const purchaseSumINR = items.reduce((sum, item) => sum + (item.purchase_value_inr || 0), 0);
+      // Basis, not the original purchase — otherwise a group containing a
+      // topped-up holding shows a gain that none of its rows agree with.
+      const purchaseSumINR = items.reduce((sum, item) => sum + (item.cost_basis_inr || 0), 0);
       const currentSumINR = items.reduce((sum, item) => sum + (item.current_value_inr || 0), 0);
       const gainLossSumINR = items.reduce((sum, item) => sum + (item.gain_loss_inr || 0), 0);
       const gainLossPct = purchaseSumINR > 0 ? (gainLossSumINR / purchaseSumINR) * 100 : 0;
@@ -1606,7 +1823,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                     Type
                   </th>
                   <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
-                    Purchase
+                    Invested
                   </th>
                   <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
                     Current
@@ -1728,9 +1945,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                               </td>
                               <td className="px-4 py-3">
                                 <MoneyCell
-                                  native={inv.purchase_value}
+                                  native={inv.cost_basis}
                                   nativeCurrency={inv.currency}
-                                  inr={inv.purchase_value_inr}
+                                  inr={inv.cost_basis_inr}
                                 />
                               </td>
                               <td className="px-4 py-3">
@@ -1772,6 +1989,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                       notes: inv.notes ?? "",
                                       account_id: inv.account_id ?? "",
                                       maturity_date: inv.maturity_date ?? "",
+                                      contribution: "",
                                     }}
                                     onSubmit={(data) =>
                                       updateInv(
@@ -1895,9 +2113,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                       </td>
                       <td className="px-4 py-3">
                         <MoneyCell
-                          native={inv.purchase_value}
+                          native={inv.cost_basis}
                           nativeCurrency={inv.currency}
-                          inr={inv.purchase_value_inr}
+                          inr={inv.cost_basis_inr}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -1939,6 +2157,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                               notes: inv.notes ?? "",
                               account_id: inv.account_id ?? "",
                               maturity_date: inv.maturity_date ?? "",
+                              contribution: "",
                             }}
                             onSubmit={(data) =>
                               updateInv(

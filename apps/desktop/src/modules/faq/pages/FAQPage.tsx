@@ -159,14 +159,21 @@ const FAQ_SECTIONS: FAQSection[] = [
         a: (
           <span>
             <code className="bg-muted px-1 rounded text-xs">
-              Gain/Loss = current_value − purchase_value
+              Gain/Loss = current_value − cost_basis
             </code>{" "}
             (both converted to INR using stored exchange rates for
             cross-currency comparison). The percentage is{" "}
             <code className="bg-muted px-1 rounded text-xs">
-              (gain_loss_inr / purchase_value_inr) × 100
+              (gain_loss_inr / cost_basis_inr) × 100
             </code>
-            .
+            . Cost basis is{" "}
+            <code className="bg-muted px-1 rounded text-xs">
+              purchase_value + every contribution
+            </code>
+            , so money you pay in later — a 401k deposit, an SIP instalment, a
+            top-up — raises the value and the basis together and is never
+            counted as profit. Open a holding's Value History to mark how much
+            of each change was new money.
           </span>
         ),
       },

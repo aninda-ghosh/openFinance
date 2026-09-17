@@ -145,6 +145,7 @@ export async function bootstrapSchema(): Promise<void> {
       new_value REAL NOT NULL,
       source TEXT NOT NULL,
       notes TEXT,
+      contribution REAL DEFAULT 0,
       changed_at TEXT,
       FOREIGN KEY (investment_id) REFERENCES investments(id)
     )
@@ -289,6 +290,11 @@ export async function bootstrapSchema(): Promise<void> {
     "investment_documents",
     "life_insurance_id",
     "TEXT REFERENCES life_insurance(id) ON DELETE CASCADE"
+  );
+  addColumnIfMissing(
+    "investment_value_history",
+    "contribution",
+    "REAL DEFAULT 0"
   );
   addColumnIfMissing("users", "backup_key", "TEXT");
   addColumnIfMissing("app_settings", "ollama_url", "TEXT");

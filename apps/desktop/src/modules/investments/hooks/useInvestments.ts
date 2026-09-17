@@ -66,6 +66,44 @@ export function useValueHistory(id: string | null) {
   });
 }
 
+/** Invalidate everything a changed cost basis feeds. */
+function invalidateBasis(qc: ReturnType<typeof useQueryClient>, id: string) {
+  qc.invalidateQueries({ queryKey: ["investments"] });
+  qc.invalidateQueries({ queryKey: ["portfolio-summary"] });
+  qc.invalidateQueries({ queryKey: ["value-history", id] });
+  qc.invalidateQueries({ queryKey: ["net-worth"] });
+}
+
+export function useSetEntryContribution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      entryId,
+      contribution,
+    }: {
+      id: string;
+      entryId: string;
+      contribution: number;
+    }) => investmentsApi.setEntryContribution(id, entryId, contribution),
+    onSuccess: (_, { id }) => invalidateBasis(qc, id),
+  });
+}
+
+export function useBulkContributions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      mode,
+    }: {
+      id: string;
+      mode: "match_delta" | "clear";
+    }) => investmentsApi.bulkContributions(id, mode),
+    onSuccess: (_, { id }) => invalidateBasis(qc, id),
+  });
+}
+
 export function useDocuments(investmentId: string | null) {
   return useQuery({
     queryKey: ["documents", investmentId],

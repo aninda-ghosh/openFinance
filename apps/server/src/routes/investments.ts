@@ -1,5 +1,7 @@
 import {
+  BulkContributionSchema,
   CreateInvestmentSchema,
+  SetContributionSchema,
   UpdateInvestmentSchema,
 } from "@openfinance/shared/schemas";
 import { Hono } from "hono";
@@ -96,6 +98,39 @@ investmentsRouter.get("/:id/value-history", async (c) => {
   try {
     const history = await investmentService.getValueHistory(c.req.param("id"));
     return c.json({ history });
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+investmentsRouter.patch("/:id/value-history/:entryId", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = SetContributionSchema.safeParse(body);
+  if (!parsed.success)
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
+  try {
+    const inv = await investmentService.setEntryContribution(
+      c.req.param("id"),
+      c.req.param("entryId"),
+      parsed.data.contribution
+    );
+    return c.json(inv);
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+investmentsRouter.post("/:id/value-history/bulk-contributions", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = BulkContributionSchema.safeParse(body);
+  if (!parsed.success)
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
+  try {
+    const inv = await investmentService.bulkSetContributions(
+      c.req.param("id"),
+      parsed.data.mode
+    );
+    return c.json(inv);
   } catch (err) {
     return handleError(c, err);
   }

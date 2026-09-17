@@ -14,6 +14,18 @@ export const AssetTypeEnum = z.enum([
   "other",
 ]);
 
+export const SetContributionSchema = z.object({
+  contribution: z.number(),
+});
+
+export const BulkContributionSchema = z.object({
+  /**
+   * match_delta: treat every recorded change as new money (the starting point
+   * for a holding whose history is all deposits). clear: back to all-market.
+   */
+  mode: z.enum(["match_delta", "clear"]),
+});
+
 export const CreateInvestmentSchema = z.object({
   name: z.string().min(1),
   asset_type: AssetTypeEnum,
@@ -34,6 +46,12 @@ export const CreateInvestmentSchema = z.object({
 });
 
 export const UpdateInvestmentSchema = z.object({
+  /**
+   * How much of this value change is new money rather than market movement.
+   * Recorded on the resulting history row and folded into the cost basis, so
+   * a contribution moves value and basis together and leaves gain alone.
+   */
+  contribution: z.number().optional(),
   name: z.string().min(1).optional(),
   asset_type: AssetTypeEnum.optional(),
   currency: CurrencyEnum.optional(),
