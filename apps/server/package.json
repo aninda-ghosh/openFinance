@@ -12,7 +12,7 @@
     "@hono/node-server": "latest",
     "@hono/zod-validator": "latest",
     "@openfinance/shared": "workspace:*",
-    "adm-zip": "^0.5.14",
+    "adm-zip": "^0.6.1",
     "better-sqlite3": "npm:better-sqlite3-multiple-ciphers@^12.5.0",
     "csv-parse": "latest",
     "drizzle-orm": "latest",
