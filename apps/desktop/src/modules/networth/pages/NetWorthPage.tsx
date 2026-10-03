@@ -20,6 +20,7 @@ import {
   useNetWorthHistory,
 } from "@/modules/dashboard/hooks/useDashboard";
 import { useAppStore } from "@/stores/app.store";
+import { isZeroBalance } from "@/components/ZeroBalanceAccounts";
 
 const PERIOD_OPTIONS = [
   { label: "3M", months: 3 },
@@ -31,6 +32,7 @@ const TYPE_COLORS: Record<string, string> = {
   checking: "#3b82f6",
   savings: "#22c55e",
   investment: "#8b5cf6",
+  vehicle: "#14b8a6",
   cash: "#f59e0b",
   credit: "#ef4444",
   loan: "#f97316",
@@ -40,6 +42,7 @@ const TYPE_LABELS: Record<string, string> = {
   checking: "Checking",
   savings: "Savings",
   investment: "Investment",
+  vehicle: "Physical Assets",
   cash: "Cash",
   credit: "Credit Cards",
   loan: "Loans",
@@ -53,7 +56,7 @@ function formatShort(value: number): string {
 
 export default function NetWorthPage() {
   const [periodMonths, setPeriodMonths] = useState(6);
-  const { defaultCurrency } = useAppStore();
+  const { defaultCurrency, showZeroBalanceAccounts } = useAppStore();
   const { data: rates = {} } = useExchangeRates();
   const { data: nwData } = useNetWorth();
   const { data: historyData, isLoading: histLoading } =
@@ -112,7 +115,8 @@ export default function NetWorthPage() {
       0
     ) +
     (nwData?.breakdown.investments_inr ?? 0) +
-    (nwData?.breakdown.policies_inr ?? 0);
+    (nwData?.breakdown.policies_inr ?? 0) +
+    (nwData?.breakdown.physical_assets_inr ?? 0);
   const totalLiabilities = liabilityAccounts.reduce(
     (s: number, a: any) => s + a.balance_inr,
     0
@@ -127,6 +131,10 @@ export default function NetWorthPage() {
   if (nwData?.breakdown.investments_inr)
     assetByType.investment =
       (assetByType.investment ?? 0) + nwData.breakdown.investments_inr;
+
+  // Vehicles are their own bucket on the server; show them as their own bar.
+  if (nwData?.breakdown.physical_assets_inr)
+    assetByType.vehicle = nwData.breakdown.physical_assets_inr;
 
   const assetEntries = Object.entries(assetByType).sort((a, b) => b[1] - a[1]);
   const liabilityByType: Record<string, number> = {};
@@ -364,6 +372,11 @@ export default function NetWorthPage() {
               (s: number, a: any) => s + a.balance_inr,
               0
             );
+            // Rows only — zeros add nothing to the section total above.
+            const shownAccounts = showZeroBalanceAccounts
+              ? sectionAccounts
+              : sectionAccounts.filter((a: any) => !isZeroBalance(a));
+            if (shownAccounts.length === 0) return null;
             return (
               <div
                 key={section.label}
@@ -379,7 +392,7 @@ export default function NetWorthPage() {
                   </span>
                 </div>
                 <div className="divide-y">
-                  {sectionAccounts.map((a: any) => (
+                  {shownAccounts.map((a: any) => (
                     <div
                       key={a.id}
                       className="px-4 py-3 flex items-center justify-between gap-4"

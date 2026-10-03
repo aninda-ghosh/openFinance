@@ -1,3 +1,4 @@
+import { localIsoDate } from "@openfinance/shared/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -12,6 +13,7 @@ import {
   Upload,
   XCircle,
   ShieldCheck,
+  Stethoscope,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -1128,7 +1130,7 @@ function DataBackupCard() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const date = new Date().toISOString().slice(0, 10);
+      const date = localIsoDate();
       a.href = url;
       a.download = `openfinance-backup-${date}.ofb`;
       a.click();
@@ -1345,6 +1347,125 @@ function DataBackupCard() {
             </div>
           </DialogContent>
         </Dialog>
+      </CardContent>
+    </Card>
+  );
+}
+
+type MisfiledTxn = {
+  id: string;
+  date: string;
+  payee: string;
+  amount: number;
+  type: string;
+  envelope_name: string;
+  envelope_month: string;
+};
+
+/**
+ * Finds transactions filed under another month's category — they were
+ * counted in neither month's budget — and, only when asked, moves each to the
+ * same category in its own month. New entries can no longer end up like this;
+ * this cleans up ones saved before the fix.
+ */
+function DataHealthCard() {
+  const qc = useQueryClient();
+  const [result, setResult] = useState<MisfiledTxn[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const monthLabel = (ym: string) =>
+    new Date(`${ym}-01T00:00:00`).toLocaleString(undefined, {
+      month: "short",
+      year: "numeric",
+    });
+
+  const check = async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ count: number; transactions: MisfiledTxn[] }>(
+        "/api/budget/maintenance/misfiled"
+      );
+      setResult(res.transactions);
+    } catch {
+      toast.error("Could not run the check");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const repair = async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch<{ moved: number }>(
+        "/api/budget/maintenance/misfiled/repair",
+        { method: "POST" }
+      );
+      toast.success(
+        `Moved ${res.moved} transaction${res.moved === 1 ? "" : "s"} to the right month`
+      );
+      qc.invalidateQueries();
+      await check();
+    } catch {
+      toast.error("Repair failed — nothing was changed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Stethoscope className="w-5 h-5 text-primary" /> Data Health
+        </CardTitle>
+        <CardDescription>
+          Finds transactions saved under another month's budget category. Those
+          were missing from both months' budgets.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {result && result.length === 0 && (
+          <p className="text-sm text-positive flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4" /> Every transaction is filed under
+            its own month.
+          </p>
+        )}
+        {result && result.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm">
+              <strong>{result.length}</strong> transaction
+              {result.length === 1 ? " is" : "s are"} filed under the wrong month:
+            </p>
+            <div className="max-h-56 overflow-y-auto rounded-lg border divide-y text-xs">
+              {result.map((t) => (
+                <div key={t.id} className="flex justify-between gap-3 px-3 py-1.5">
+                  <span className="truncate">
+                    {t.date} · {t.payee}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {t.envelope_name}: {monthLabel(t.envelope_month)} →{" "}
+                    {monthLabel(t.date.slice(0, 7))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Fixing moves each one to the same category in the month it's dated.
+              Amounts, accounts and balances don't change — only which month's
+              budget counts it.
+            </p>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={check} disabled={busy}>
+            {busy ? "Checking…" : result ? "Check again" : "Run check"}
+          </Button>
+          {result && result.length > 0 && (
+            <Button size="sm" onClick={repair} disabled={busy}>
+              Fix {result.length}
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -1646,6 +1767,9 @@ export default function SettingsPage() {
 
       {/* Backup & restore */}
       <DataBackupCard />
+
+      {/* Misfiled-transaction check */}
+      <DataHealthCard />
 
       {/* Session Security */}
       <Card>

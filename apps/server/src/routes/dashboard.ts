@@ -1,3 +1,4 @@
+import { localYearMonth } from "@openfinance/shared/utils";
 import { Hono } from "hono";
 import * as dashboardService from "../services/dashboard.service";
 import * as exchangeRateService from "../services/exchange-rate.service";
@@ -12,7 +13,7 @@ function handleError(c: any, err: unknown) {
 }
 
 dashboardRouter.get("/", async (c) => {
-  const month = c.req.query("month") ?? new Date().toISOString().slice(0, 7);
+  const month = c.req.query("month") ?? localYearMonth();
   try {
     const dashboard = await dashboardService.getDashboard(month);
     return c.json(dashboard);
@@ -71,7 +72,7 @@ dashboardRouter.get("/spending-trends", async (c) => {
 });
 
 dashboardRouter.get("/cash-flow", async (c) => {
-  const month = c.req.query("month") ?? new Date().toISOString().slice(0, 7);
+  const month = c.req.query("month") ?? localYearMonth();
   try {
     const data = await dashboardService.getCashFlow(month);
     return c.json(data);

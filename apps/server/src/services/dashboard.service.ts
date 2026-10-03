@@ -17,13 +17,16 @@ import {
 } from "../db/schema";
 import {
   computeCarryoverForMonth,
+  computeFromSavings,
   getAccountBalances,
   listAccounts,
   listEnvelopes,
 } from "./budget.service";
+import { isPhysicalAsset } from "@openfinance/shared/constants";
+import { depreciatedValue, localIsoDate } from "@openfinance/shared/utils";
 import { getLatestRates } from "./exchange-rate.service";
 import { listInvestments } from "./investment.service";
-import { computeInvestedAt } from "./policy.service";
+import { computeInvestedAt, premiumDueDates } from "./policy.service";
 
 // ─── Net Worth ────────────────────────────────────────────────────────────────
 //
@@ -77,7 +80,17 @@ export type NetWorthContext = {
   accounts: NetWorthAccount[];
   /** Only transactions dated AFTER `since` — that is all a rollback needs. */
   txnsByAccount: Map<string, NetWorthTxn[]>;
-  investments: { account_id: string | null; purchase_date: string; current_value_inr: number }[];
+  investments: {
+    account_id: string | null;
+    purchase_date: string;
+    current_value_inr: number;
+    /** Omitted = a regular holding. Physical assets get their own bucket. */
+    asset_type?: string;
+    /** Physical assets: last quote (base currency), its date, yearly rate. */
+    quoted_inr?: number;
+    quoted_at?: string | null;
+    depreciation_rate?: number | null;
+  }[];
   policies: (typeof policies.$inferSelect)[];
   rates: Record<string, number>;
 };
@@ -156,6 +169,15 @@ export async function loadNetWorthContext(
       account_id: i.account_id,
       purchase_date: i.purchase_date,
       current_value_inr: i.current_value_inr,
+      asset_type: i.asset_type,
+      // Rate conversion is linear, so converting the quote once and running
+      // the curve in base currency equals converting each derived value.
+      quoted_inr:
+        i.current_value > 0
+          ? (i.current_value_inr / i.current_value) * i.quoted_value
+          : 0,
+      quoted_at: i.current_value_at ?? i.updated_at?.slice(0, 10) ?? null,
+      depreciation_rate: i.depreciation_rate,
     })),
     policies: policyRows,
     rates,
@@ -177,6 +199,12 @@ export type NetWorthSnapshot = {
     holdings_inr: number;
     /** Off-budget asset cash alone. Included in investments_inr. */
     off_budget_cash_inr: number;
+    /**
+     * Things owned rather than invested in (a paid-off car), valued on the
+     * date with their depreciation applied. Its own bucket — NOT part of
+     * investments_inr — but included in total_inr.
+     */
+    physical_assets_inr: number;
   };
 };
 
@@ -262,9 +290,26 @@ export function computeNetWorthAt(
     else cashInr += sleeveInr;
   }
 
-  const holdingsInr = ctx.investments
-    .filter((i) => i.purchase_date <= asOf)
-    .reduce((s, i) => s + i.current_value_inr, 0);
+  let holdingsInr = 0;
+  let physicalInr = 0;
+  for (const i of ctx.investments) {
+    if (i.purchase_date > asOf) continue;
+    if (i.asset_type && isPhysicalAsset(i.asset_type)) {
+      // Valued AT asOf: a depreciating car was worth more last year, which is
+      // what the history chart should show. No rate = the flat quote.
+      physicalInr +=
+        i.depreciation_rate && i.quoted_at
+          ? depreciatedValue(
+              i.quoted_inr ?? i.current_value_inr,
+              i.depreciation_rate,
+              i.quoted_at,
+              asOf
+            )
+          : i.current_value_inr;
+      continue;
+    }
+    holdingsInr += i.current_value_inr;
+  }
 
   let policiesInr = 0;
   const valuedPolicyAccounts = new Set<string>();
@@ -289,7 +334,7 @@ export function computeNetWorthAt(
 
   return {
     as_of: asOf,
-    total_inr: cashInr + investmentsInr + policiesInr + debtInr,
+    total_inr: cashInr + investmentsInr + policiesInr + physicalInr + debtInr,
     breakdown: {
       cash_inr: cashInr,
       investments_inr: investmentsInr,
@@ -297,6 +342,7 @@ export function computeNetWorthAt(
       debt_inr: debtInr,
       holdings_inr: holdingsInr,
       off_budget_cash_inr: offBudgetCashInr,
+      physical_assets_inr: physicalInr,
     },
   };
 }
@@ -324,6 +370,8 @@ export async function getPortfolioBreakdown() {
   const byType: Record<string, number> = {};
 
   for (const inv of invList) {
+    // Portfolio allocation — physical assets are not part of it.
+    if (isPhysicalAsset(inv.asset_type)) continue;
     byType[inv.asset_type] =
       (byType[inv.asset_type] ?? 0) + inv.current_value_inr;
   }
@@ -378,7 +426,9 @@ export async function getBudgetHeatmap(months: number) {
 // ─── Top Movers ───────────────────────────────────────────────────────────────
 
 export async function getTopMovers(_days: number, limit: number) {
-  const invList = await listInvestments({ sort: "gain_desc" });
+  const invList = (await listInvestments({ sort: "gain_desc" })).filter(
+    (inv) => !isPhysicalAsset(inv.asset_type)
+  );
   return invList.slice(0, limit).map((inv) => ({
     investment: inv,
     gain_loss_inr: inv.gain_loss_inr,
@@ -442,29 +492,21 @@ export async function getUpcomingPremiums(daysAhead = 60): Promise<
     frequency: string;
   }[] = [];
 
+  const todayIso = localIsoDate(today);
+  const cutoffIso = localIsoDate(cutoff);
   for (const p of allPolicies) {
-    const monthStep =
-      p.premium_frequency === "monthly"
-        ? 1
-        : p.premium_frequency === "quarterly"
-          ? 3
-          : 12;
-    const premiumEnd = new Date(p.start_date);
-    premiumEnd.setFullYear(premiumEnd.getFullYear() + p.premium_term_years);
-
-    const cursor = new Date(p.start_date);
-    while (cursor <= premiumEnd) {
-      if (cursor >= today && cursor <= cutoff) {
-        upcoming.push({
-          policy_name: p.name,
-          provider: p.provider,
-          due_date: cursor.toISOString().slice(0, 10),
-          amount: p.premium_amount,
-          frequency: p.premium_frequency,
-        });
-      }
-      cursor.setMonth(cursor.getMonth() + monthStep);
-      if (cursor > cutoff) break;
+    // Same schedule the Policies page uses — calendar-date arithmetic, so a
+    // premium due on the 1st is never reported on the 28th/30th.
+    for (const due of premiumDueDates(p)) {
+      if (due > cutoffIso) break;
+      if (due < todayIso) continue;
+      upcoming.push({
+        policy_name: p.name,
+        provider: p.provider,
+        due_date: due,
+        amount: p.premium_amount,
+        frequency: p.premium_frequency,
+      });
     }
   }
 
@@ -624,6 +666,7 @@ export async function getNetWorthHistory(
       cash_inr: snap.breakdown.cash_inr,
       investments_inr:
         snap.breakdown.investments_inr + snap.breakdown.policies_inr,
+      physical_assets_inr: snap.breakdown.physical_assets_inr,
       debt_inr: snap.breakdown.debt_inr,
     };
   });
@@ -666,6 +709,12 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
   const [year, mon] = month.split("-").map(Number);
   const dateFrom = `${month}-01`;
   const dateTo = `${month}-${String(new Date(year, mon, 0).getDate()).padStart(2, "0")}`;
+  // Savings brought back into the budget this month — funds to_assign, but is
+  // not income (so savings rate and income stay untouched).
+  const fromSavings = await computeFromSavings(rates, {
+    from: dateFrom,
+    to: dateTo,
+  });
   const monthTxns = await db
     .select({
       amount: transactions.amount,
@@ -739,7 +788,7 @@ export async function getDashboard(month: string): Promise<DashboardResponse> {
       total_spent: totalSpent,
       total_available: totalBudgeted - totalSpent,
       total_income: monthlyIncome,
-      to_assign: monthlyIncome + carryover - totalBudgeted,
+      to_assign: monthlyIncome + fromSavings + carryover - totalBudgeted,
     },
     cash_total_inr: netWorth.breakdown.cash_inr,
     investments_total_inr: netWorth.breakdown.investments_inr,

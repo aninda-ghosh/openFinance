@@ -279,6 +279,8 @@ export async function bootstrapSchema(): Promise<void> {
     "TEXT REFERENCES accounts(id)"
   );
   addColumnIfMissing("investments", "maturity_date", "TEXT");
+  addColumnIfMissing("investments", "depreciation_rate", "REAL");
+  addColumnIfMissing("recurring_transactions", "anchor_day", "INTEGER");
   addColumnIfMissing("policies", "account_id", "TEXT REFERENCES accounts(id)");
   addColumnIfMissing("policies", "currency", "TEXT DEFAULT 'INR'");
   addColumnIfMissing(

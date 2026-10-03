@@ -1,3 +1,4 @@
+import { localYearMonth } from "@openfinance/shared/utils";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -8,6 +9,9 @@ interface AppState {
   defaultCurrency: string;
   aiModel: string;
   quickAddOpen: boolean;
+  /** Accounts pages: also list accounts whose balance is exactly zero. */
+  showZeroBalanceAccounts: boolean;
+  setShowZeroBalanceAccounts: (show: boolean) => void;
   setSelectedMonth: (month: string) => void;
   toggleSidebar: () => void;
   setTheme: (theme: AppState["theme"]) => void;
@@ -16,7 +20,7 @@ interface AppState {
   setQuickAddOpen: (open: boolean) => void;
 }
 
-const currentMonth = () => new Date().toISOString().slice(0, 7);
+const currentMonth = () => localYearMonth();
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -28,6 +32,9 @@ export const useAppStore = create<AppState>()(
       // Empty = use the server-configured default model (Settings → AI Assistant)
       aiModel: "",
       quickAddOpen: false,
+      showZeroBalanceAccounts: false,
+      setShowZeroBalanceAccounts: (show) =>
+        set({ showZeroBalanceAccounts: show }),
       setSelectedMonth: (month) => set({ selectedMonth: month }),
       toggleSidebar: () =>
         set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),

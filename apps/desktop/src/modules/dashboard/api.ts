@@ -32,6 +32,7 @@ export const dashboardApi = {
         total_inr: number;
         cash_inr: number;
         investments_inr: number;
+        physical_assets_inr?: number;
         debt_inr: number;
       }[];
     }>(`/api/dashboard/net-worth-history?months=${months}`),

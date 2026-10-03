@@ -4,7 +4,7 @@ import {
   isTransferIn,
   isTransferOut,
 } from "@openfinance/shared/constants";
-import { convertFromINR, convertToINR, formatCurrency } from "@openfinance/shared/utils";
+import { convertFromINR, convertToINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 import {
   CalendarClock,
   ChevronDown,
@@ -1508,7 +1508,7 @@ function AddRecurringDialog({
   const [envelopeId, setEnvelopeId] = useState("");
   const [frequency, setFrequency] = useState("monthly");
   const [nextDate, setNextDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    localIsoDate()
   );
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -1787,28 +1787,33 @@ function CopyBudgetButton({ selectedMonth }: { selectedMonth: string }) {
   const { mutate: copyBudget, isPending } = useCopyPreviousMonthBudget();
 
   const handleCopy = () => {
-    const confirmMsg = "Are you sure you want to copy the budgeted amounts and envelopes from the previous month? This will overwrite your budgeted amounts for matching envelopes in the current month.";
-    if (window.confirm(confirmMsg)) {
-      copyBudget(selectedMonth, {
-        onSuccess: (res: any) => {
-          toast.success(`Copied and updated ${res.count} envelope budgets successfully!`);
-        },
-        onError: (e) => toast.error(e.message),
-      });
-    }
+    copyBudget(selectedMonth, {
+      onSuccess: (res: any) => {
+        toast.success(`Copied and updated ${res.count} envelope budgets successfully!`);
+      },
+      onError: (e) => toast.error(e.message),
+    });
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5 h-9 text-xs"
-      onClick={handleCopy}
-      disabled={isPending}
-    >
-      <Copy className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`} />
-      {isPending ? "Copying..." : "Copy Last Month's Budget"}
-    </Button>
+    <ConfirmDialog
+      destructive={false}
+      confirmLabel="Copy"
+      title="Copy last month's budget?"
+      description="This will copy the budgeted amounts and envelopes from the previous month, overwriting your budgeted amounts for matching envelopes in the current month."
+      onConfirm={handleCopy}
+      trigger={
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-9 text-xs"
+          disabled={isPending}
+        >
+          <Copy className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`} />
+          {isPending ? "Copying..." : "Copy Last Month's Budget"}
+        </Button>
+      }
+    />
   );
 }
 
@@ -1816,28 +1821,32 @@ function ClearBudgetButton({ selectedMonth }: { selectedMonth: string }) {
   const { mutate: clearBudget, isPending } = useClearMonthBudget();
 
   const handleClear = () => {
-    const confirmMsg = "Are you sure you want to clear the budgeted amounts for the current month? This will set all budgeted amounts in the current month to 0.00.";
-    if (window.confirm(confirmMsg)) {
-      clearBudget(selectedMonth, {
-        onSuccess: (res: any) => {
-          toast.success(`Cleared ${res.count} envelope budgets successfully!`);
-        },
-        onError: (e) => toast.error(e.message),
-      });
-    }
+    clearBudget(selectedMonth, {
+      onSuccess: (res: any) => {
+        toast.success(`Cleared ${res.count} envelope budgets successfully!`);
+      },
+      onError: (e) => toast.error(e.message),
+    });
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5 h-9 text-xs text-negative hover:bg-negative/10 border-negative/30 hover:border-negative/50"
-      onClick={handleClear}
-      disabled={isPending}
-    >
-      <Trash2 className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`} />
-      {isPending ? "Clearing..." : "Clear Budget"}
-    </Button>
+    <ConfirmDialog
+      confirmLabel="Clear Budget"
+      title="Clear this month's budget?"
+      description="This will set all budgeted amounts in the current month to 0.00."
+      onConfirm={handleClear}
+      trigger={
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-9 text-xs text-negative hover:bg-negative/10 border-negative/30 hover:border-negative/50"
+          disabled={isPending}
+        >
+          <Trash2 className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`} />
+          {isPending ? "Clearing..." : "Clear Budget"}
+        </Button>
+      }
+    />
   );
 }
 
@@ -1897,8 +1906,11 @@ export default function BudgetPage() {
     .filter((e) => !incomeGroupIds.has(e.group_id))
     .reduce((s, e) => s + (e.budgeted_inr ?? 0), 0);
   const carryover = summary?.carryover_from_previous ?? 0;
+  // Savings pulled back from an off-budget account (e.g. HYSA → Checking)
+  // funds the pool but is shown apart from Income so earnings aren't inflated.
+  const fromSavings = summary?.total_from_savings ?? 0;
   const toBudget = summary
-    ? summary.total_income + carryover - totalBudgeted
+    ? summary.total_income + fromSavings + carryover - totalBudgeted
     : null;
 
   const [year, mon] = selectedMonth.split("-").map(Number);
@@ -1925,6 +1937,17 @@ export default function BudgetPage() {
               <span className="text-positive font-medium">
                 {fmtBudget(summary.total_income)}
               </span>
+              {fromSavings > 0.01 && (
+                <>
+                  <span>·</span>
+                  <span title="Transfers from off-budget savings added to Ready to assign. Not counted as income.">
+                    From Savings:{" "}
+                  </span>
+                  <span className="text-positive font-medium">
+                    {fmtBudget(fromSavings)}
+                  </span>
+                </>
+              )}
               <span>·</span>
               <span>Expenses: </span>
               <span className="text-negative font-medium">

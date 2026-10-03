@@ -141,6 +141,7 @@ export default function DashboardPage() {
   const accts = netWorth?.breakdown?.cash_inr ?? 0;
   const invs = netWorth?.breakdown?.investments_inr ?? 0;
   const pols = netWorth?.breakdown?.policies_inr ?? 0;
+  const phys = netWorth?.breakdown?.physical_assets_inr ?? 0;
   const debt = Math.abs(netWorth?.breakdown?.debt_inr ?? 0);
   const income = dashboard?.monthly_income ?? 0;
   const expenses = dashboard?.monthly_expenses ?? 0;
@@ -181,10 +182,10 @@ export default function DashboardPage() {
                 <p className="text-3xl font-bold tabular-nums">{fmt(nw)}</p>
               )}
               {/* Breakdown bar */}
-              {!nwLoading && accts + invs + pols > 0 && (
+              {!nwLoading && accts + invs + pols + phys > 0 && (
                 <div className="flex h-1 rounded-full overflow-hidden w-full max-w-56 mt-2 gap-px">
                   {(() => {
-                    const total = accts + invs + pols;
+                    const total = accts + invs + pols + phys;
                     return (
                       <>
                         <div
@@ -199,6 +200,12 @@ export default function DashboardPage() {
                           className="bg-amber-500"
                           style={{ width: `${(pols / total) * 100}%` }}
                         />
+                        {phys > 0 && (
+                          <div
+                            className="bg-teal-500"
+                            style={{ width: `${(phys / total) * 100}%` }}
+                          />
+                        )}
                         {debt > 0 && (
                           <div
                             className="bg-negative rounded-r-full"
@@ -221,6 +228,9 @@ export default function DashboardPage() {
                 },
                 { label: "Investments", value: invs, dot: "bg-positive" },
                 { label: "Policies / Bonds", value: pols, dot: "bg-amber-500" },
+                ...(phys > 0
+                  ? [{ label: "Physical Assets", value: phys, dot: "bg-teal-500" }]
+                  : []),
                 ...(debt > 0
                   ? [{ label: "Debt", value: -debt, dot: "bg-negative" }]
                   : []),

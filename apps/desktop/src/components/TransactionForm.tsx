@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isLiabilityType } from "@openfinance/shared/constants";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +32,7 @@ import {
   useUpdateTransaction,
 } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
-import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
+import { convertFromINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 
 const getCurrencySymbol = (currencyCode: string): string => {
   const map: Record<string, string> = {
@@ -246,7 +247,7 @@ export default function TransactionForm({
   const [date, setDate] = useState(() =>
     isEdit && transaction?.date
       ? transaction.date.slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+      : localIsoDate()
   );
   const [notes, setNotes] = useState(isEdit ? (transaction?.notes ?? "") : "");
 
@@ -263,12 +264,16 @@ export default function TransactionForm({
 
   const amountRef = useRef<HTMLInputElement>(null);
 
-  // Envelopes are month-scoped: in edit mode follow the transaction's own
-  // month so the right envelope set loads
+  // Envelopes are month-scoped: always offer the categories of the month the
+  // transaction is DATED in. This used to follow the Budget page's selected
+  // month when adding, so an entry dated in another month (the evening of the
+  // 30th, a backdated receipt) was filed under the wrong month's envelope and
+  // counted in neither month. The server now re-files it too; this keeps the
+  // balances shown in the picker honest.
   const envelopeMonth = useMemo(() => {
-    if (isEdit && date?.match(/^\d{4}-\d{2}/)) return date.slice(0, 7);
+    if (date?.match(/^\d{4}-\d{2}/)) return date.slice(0, 7);
     return selectedMonth;
-  }, [isEdit, date, selectedMonth]);
+  }, [date, selectedMonth]);
 
   const { data: envelopesData } = useEnvelopes(envelopeMonth);
   // Needed to show the server's base-currency `available` in the envelope's
@@ -278,6 +283,28 @@ export default function TransactionForm({
     () => envelopesData?.envelopes ?? [],
     [envelopesData]
   );
+
+  // Changing the date into another month swaps the envelope list. Keep the
+  // chosen CATEGORY by moving to the same group + name in the new month.
+  const chosenCategoryRef = useRef<{ group_id: string; name: string } | null>(
+    null
+  );
+  useEffect(() => {
+    const current = envelopes.find((e) => e.id === envelopeId);
+    if (current) {
+      chosenCategoryRef.current = {
+        group_id: current.group_id,
+        name: current.name,
+      };
+      return;
+    }
+    const wanted = chosenCategoryRef.current;
+    if (!envelopeId || !wanted || envelopes.length === 0) return;
+    const match = envelopes.find(
+      (e) => e.group_id === wanted.group_id && e.name === wanted.name
+    );
+    if (match) setEnvelopeId(match.id);
+  }, [envelopes, envelopeId]);
 
   // Set default accounts when loaded (create mode only)
   useEffect(() => {
@@ -461,6 +488,28 @@ export default function TransactionForm({
     return !fromAccount.off_budget && toAccount.off_budget;
   }, [tab, fromAccount, toAccount]);
 
+  // Reverse crossing: Off-Budget -> On-Budget (e.g. HYSA -> Checking). New
+  // money enters the budget, so it is NOT budget-neutral. The user chooses
+  // where it lands: Ready to assign (default, tagged From Savings — never
+  // counted as income) or straight into one envelope. The envelope picker's
+  // choice is sent as the Transfer-in leg's envelope; the off-budget
+  // Transfer-out leg gets none, since off-budget rows don't touch envelopes.
+  const isInflowCrossing = useMemo(() => {
+    if (tab !== "transfer" || !fromAccount || !toAccount) return false;
+    return !!fromAccount.off_budget && !toAccount.off_budget;
+  }, [tab, fromAccount, toAccount]);
+  // "none" = leave it uncategorised: the transfer moves money between the
+  // accounts and nothing else — no Ready to assign, no envelope. The natural
+  // choice for paying a card from an off-budget account, since that card's
+  // spending was already budgeted when each purchase was categorised.
+  const [inflowTarget, setInflowTarget] = useState<
+    "pool" | "envelope" | "none"
+  >("pool");
+  const toIsLiability = !!toAccount && isLiabilityType(toAccount.type);
+  useEffect(() => {
+    if (isInflowCrossing) setInflowTarget(toIsLiability ? "none" : "pool");
+  }, [isInflowCrossing, toIsLiability]);
+
   // Cross-currency transfers need an explicit destination amount
   const isCrossCurrency =
     tab === "transfer" &&
@@ -540,6 +589,10 @@ export default function TransactionForm({
         );
         return;
       }
+      if (isInflowCrossing && inflowTarget === "envelope" && !envelopeId) {
+        toast.error("Pick the envelope this money should go into.");
+        return;
+      }
       const numericToAmount = isCrossCurrency
         ? parseFloat(toAmount)
         : numericAmount;
@@ -558,7 +611,13 @@ export default function TransactionForm({
           to_amount: numericToAmount,
           date,
           notes: notes || payee || undefined,
-          envelope_id: envelopeId || undefined,
+          ...(isInflowCrossing
+            ? inflowTarget === "pool"
+              ? { from_savings: true }
+              : inflowTarget === "envelope"
+                ? { to_envelope_id: envelopeId || undefined }
+                : {}
+            : { envelope_id: envelopeId || undefined }),
         },
         {
           onSuccess: () => {
@@ -1221,11 +1280,56 @@ export default function TransactionForm({
                   </div>
                 )}
 
-                {envelopes.length > 0 && (
+                {isInflowCrossing && (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                      Bring into budget as
+                    </label>
+                    <div className="flex gap-2">
+                      {(
+                        [
+                          { value: "pool", label: "From Savings → Ready to assign" },
+                          { value: "envelope", label: "Straight into an envelope" },
+                          { value: "none", label: "Uncategorised" },
+                        ] as const
+                      ).map((item) => {
+                        const isSelected = inflowTarget === item.value;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => setInflowTarget(item.value)}
+                            className={cn(
+                              "flex-1 px-3 py-1.5 min-h-8 rounded-lg border text-xs font-bold transition-all duration-200 select-none shadow-sm",
+                              isSelected
+                                ? "border-positive bg-positive/10 text-positive font-extrabold"
+                                : "border-border/15 bg-background hover:bg-muted/20 text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="rounded-xl border border-positive/15 bg-positive/5 p-3 text-xs leading-relaxed text-muted-foreground shadow-sm">
+                      Money is moving from an <strong>Off-Budget</strong> account
+                      into your budget.{" "}
+                      {inflowTarget === "pool"
+                        ? "It adds to Ready to assign so you can fund envelopes like Car Loan — shown as From Savings, never as income."
+                        : inflowTarget === "envelope"
+                          ? "It goes directly into the envelope you pick, topping up its balance."
+                          : "Only the account balances change — no budget category, nothing added to Ready to assign."}
+                    </div>
+                  </div>
+                )}
+
+                {envelopes.length > 0 &&
+                  (!isInflowCrossing || inflowTarget === "envelope") && (
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
                       Budget Envelope Category
-                      {isBoundaryCrossing ? (
+                      {isBoundaryCrossing ||
+                      (isInflowCrossing && inflowTarget === "envelope") ? (
                         <span className="text-negative/85 font-bold ml-1">
                           *Required
                         </span>
@@ -1243,7 +1347,7 @@ export default function TransactionForm({
                   </div>
                 )}
 
-                {!isBoundaryCrossing && (
+                {!isBoundaryCrossing && !isInflowCrossing && (
                   <div className="rounded-xl border border-border/10 bg-background p-3 text-xs text-muted-foreground text-center font-bold shadow-sm">
                     🔄 This transfer is <strong>Budget-Neutral</strong>. An envelope
                     category is optional as the funds remain within the same budget

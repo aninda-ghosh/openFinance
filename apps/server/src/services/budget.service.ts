@@ -1,3 +1,4 @@
+import { localIsoDate } from "@openfinance/shared/utils";
 import type {
   AccountResponse,
   CreateAccountRequest,
@@ -17,6 +18,7 @@ import type {
 import {
   BALANCE_ADJUSTMENT_PAYEE,
   balanceDelta,
+  FROM_SAVINGS,
   bearsHoldings,
   isLiabilityType,
   isTransferIn,
@@ -291,7 +293,7 @@ export async function createAccount(
         payee: STARTING_BALANCE_PAYEE,
         amount: openingBalance,
         type: "income",
-        date: new Date().toISOString().slice(0, 10),
+        date: localIsoDate(),
         income_category: "starting_balance",
       });
     }
@@ -373,7 +375,7 @@ export async function updateAccount(
           // spending, and this must work on off-budget accounts too.
           envelope_id: null,
           type: diff > 0 ? "income" : "expense",
-          date: new Date().toISOString().slice(0, 10),
+          date: localIsoDate(),
           notes: `Reconciled from ${derived.toFixed(2)} to ${target.toFixed(2)}`,
         });
       });
@@ -412,7 +414,8 @@ export async function deleteAccount(id: string): Promise<void> {
 const activeSeeds = new Map<string, Promise<void>>();
 
 async function seedMonthFromTemplate(
-  db: ReturnType<typeof getDb>,
+  // biome-ignore lint/suspicious/noExplicitAny: a db or an open transaction
+  db: any,
   month: string
 ) {
   if (activeSeeds.has(month)) {
@@ -592,6 +595,137 @@ export async function resolveEnvelopeForMonth(
     .limit(1);
 
   return match?.id ?? null;
+}
+
+/**
+ * The envelope a transaction dated `date` must use for the category the
+ * caller picked (identified by any month's envelope id).
+ *
+ * Envelopes are per-month rows, and envelope spend is counted per month by
+ * BOTH the envelope's month and the transaction's date. A row whose envelope
+ * belongs to a different month than its date is therefore counted in NEITHER
+ * month — the money silently leaves the budget. That happened whenever the
+ * add form offered the Budget page's month while the date said another (the
+ * evening of the 30th, a backdated entry, a date edit). Every write path runs
+ * through here so the stored envelope always matches the date.
+ *
+ * - The same category exists in that month → use it.
+ * - The month has no budget yet and is after every budgeted month → roll the
+ *   budget forward into it (what opening that month on the Budget page does),
+ *   then use the category.
+ * - Otherwise → create the category in that month with nothing budgeted, so
+ *   the spending is still counted (as overspending, which is what it is).
+ *
+ * @returns null when `envelopeId` is empty or no longer exists.
+ */
+export async function envelopeForDate(
+  q: any,
+  envelopeId: string | null | undefined,
+  date: string
+): Promise<string | null> {
+  if (!envelopeId) return null;
+  const month = date.slice(0, 7);
+
+  const direct = await resolveEnvelopeForMonth(q, envelopeId, month);
+  if (direct) return direct;
+
+  const [src] = await q
+    .select()
+    .from(envelopes)
+    .where(eq(envelopes.id, envelopeId))
+    .limit(1);
+  if (!src) return null;
+
+  const [anyInMonth] = await q
+    .select({ id: envelopes.id })
+    .from(envelopes)
+    .where(eq(envelopes.month, month))
+    .limit(1);
+  if (!anyInMonth) {
+    const [latest] = await q
+      .select({ month: envelopes.month })
+      .from(envelopes)
+      .orderBy(desc(envelopes.month))
+      .limit(1);
+    if (latest && month > latest.month) {
+      await seedMonthFromTemplate(q, month);
+      const seeded = await resolveEnvelopeForMonth(q, envelopeId, month);
+      if (seeded) return seeded;
+    }
+  }
+
+  const [created] = await q
+    .insert(envelopes)
+    .values({
+      group_id: src.group_id,
+      name: src.name,
+      month,
+      budgeted: 0,
+      budget_currency: src.budget_currency ?? "INR",
+    })
+    .returning();
+  return created.id;
+}
+
+/**
+ * Transactions whose envelope belongs to a different month than their date —
+ * the rows that fell out of every month's budget before `envelopeForDate`
+ * existed. Read-only.
+ */
+export async function findMisfiledTransactions(): Promise<
+  {
+    id: string;
+    date: string;
+    payee: string;
+    amount: number;
+    type: string;
+    envelope_name: string;
+    envelope_month: string;
+  }[]
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: transactions.id,
+      date: transactions.date,
+      payee: transactions.payee,
+      amount: transactions.amount,
+      type: transactions.type,
+      envelope_name: envelopes.name,
+      envelope_month: envelopes.month,
+    })
+    .from(transactions)
+    .innerJoin(envelopes, eq(transactions.envelope_id, envelopes.id))
+    .where(sql`substr(${transactions.date}, 1, 7) <> ${envelopes.month}`)
+    .orderBy(desc(transactions.date));
+  return rows;
+}
+
+/**
+ * Moves every misfiled transaction to the same category in its own month.
+ * Idempotent: a second run finds nothing to move.
+ */
+export async function repairMisfiledTransactions(): Promise<{ moved: number }> {
+  const misfiled = await findMisfiledTransactions();
+  if (misfiled.length === 0) return { moved: 0 };
+  let moved = 0;
+  await runTransaction(async (tx) => {
+    for (const t of misfiled) {
+      const [row] = await tx
+        .select({ envelope_id: transactions.envelope_id })
+        .from(transactions)
+        .where(eq(transactions.id, t.id));
+      const target = await envelopeForDate(tx, row?.envelope_id, t.date);
+      if (target && target !== row?.envelope_id) {
+        await tx
+          .update(transactions)
+          .set({ envelope_id: target })
+          .where(eq(transactions.id, t.id));
+        moved++;
+      }
+    }
+  });
+  return { moved };
 }
 
 export async function listEnvelopes(
@@ -1065,6 +1199,10 @@ export async function createTransaction(
 ): Promise<TransactionResponse | null> {
   try {
     const result = await runTransaction(async (tx) => {
+      // File the category under the transaction's own month.
+      const envelopeId = await envelopeForDate(tx, data.envelope_id, data.date);
+      data = { ...data, envelope_id: envelopeId ?? undefined };
+
       await assertEnvelopeRequired(
         tx,
         data.account_id,
@@ -1137,6 +1275,24 @@ export async function updateTransaction(
         .set(pairData)
         .where(eq(transactions.transfer_pair_id, existing.transfer_pair_id));
 
+      // A new date can mean a new month: move each leg's envelope with it.
+      if (data.date !== undefined) {
+        const legs = await tx
+          .select({ id: transactions.id, envelope_id: transactions.envelope_id })
+          .from(transactions)
+          .where(eq(transactions.transfer_pair_id, existing.transfer_pair_id));
+        for (const leg of legs) {
+          if (!leg.envelope_id) continue;
+          const target = await envelopeForDate(tx, leg.envelope_id, data.date);
+          if (target && target !== leg.envelope_id) {
+            await tx
+              .update(transactions)
+              .set({ envelope_id: target })
+              .where(eq(transactions.id, leg.id));
+          }
+        }
+      }
+
       const [updated] = await tx
         .select()
         .from(transactions)
@@ -1147,7 +1303,11 @@ export async function updateTransaction(
     const newType = data.type ?? existing.type;
     const newEnvelopeId =
       data.envelope_id !== undefined ? data.envelope_id : existing.envelope_id;
-    const resolvedEnvId = newType === "income" ? null : newEnvelopeId;
+    // Keep the envelope in the same month as the (possibly new) date.
+    const resolvedEnvId =
+      newType === "income"
+        ? null
+        : await envelopeForDate(tx, newEnvelopeId, data.date ?? existing.date);
 
     // Same rule as create: an edit must not leave an on-budget expense
     // uncategorised (clearing the envelope on the edit screen used to do
@@ -1224,6 +1384,7 @@ export async function createTransfer(data: {
   import_hash?: string;
   envelope_id?: string; // Transfer Out side — debits this envelope
   to_envelope_id?: string; // Transfer In side — credits this envelope
+  from_savings?: boolean; // Off → On only: Transfer In funds Ready to assign
 }): Promise<{ from: TransactionResponse; to: TransactionResponse } | null> {
   const db = getDb();
 
@@ -1249,6 +1410,29 @@ export async function createTransfer(data: {
   const fromOnBudget = !fromAccount.off_budget;
   const toOffBudget = !!toAccount.off_budget;
 
+  // Off-to-On Budget boundary (e.g. HYSA → Checking): money entering the
+  // budget. The user may bring it into Ready to assign (from_savings) or
+  // straight into one envelope (to_envelope_id) — not both, or it would be
+  // counted twice. Untagged, it stays budget-invisible as it always has.
+  if (data.from_savings) {
+    if (fromOnBudget || toOffBudget) {
+      throw Object.assign(
+        new Error(
+          "Only transfers from an Off-Budget account into an On-Budget account can be added to Ready to assign."
+        ),
+        { status: 400 }
+      );
+    }
+    if (data.to_envelope_id) {
+      throw Object.assign(
+        new Error(
+          "Choose either Ready to assign or a destination envelope for this transfer, not both."
+        ),
+        { status: 400 }
+      );
+    }
+  }
+
   // On-to-Off Budget boundary: requires an envelope category
   if (fromOnBudget && toOffBudget && !data.envelope_id) {
     throw Object.assign(
@@ -1271,6 +1455,8 @@ export async function createTransfer(data: {
       }
 
       const pairId = nanoid();
+      const fromEnvelopeId = await envelopeForDate(tx, data.envelope_id, data.date);
+      const toEnvelopeId = await envelopeForDate(tx, data.to_envelope_id, data.date);
 
       // The helper applies the envelope accounting for both legs:
       // TRANSFER_OUT + envelope_id debits, TRANSFER_IN + envelope_id credits.
@@ -1282,7 +1468,7 @@ export async function createTransfer(data: {
         date: data.date,
         notes: data.notes ?? null,
         import_hash: data.import_hash ?? null,
-        envelope_id: data.envelope_id ?? null,
+        envelope_id: fromEnvelopeId,
         transfer_pair_id: pairId,
       });
 
@@ -1294,7 +1480,8 @@ export async function createTransfer(data: {
         date: data.date,
         notes: data.notes ?? null,
         transfer_pair_id: pairId,
-        envelope_id: data.to_envelope_id ?? null,
+        envelope_id: toEnvelopeId,
+        income_category: data.from_savings ? FROM_SAVINGS : null,
       });
 
       return { from, to };
@@ -1470,6 +1657,39 @@ export async function importCSV(
 // This is the Actual-style "From Last Month" / TBB carryover:
 //   carryover = Σ(income - budgeted) for every prior month
 // Positive = you had leftover money; negative = you over-budgeted in the past.
+/**
+ * Sum (base currency) of Transfer-in legs tagged FROM_SAVINGS on on-budget
+ * accounts — money brought back from an off-budget account (e.g. a HYSA) to
+ * fund Ready to assign. Pass `before` for "every month prior", or
+ * `from`/`to` for a date range (inclusive).
+ */
+export async function computeFromSavings(
+  rates: Record<string, number>,
+  range: { before?: string; from?: string; to?: string }
+): Promise<number> {
+  const db = getDb();
+  const conditions = [
+    eq(transactions.type, "transfer"),
+    eq(transactions.payee, TRANSFER_IN),
+    eq(transactions.income_category, FROM_SAVINGS),
+    or(eq(accounts.off_budget, false), isNull(accounts.off_budget)),
+  ];
+  if (range.before) conditions.push(lt(transactions.date, range.before));
+  if (range.from) conditions.push(gte(transactions.date, range.from));
+  if (range.to) conditions.push(lte(transactions.date, range.to));
+
+  const rows = await db
+    .select({ amount: transactions.amount, currency: accounts.currency })
+    .from(transactions)
+    .leftJoin(accounts, eq(transactions.account_id, accounts.id))
+    .where(and(...conditions));
+
+  return rows.reduce(
+    (s, r) => s + toInr(r.amount, r.currency ?? "INR", rates),
+    0
+  );
+}
+
 export async function computeCarryoverForMonth(
   month: string,
   rates: Record<string, number>
@@ -1491,10 +1711,14 @@ export async function computeCarryoverForMonth(
       )
     );
 
-  const totalPriorIncome = incomeTxns.reduce(
-    (s, t) => s + toInr(t.amount, t.currency ?? "INR", rates),
-    0
-  );
+  // Money brought back from off-budget savings funded prior months' budgets
+  // exactly like income did, so it belongs in the pool — just not in any
+  // "income" figure shown to the user.
+  const totalPriorIncome =
+    incomeTxns.reduce(
+      (s, t) => s + toInr(t.amount, t.currency ?? "INR", rates),
+      0
+    ) + (await computeFromSavings(rates, { before: monthDatePrefix }));
 
   // All envelopes in months prior to `month` to compute both prior budgeted and overspending
   const priorEnvelopes = await db
@@ -1565,6 +1789,7 @@ export async function getMonthlySummary(
       amount: transactions.amount,
       type: transactions.type,
       payee: transactions.payee,
+      income_category: transactions.income_category,
       currency: accounts.currency,
     })
     .from(transactions)
@@ -1592,6 +1817,18 @@ export async function getMonthlySummary(
       return s + (isTransferIn(t) ? -inr : inr);
     }, 0);
 
+  // Off-Budget → On-Budget transfers the user tagged FROM_SAVINGS. Kept out of
+  // totalIncome and net on purpose: it's the user's own money coming back,
+  // not earnings. The Budget page adds it to Ready to assign.
+  const totalFromSavings = txns
+    .filter(
+      (t) =>
+        isTransferIn(t) &&
+        t.income_category === FROM_SAVINGS &&
+        !t.envelope_id
+    )
+    .reduce((s, t) => s + toInrAmount(t.amount, t.currency), 0);
+
   // Envelope spend comes from listEnvelopes, which uses computeSpentByEnvelope
   // — the same numbers the Budget page renders. This endpoint used to
   // recompute them AND overwrite the `envelopes.spent` column with the result,
@@ -1604,6 +1841,7 @@ export async function getMonthlySummary(
     total_income: totalIncome,
     total_expenses: totalExpenses,
     net: totalIncome - totalExpenses,
+    total_from_savings: totalFromSavings,
     carryover_from_previous: carryoverFromPrevious,
     // All three numbers are base currency. `budgeted` used to be the raw
     // budget-currency amount while `spent` was base, so `available` was a

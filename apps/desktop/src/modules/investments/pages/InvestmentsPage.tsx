@@ -1,10 +1,6 @@
 import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
-import {
-  convertFromINR,
-  formatCurrency,
-  formatINR,
-} from "@openfinance/shared/utils";
+import { convertFromINR, formatCurrency, formatINR, localIsoDate } from "@openfinance/shared/utils";
 import {
   ArrowUpDown,
   ChevronDown,
@@ -78,6 +74,11 @@ import {
   useRunningBalances,
 } from "@/hooks/useRunningBalances";
 import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
+import {
+  HiddenZeroBalanceNotice,
+  useZeroBalanceFilter,
+} from "@/components/ZeroBalanceAccounts";
+import { isPhysicalAsset } from "@openfinance/shared/constants";
 
 const COLORS = [
   "var(--chart-1)",
@@ -114,6 +115,7 @@ const ASSET_LABELS: Record<string, string> = {
   cash: "Cash",
   structured: "Structured",
   other: "Other",
+  vehicle: "Vehicle",
   investment: "Investment Account",
 };
 
@@ -522,7 +524,7 @@ function UpdateValueDialog({
         payee: "Valuation Update",
         amount: Math.abs(delta),
         type: isGain ? "income" : "expense",
-        date: new Date().toISOString().slice(0, 10),
+        date: localIsoDate(),
         notes: `Cash balance updated from ${formatCurrency(cashBalance, account.currency)} to ${formatCurrency(parsed, account.currency)}${
           holdingsValue !== 0
             ? ` (holdings of ${formatCurrency(holdingsValue, account.currency)} unchanged)`
@@ -645,7 +647,7 @@ const EMPTY_FORM = {
   currency: "INR",
   purchase_value: "",
   current_value: "",
-  purchase_date: new Date().toISOString().slice(0, 10),
+  purchase_date: localIsoDate(),
   units: "",
   notes: "",
   account_id: "",
@@ -1363,7 +1365,11 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
 
   const sortedInvestments = useMemo(() => {
     if (!data?.investments) return [];
-    return [...data.investments].sort((a, b) => {
+    // Physical assets (vehicles) live on their own tab and never count toward
+    // this page's totals, allocation or gain/loss.
+    return data.investments
+      .filter((inv) => !isPhysicalAsset(inv.asset_type))
+      .sort((a, b) => {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name);
@@ -1436,6 +1442,8 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
   const linkedAccounts = (accountsData?.accounts ?? []).filter(
     (a) => a.off_budget && ["investment", "savings", "checking", "cash"].includes(a.type)
   );
+  const { visible: shownLinkedAccounts, hiddenCount: hiddenZeroCount } =
+    useZeroBalanceFilter(linkedAccounts);
 
   const donutData = portfolio
     ? Object.entries(portfolio.by_asset_type)
@@ -1625,7 +1633,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {linkedAccounts.map((a) => {
+                {shownLinkedAccounts.map((a) => {
                   const showConverted = a.currency !== defaultCurrency;
                   const displayBalance = formatCurrency(
                     a.balance,
@@ -1727,6 +1735,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                 })}
               </tbody>
             </table>
+            <div className="pb-3">
+              <HiddenZeroBalanceNotice count={hiddenZeroCount} />
+            </div>
           </CardContent>
         )}
       </Card>

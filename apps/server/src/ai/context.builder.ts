@@ -1,3 +1,4 @@
+import { localIsoDate } from "@openfinance/shared/utils";
 import { desc } from "drizzle-orm";
 import { getDb } from "../db/index";
 import { transactions } from "../db/schema";
@@ -79,7 +80,7 @@ export async function buildSystemContext(
   displayCurrency = "INR"
 ): Promise<string> {
   const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localIsoDate();
   const currentMonth = today.slice(0, 7);
 
   const [
@@ -137,6 +138,7 @@ export async function buildSystemContext(
     `  - Cash & Accounts: ${fmtDisplay(netWorth.breakdown.cash_inr)}`,
     `  - Investments: ${fmtDisplay(netWorth.breakdown.investments_inr)}`,
     `  - Insurance Policies: ${fmtDisplay(netWorth.breakdown.policies_inr)}`,
+    `  - Physical Assets (vehicles, depreciated): ${fmtDisplay(netWorth.breakdown.physical_assets_inr)}`,
     `  - Debt: ${fmtDisplay(netWorth.breakdown.debt_inr)}`,
     "",
     `## Exchange Rates (to INR)`,

@@ -160,6 +160,12 @@ describe("budget.service", () => {
       (db.select as any).mockImplementation(mockSelect);
       (db.transaction as any).mockImplementation(async (cb: any) => {
         const mockTx = {
+          // envelopeForDate: the envelope is already in the transfer's month.
+          select: vi.fn().mockImplementation(() =>
+            chain([
+              { id: "env-123", group_id: "g-1", name: "Car Loan", month: "2026-05" },
+            ])
+          ),
           insert: vi.fn().mockImplementation(() => ({
             values: vi.fn().mockImplementation(() => ({
               returning: vi.fn().mockResolvedValue([{ id: "txn-1" }]),
@@ -184,6 +190,106 @@ describe("budget.service", () => {
       });
 
       expect(db.transaction).toHaveBeenCalled();
+    });
+  });
+
+  // ─── Off → On budget inflow (HYSA → Checking) ─────────────────────────────
+
+  describe("createTransfer from_savings", () => {
+    function mockAccounts(fromOff: boolean, toOff: boolean) {
+      const limitMock = vi
+        .fn()
+        .mockResolvedValueOnce([
+          { id: "hysa", off_budget: fromOff, currency: "USD" },
+        ])
+        .mockResolvedValueOnce([
+          { id: "chase", off_budget: toOff, currency: "USD" },
+        ]);
+      (db.select as any).mockImplementation(() => ({
+        from: () => ({ where: () => ({ limit: limitMock }) }),
+      }));
+    }
+
+    function captureInserts(): any[] {
+      const rows: any[] = [];
+      (db.transaction as any).mockImplementation(async (cb: any) =>
+        cb({
+          insert: vi.fn().mockImplementation(() => ({
+            values: vi.fn().mockImplementation((v: any) => {
+              rows.push(v);
+              return { returning: vi.fn().mockResolvedValue([{ id: `t${rows.length}`, ...v }]) };
+            }),
+          })),
+        })
+      );
+      return rows;
+    }
+
+    it("tags only the Transfer-in leg FROM_SAVINGS for an Off → On transfer", async () => {
+      mockAccounts(true, false);
+      const rows = captureInserts();
+
+      await createTransfer({
+        from_account_id: "hysa",
+        to_account_id: "chase",
+        amount: 741.95,
+        to_amount: 741.95,
+        date: "2026-10-01",
+        from_savings: true,
+      });
+
+      const outLeg = rows.find((r) => r.payee === "Transfer out");
+      const inLeg = rows.find((r) => r.payee === "Transfer in");
+      expect(outLeg.income_category).toBeUndefined();
+      expect(outLeg.envelope_id).toBeNull();
+      expect(inLeg.income_category).toBe("from_savings");
+      expect(inLeg.envelope_id).toBeNull();
+      // Still a transfer, never an income row — so it can't inflate Income.
+      expect(inLeg.type).toBe("transfer");
+    });
+
+    it("leaves untagged Off → On transfers budget-invisible (no category)", async () => {
+      mockAccounts(true, false);
+      const rows = captureInserts();
+
+      await createTransfer({
+        from_account_id: "hysa",
+        to_account_id: "chase",
+        amount: 100,
+        to_amount: 100,
+        date: "2026-10-01",
+      });
+
+      expect(rows.find((r) => r.payee === "Transfer in").income_category).toBeNull();
+    });
+
+    it("rejects from_savings when the transfer is not Off → On", async () => {
+      mockAccounts(false, false);
+      await expect(
+        createTransfer({
+          from_account_id: "hysa",
+          to_account_id: "chase",
+          amount: 100,
+          to_amount: 100,
+          date: "2026-10-01",
+          from_savings: true,
+        })
+      ).rejects.toThrow(/Off-Budget account into an On-Budget account/);
+    });
+
+    it("rejects from_savings combined with a destination envelope", async () => {
+      mockAccounts(true, false);
+      await expect(
+        createTransfer({
+          from_account_id: "hysa",
+          to_account_id: "chase",
+          amount: 100,
+          to_amount: 100,
+          date: "2026-10-01",
+          from_savings: true,
+          to_envelope_id: "env-car-loan",
+        })
+      ).rejects.toThrow(/not both/);
     });
   });
 
@@ -371,10 +477,16 @@ describe("budget.service", () => {
     it("allows an on-budget expense that has an envelope", async () => {
       const fake = installFake();
 
+      // The envelope lookup (already in the transaction's month) is the only
+      // query; no account lookup is needed when an envelope is present.
+      fake.selects.push([
+        { id: "env-1", group_id: "g-1", name: "Groceries", month: "2026-05" },
+      ]);
+
       await createTransaction({ ...expense, envelope_id: "env-1" });
 
       expect(fake.inserted).toHaveLength(1);
-      // no account lookup needed when an envelope is present
+      expect(fake.inserted[0].envelope_id).toBe("env-1");
       expect(fake.selects).toHaveLength(0);
     });
 

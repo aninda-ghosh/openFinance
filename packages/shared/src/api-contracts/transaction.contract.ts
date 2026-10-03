@@ -19,7 +19,13 @@ export type TransactionResponse = {
   type: "income" | "expense" | "transfer";
   date: string;
   notes: string | null;
-  income_category: "income" | "cashback" | "starting_balance" | null;
+  // "from_savings" marks a Transfer-in leg that funds Ready to assign (not income).
+  income_category:
+    | "income"
+    | "cashback"
+    | "starting_balance"
+    | "from_savings"
+    | null;
   created_at: string;
 };
 

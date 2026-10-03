@@ -1,6 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { investmentsApi } from "../api";
 
+/**
+ * Anything that changes a holding's value changes net worth too — including a
+ * vehicle, which appears ONLY in net worth. Without this the Accounts tiles
+ * and Dashboard kept showing the old figure until a manual reload.
+ */
+function invalidateValuations(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["investments"] });
+  qc.invalidateQueries({ queryKey: ["portfolio-summary"] });
+  qc.invalidateQueries({ queryKey: ["net-worth"] });
+  qc.invalidateQueries({ queryKey: ["net-worth-history"] });
+  qc.invalidateQueries({ queryKey: ["portfolio-breakdown"] });
+  qc.invalidateQueries({ queryKey: ["top-movers"] });
+  qc.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
 export function useInvestments(filters?: { asset_type?: string }) {
   return useQuery({
     queryKey: ["investments", filters],
@@ -19,10 +34,7 @@ export function useCreateInvestment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: investmentsApi.createInvestment,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["investments"] });
-      qc.invalidateQueries({ queryKey: ["portfolio-summary"] });
-    },
+    onSuccess: () => invalidateValuations(qc),
   });
 }
 
@@ -43,8 +55,7 @@ export function useUpdateInvestment() {
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       investmentsApi.updateInvestment(id, data),
     onSuccess: (_, { id }) => {
-      qc.invalidateQueries({ queryKey: ["investments"] });
-      qc.invalidateQueries({ queryKey: ["portfolio-summary"] });
+      invalidateValuations(qc);
       qc.invalidateQueries({ queryKey: ["value-history", id] });
     },
   });
@@ -54,7 +65,7 @@ export function useDeleteInvestment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: investmentsApi.deleteInvestment,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["investments"] }),
+    onSuccess: () => invalidateValuations(qc),
   });
 }
 

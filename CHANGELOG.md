@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [4.3.0] — 2026-10-02
+
+### Added
+
+- **Physical Assets.** A new "Physical Assets" tab on the Accounts page tracks things you own rather than invest in, such as a paid-off car (`vehicle` asset type).
+  - **Depreciation on read:** Each asset stores its last real valuation (a quote), the quote date, and an optional yearly depreciation rate. Today's value is derived as `quote × (1 − rate/100) ^ years`, so nothing has to be rewritten daily, and a new manual quote always replaces the curve's anchor.
+  - **Own net-worth bucket:** Physical assets count toward net worth as `physical_assets_inr` and appear on the Dashboard, the Net Worth page and its history chart (valued as of each historical date). They are kept out of every portfolio figure (totals, allocation, gain/loss, top movers) and can never be linked to an account, so a depreciating car never reads as a bad investment.
+  - **AI context:** The assistant's net-worth breakdown now lists physical assets separately.
+- **From Savings transfers.** An Off-Budget → On-Budget transfer (such as HYSA → Checking) can now go to Ready to assign (tagged "From Savings"), straight into one envelope, or stay uncategorised. "From Savings" money funds Ready to assign and is shown on the Budget page, but is never counted as income, cash-flow income or toward the savings rate. Untagged transfers, including all existing ones, behave as before.
+- **Hide zero-balance accounts.** Paid-off loans and emptied accounts are hidden from the account lists by default, with a remembered show/hide toggle and a "N hidden" notice. Only the lists are filtered; totals and charts are unchanged.
+- **Misfiled transaction check & repair.** Settings gains a data-health check that finds transactions filed under another month's envelope (which made them count in neither month) and moves them to the same category in their own month on request. Backed by `GET /api/budget/maintenance/misfiled` and `POST /api/budget/maintenance/misfiled/repair`; the repair is idempotent.
+
+### Fixed
+
+- **Clear Budget and Copy Last Month's Budget did nothing.** Both buttons confirmed with `window.confirm`, which Tauri blocks, so the action never ran. They now use the in-app confirmation dialog.
+- **Transactions landing in the wrong month's envelope.** The transaction form now offers the categories of the month the transaction is dated in (not the Budget page's selected month), keeps the chosen category when the date moves to another month, and the server re-files every create, edit and transfer through `envelopeForDate`, so a stored envelope always matches its date.
+- **Off-by-one dates outside UTC.** "Today", the current month and date arithmetic now use the local calendar date via new shared helpers (`localIsoDate`, `localYearMonth`, `addMonthsIso`, `addDaysIso`, …) instead of `toISOString()`, which reported tomorrow's date in the evening and moved a rule for the 1st onto the 28th in US time zones.
+- **Recurring transactions and policy premiums drifting to the 28th.** Monthly schedules keep their intended day of month across short months (Jan 31 → Feb 28 → Mar 31) via a new `anchor_day` on recurring rules; premium due dates are computed from the policy start date.
+- **Stale net worth after editing a holding.** Creating, editing or deleting an investment or asset now refreshes net worth, its history, the portfolio breakdown, top movers and the Dashboard immediately.
+
+### Changed
+
+- **Database schema:** Added `investments.depreciation_rate` (`REAL`) and `recurring_transactions.anchor_day` (`INTEGER`), applied idempotently by the startup bootstrap. `transactions.income_category` gains the `from_savings` value.
+- **API contracts:** `InvestmentResponse` adds `quoted_value` and `depreciation_rate`; `MonthlySummaryResponse` adds `total_from_savings`; transfers accept `from_savings`.
+
+---
+
 ## [4.2.1] — 2026-09-16
 
 ### Added

@@ -458,6 +458,8 @@ export default function TransactionsPage() {
                                 ) : (
                                   "Income"
                                 )
+                              ) : txn.income_category === "from_savings" ? (
+                                "From Savings"
                               ) : (
                                 txn.envelope_name ?? "Uncategorised"
                               )}
@@ -547,6 +549,8 @@ export default function TransactionsPage() {
                         ) : (
                           <span className="opacity-80">Regular Income</span>
                         )
+                      ) : txn.income_category === "from_savings" ? (
+                        <span className="text-positive/80 font-medium">From Savings</span>
                       ) : (
                         txn.envelope_name ?? "—"
                       )}

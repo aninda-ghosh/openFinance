@@ -39,6 +39,10 @@ import {
   useRunningBalances,
 } from "@/hooks/useRunningBalances";
 import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
+import {
+  HiddenZeroBalanceNotice,
+  useZeroBalanceFilter,
+} from "@/components/ZeroBalanceAccounts";
 
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
@@ -312,6 +316,9 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
   const debtAccounts = allAccounts.filter(
     (a: any) => isLiabilityType(a.type) && a.is_active
   );
+  // A paid-off loan sits at zero: hidden from the list unless the toggle is on.
+  const { visible: shownDebtAccounts, hiddenCount: hiddenZeroCount } =
+    useZeroBalanceFilter(debtAccounts);
 
   const totalDebtInr = debtAccounts.reduce(
     (s: number, a: any) => s + a.balance_inr,
@@ -544,7 +551,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {debtAccounts.map((a: any) => {
+                {shownDebtAccounts.map((a: any) => {
                   const showConversion = a.currency !== defaultCurrency;
                   return (
                     <tr
@@ -694,6 +701,7 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
             </table>
           </CardContent>
         </Card>
+        <HiddenZeroBalanceNotice count={hiddenZeroCount} />
         </>
       )}
 
