@@ -19,6 +19,18 @@ export const TRANSFER_IN = "Transfer in";
 
 export type TransferDirection = typeof TRANSFER_IN | typeof TRANSFER_OUT;
 
+/**
+ * `income_category` stored on the TRANSFER_IN leg of an Off-Budget → On-Budget
+ * transfer (e.g. HYSA → Checking) the user chose to bring back into the
+ * budget. Such a leg adds to "Ready to assign" but is deliberately NOT income:
+ * it never appears in Income totals, cash-flow income or the savings rate, so
+ * moving your own savings around cannot inflate what you earned.
+ *
+ * Only legs carrying this tag count — untagged Off → On transfers (including
+ * every transfer recorded before this existed) stay budget-invisible.
+ */
+export const FROM_SAVINGS = "from_savings";
+
 /** True when this row is the crediting (incoming) leg of a transfer pair. */
 export function isTransferIn(txn: { type: string; payee: string }): boolean {
   return txn.type === "transfer" && txn.payee === TRANSFER_IN;
@@ -78,6 +90,21 @@ export const HOLDINGS_BEARING_TYPES = [
 
 export function bearsHoldings(type: string): boolean {
   return (HOLDINGS_BEARING_TYPES as readonly string[]).includes(type);
+}
+
+// ─── Physical assets ──────────────────────────────────────────────────────────
+//
+// Rows in the `investments` table whose asset_type is listed here are things
+// you own rather than invest in (a paid-off car). They count toward net worth
+// in their own "Physical assets" bucket and are kept OUT of every portfolio
+// figure — totals, allocation, gain/loss, top movers — so a car losing value
+// never reads as a bad investment. They can never be linked to an account.
+
+export const PHYSICAL_ASSET_TYPES = ["vehicle"] as const;
+export type PhysicalAssetType = (typeof PHYSICAL_ASSET_TYPES)[number];
+
+export function isPhysicalAsset(assetType: string): boolean {
+  return (PHYSICAL_ASSET_TYPES as readonly string[]).includes(assetType);
 }
 
 // ─── System-generated payees ──────────────────────────────────────────────────

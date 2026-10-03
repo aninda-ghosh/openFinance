@@ -1,3 +1,9 @@
+import {
+  addMonthsIso,
+  dayOfMonth,
+  daysBetweenIso,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import type {
   CreatePayoutRequest,
   CreatePolicyRequest,
@@ -53,24 +59,38 @@ export function computeInvestedAt(
   policy: typeof policies.$inferSelect,
   asOf: Date | string
 ): number {
-  const start = new Date(policy.start_date);
-  const cutoff = typeof asOf === "string" ? new Date(asOf) : asOf;
-  const endOfPremiumTerm = new Date(start);
-  endOfPremiumTerm.setFullYear(
-    endOfPremiumTerm.getFullYear() + policy.premium_term_years
-  );
+  const cutoff = typeof asOf === "string" ? asOf.slice(0, 10) : localIsoDate(asOf);
+  return premiumDueDates(policy).filter((d) => d <= cutoff).length *
+    policy.premium_amount;
+}
 
-  const freq = policy.premium_frequency;
-  const monthsInterval = freq === "monthly" ? 1 : freq === "quarterly" ? 3 : 12;
+/** Months between premiums for a policy's frequency. */
+function premiumStepMonths(freq: string): number {
+  return freq === "monthly" ? 1 : freq === "quarterly" ? 3 : 12;
+}
 
-  let count = 0;
-  const cursor = new Date(start);
-  while (cursor <= cutoff && cursor < endOfPremiumTerm) {
-    count++;
-    cursor.setMonth(cursor.getMonth() + monthsInterval);
+/**
+ * Every premium due date over the policy's premium term, as calendar dates.
+ * Each date is computed from the start date (k × step months, clamped to the
+ * month's end) rather than by stepping a Date object, so a policy starting on
+ * the 31st stays on month-ends and nothing shifts with the time zone.
+ */
+export function premiumDueDates(policy: {
+  start_date: string;
+  premium_frequency: string;
+  premium_term_years: number;
+}): string[] {
+  const start = policy.start_date.slice(0, 10);
+  const endOfTerm = addMonthsIso(start, 12 * policy.premium_term_years);
+  const step = premiumStepMonths(policy.premium_frequency);
+  const anchor = dayOfMonth(start);
+  const dates: string[] = [];
+  for (let k = 0; k < 12 * 200; k++) {
+    const due = addMonthsIso(start, k * step, anchor);
+    if (due >= endOfTerm) break;
+    dates.push(due);
   }
-
-  return policy.premium_amount * count;
+  return dates;
 }
 
 function computeTotalInvested(policy: typeof policies.$inferSelect): number {
@@ -177,23 +197,12 @@ async function toPolicyResponse(
 
 // ─── Compute next premium due dates ──────────────────────────────────────────
 
-function getNextPremiumDate(policy: typeof policies.$inferSelect): Date | null {
-  const start = new Date(policy.start_date);
-  const today = new Date();
-  const endOfPremiumTerm = new Date(start);
-  endOfPremiumTerm.setFullYear(
-    endOfPremiumTerm.getFullYear() + policy.premium_term_years
-  );
-  if (today >= endOfPremiumTerm) return null;
-
-  const freq = policy.premium_frequency;
-  const monthsInterval = freq === "monthly" ? 1 : freq === "quarterly" ? 3 : 12;
-
-  const next = new Date(start);
-  while (next <= today) {
-    next.setMonth(next.getMonth() + monthsInterval);
-  }
-  return next;
+/** Next premium due strictly after today (local), or null once the term ends. */
+function getNextPremiumDate(
+  policy: typeof policies.$inferSelect
+): string | null {
+  const today = localIsoDate();
+  return premiumDueDates(policy).find((d) => d > today) ?? null;
 }
 
 // ─── Service methods ──────────────────────────────────────────────────────────
@@ -286,14 +295,13 @@ export async function generatePayouts(
   if (!policy)
     throw Object.assign(new Error("Policy not found"), { status: 404 });
 
-  const monthsStep =
-    opts.frequency === "monthly" ? 1 : opts.frequency === "quarterly" ? 3 : 12;
+  const monthsStep = premiumStepMonths(opts.frequency);
   const dates: string[] = [];
-  const cursor = new Date(opts.start_date);
-  const end = new Date(opts.end_date);
-  while (cursor <= end) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setMonth(cursor.getMonth() + monthsStep);
+  const anchor = dayOfMonth(opts.start_date);
+  for (let k = 0; k < 12 * 200; k++) {
+    const due = addMonthsIso(opts.start_date, k * monthsStep, anchor);
+    if (due > opts.end_date.slice(0, 10)) break;
+    dates.push(due);
   }
 
   if (dates.length === 0) return 0;
@@ -418,10 +426,10 @@ export async function getTimeline(years: number): Promise<TimelineEvent[]> {
 
     // Premium due events
     const next = getNextPremiumDate(p);
-    if (next && next <= cutoff) {
+    if (next && next <= localIsoDate(cutoff)) {
       events.push({
         type: "premium_due",
-        date: next.toISOString().slice(0, 10),
+        date: next,
         policy_id: p.id,
         policy_name: p.name,
         amount: p.premium_amount,
@@ -466,14 +474,12 @@ export async function getUpcomingAlerts(days: number): Promise<PolicyAlert[]> {
   for (const p of allPolicies) {
     const next = getNextPremiumDate(p);
     if (!next) continue;
-    const daysUntil = Math.ceil(
-      (next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysUntil = daysBetweenIso(localIsoDate(today), next);
     if (daysUntil <= days) {
       alerts.push({
         policy_id: p.id,
         policy_name: p.name,
-        next_premium_date: next.toISOString().slice(0, 10),
+        next_premium_date: next,
         premium_amount: p.premium_amount,
         days_until_due: daysUntil,
       });

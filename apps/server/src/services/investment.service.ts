@@ -4,6 +4,8 @@ import type {
   PriceHistoryEntry,
   UpdateInvestmentRequest,
 } from "@openfinance/shared/api-contracts";
+import { isPhysicalAsset } from "@openfinance/shared/constants";
+import { depreciatedValue, localIsoDate } from "@openfinance/shared/utils";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../db/index";
 import {
@@ -16,6 +18,30 @@ import { getLatestRates } from "./exchange-rate.service";
 import { fetchCurrentPrice } from "./price.service";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Local-calendar YYYY-MM-DD. */
+const todayIso = () => localIsoDate();
+
+/**
+ * What a row is worth on `asOf`. Only physical assets depreciate: their stored
+ * current_value is the last quote, anchored at current_value_at. Everything
+ * else is worth exactly its stored value.
+ */
+export function valueOnDate(
+  row: Pick<
+    typeof investments.$inferSelect,
+    "asset_type" | "current_value" | "current_value_at" | "depreciation_rate" | "updated_at"
+  >,
+  asOf: string = todayIso()
+): number {
+  if (!isPhysicalAsset(row.asset_type)) return row.current_value;
+  return depreciatedValue(
+    row.current_value,
+    row.depreciation_rate,
+    row.current_value_at ?? row.updated_at?.slice(0, 10) ?? null,
+    asOf
+  );
+}
 
 function toInr(
   amount: number,
@@ -69,7 +95,8 @@ function toInvestmentResponse(
   // deposit was reported as profit.
   const costBasis = row.purchase_value + contributions;
   const costBasisInr = toInr(costBasis, currency, rates);
-  const currentInr = toInr(row.current_value, currency, rates);
+  const currentValue = valueOnDate(row);
+  const currentInr = toInr(currentValue, currency, rates);
   const gainLossInr = currentInr - costBasisInr;
   const gainLossPct =
     costBasisInr > 0 ? (gainLossInr / costBasisInr) * 100 : 0;
@@ -87,8 +114,10 @@ function toInvestmentResponse(
     cost_basis_inr: costBasisInr,
     units: row.units ?? null,
     purchase_date: row.purchase_date,
-    current_value: row.current_value,
+    current_value: currentValue,
     current_value_inr: currentInr,
+    quoted_value: row.current_value,
+    depreciation_rate: row.depreciation_rate ?? null,
     gain_loss_inr: gainLossInr,
     gain_loss_pct: Math.round(gainLossPct * 100) / 100,
     current_value_source: row.current_value_source ?? null,
@@ -131,7 +160,20 @@ export async function createInvestment(
 ): Promise<InvestmentResponse> {
   const db = getDb();
   const rates = await getLatestRates();
-  const [row] = await db.insert(investments).values(data).returning();
+  const physical = isPhysicalAsset(data.asset_type);
+  const [row] = await db
+    .insert(investments)
+    .values({
+      ...data,
+      // A physical asset is never a holding inside an account — linking it
+      // would fold a car into that account's balance.
+      account_id: physical ? null : data.account_id,
+      // The value entered now is the depreciation curve's anchor.
+      current_value_at:
+        data.current_value_at ?? (physical ? todayIso() : undefined),
+      depreciation_rate: physical ? (data.depreciation_rate ?? null) : null,
+    })
+    .returning();
   // A brand-new holding has no history, so its basis is just the purchase.
   return toInvestmentResponse(row, rates, 0);
 }
@@ -154,6 +196,37 @@ export async function updateInvestment(
   // it belongs on the history row this update produces.
   const { contribution, ...columns } = data;
 
+  // What the user saw before this edit — for a depreciating asset that is the
+  // derived value, not the stored quote.
+  const previousValue = valueOnDate(existing);
+  const physical = isPhysicalAsset(data.asset_type ?? existing.asset_type);
+
+  if (physical) {
+    columns.account_id = null;
+    const rateChanged =
+      data.depreciation_rate !== undefined &&
+      (data.depreciation_rate ?? null) !== (existing.depreciation_rate ?? null);
+    // An edit form echoes the displayed (derived) value back. That is not a new
+    // quote; treat it as unchanged so it neither re-anchors nor logs history.
+    if (
+      columns.current_value !== undefined &&
+      Math.abs(columns.current_value - previousValue) < 0.005
+    ) {
+      delete columns.current_value;
+    }
+    if (columns.current_value !== undefined) {
+      // A real new quote: it becomes the anchor, dated today unless given.
+      columns.current_value_at = data.current_value_at ?? todayIso();
+    } else if (rateChanged) {
+      // New rate, no new quote: re-anchor at today's value so the figure the
+      // user is looking at does not jump — only its future slope changes.
+      columns.current_value = previousValue;
+      columns.current_value_at = todayIso();
+    }
+  } else {
+    columns.depreciation_rate = null;
+  }
+
   const [row] = await db
     .update(investments)
     .set({ ...columns, updated_at: new Date().toISOString() })
@@ -161,14 +234,15 @@ export async function updateInvestment(
     .returning();
 
   const valueChanged =
+    columns.current_value !== undefined &&
     data.current_value !== undefined &&
-    data.current_value !== existing.current_value;
+    columns.current_value !== previousValue;
 
   if (valueChanged) {
     await db.insert(investment_value_history).values({
       investment_id: id,
-      previous_value: existing.current_value,
-      new_value: data.current_value as number,
+      previous_value: previousValue,
+      new_value: columns.current_value as number,
       source: "manual",
       notes: data.notes ?? null,
       contribution: contribution ?? 0,
@@ -178,8 +252,8 @@ export async function updateInvestment(
     // a zero-movement row so the basis still rises.
     await db.insert(investment_value_history).values({
       investment_id: id,
-      previous_value: existing.current_value,
-      new_value: existing.current_value,
+      previous_value: previousValue,
+      new_value: previousValue,
       source: "manual",
       notes: data.notes ?? null,
       contribution,
@@ -220,38 +294,16 @@ export async function refreshPrice(id: string): Promise<{
   if (!inv)
     throw Object.assign(new Error("Investment not found"), { status: 404 });
 
-  // Build a minimal InvestmentResponse to pass into the price service
-  const currency = (inv.currency ?? "INR") as InvestmentResponse["currency"];
-  const purchaseInr = toInr(inv.purchase_value, currency, rates);
-  const currentInr = toInr(inv.current_value, currency, rates);
+  // A car has no market ticker; its value comes from quotes + depreciation.
+  if (isPhysicalAsset(inv.asset_type)) {
+    throw Object.assign(
+      new Error("Physical assets have no market price to refresh."),
+      { status: 400 }
+    );
+  }
+
   const contributions = (await contributionTotals(id))[id] ?? 0;
-  const costBasis = inv.purchase_value + contributions;
-  const costBasisInr = toInr(costBasis, currency, rates);
-  const invResponse: InvestmentResponse = {
-    id: inv.id,
-    name: inv.name,
-    asset_type: inv.asset_type as InvestmentResponse["asset_type"],
-    currency,
-    purchase_value: inv.purchase_value,
-    purchase_value_inr: purchaseInr,
-    total_contributions: contributions,
-    total_contributions_inr: toInr(contributions, currency, rates),
-    cost_basis: costBasis,
-    cost_basis_inr: costBasisInr,
-    units: inv.units ?? null,
-    purchase_date: inv.purchase_date,
-    current_value: inv.current_value,
-    current_value_inr: currentInr,
-    gain_loss_inr: currentInr - costBasisInr,
-    gain_loss_pct: 0,
-    current_value_source: inv.current_value_source ?? null,
-    current_value_at: inv.current_value_at ?? null,
-    notes: inv.notes ?? null,
-    account_id: inv.account_id ?? null,
-    maturity_date: inv.maturity_date ?? null,
-    created_at: inv.created_at ?? "",
-    updated_at: inv.updated_at ?? "",
-  };
+  const invResponse = toInvestmentResponse(inv, rates, contributions);
 
   const result = await fetchCurrentPrice(invResponse);
 
@@ -432,8 +484,10 @@ export async function getPortfolioSummary() {
 
   const byAssetType: Record<string, number> = {};
 
-  // Investment holdings
+  // Investment holdings — physical assets are owned, not invested, and are
+  // reported under net worth's "Physical assets" instead.
   for (const inv of invList) {
+    if (isPhysicalAsset(inv.asset_type)) continue;
     byAssetType[inv.asset_type] =
       (byAssetType[inv.asset_type] ?? 0) + inv.current_value_inr;
   }

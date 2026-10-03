@@ -18,7 +18,10 @@ export type InvestmentResponse = {
     | "real_estate"
     | "cash"
     | "structured"
-    | "other";
+    | "other"
+    | "stock"
+    | "etf"
+    | "vehicle";
   currency: "INR" | "USD" | "SGD" | "GBP" | "EUR" | "JPY" | "NTD";
   /** The original outlay, unchanged by later top-ups. */
   purchase_value: number;
@@ -35,8 +38,17 @@ export type InvestmentResponse = {
   cost_basis_inr: number;
   units: number | null;
   purchase_date: string;
+  /**
+   * Value today. For a depreciating physical asset this is DERIVED from the
+   * last quote (`quoted_value` on `current_value_at`) and `depreciation_rate`;
+   * for everything else it is the stored value, same as `quoted_value`.
+   */
   current_value: number;
   current_value_inr: number;
+  /** The last real valuation as stored — the anchor of the depreciation curve. */
+  quoted_value: number;
+  /** Yearly depreciation in percent, or null when the value only changes by hand. */
+  depreciation_rate: number | null;
   /** current_value_inr − cost_basis_inr: market movement only. */
   gain_loss_inr: number;
   /** gain_loss_inr / cost_basis_inr × 100. */

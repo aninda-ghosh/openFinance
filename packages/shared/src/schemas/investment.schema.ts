@@ -12,7 +12,12 @@ export const AssetTypeEnum = z.enum([
   "cash",
   "structured",
   "other",
+  // Physical asset — see PHYSICAL_ASSET_TYPES.
+  "vehicle",
 ]);
+
+/** Yearly depreciation in percent (15 = 15%/yr). null clears it. */
+const DepreciationRate = z.number().min(0).max(100).nullable().optional();
 
 export const SetContributionSchema = z.object({
   contribution: z.number(),
@@ -43,6 +48,7 @@ export const CreateInvestmentSchema = z.object({
     .date("Date must be ISO format YYYY-MM-DD")
     .nullable()
     .optional(),
+  depreciation_rate: DepreciationRate,
 });
 
 export const UpdateInvestmentSchema = z.object({
@@ -71,4 +77,5 @@ export const UpdateInvestmentSchema = z.object({
     .date("Date must be ISO format YYYY-MM-DD")
     .nullable()
     .optional(),
+  depreciation_rate: DepreciationRate,
 });

@@ -1,3 +1,4 @@
+import { localYearMonth } from "@openfinance/shared/utils";
 import { getDb } from "./index";
 import { accounts, envelope_groups, envelopes, exchange_rates } from "./schema";
 
@@ -25,7 +26,7 @@ const [_savingsGroup] = await db
   .values({ name: "Savings Goals", sort_order: 1 })
   .returning();
 
-const currentMonth = new Date().toISOString().slice(0, 7);
+const currentMonth = localYearMonth();
 
 await db.insert(envelopes).values([
   {

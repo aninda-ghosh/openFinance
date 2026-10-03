@@ -134,6 +134,7 @@ export const budgetApi = {
     notes?: string;
     envelope_id?: string;
     to_envelope_id?: string;
+    from_savings?: boolean;
   }) =>
     apiFetch<any>(`${BASE}/transactions/transfer`, {
       method: "POST",

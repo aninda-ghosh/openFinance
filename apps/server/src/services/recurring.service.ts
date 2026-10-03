@@ -1,11 +1,17 @@
+import {
+  addDaysIso,
+  addMonthsIso,
+  dayOfMonth,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import { and, eq, lte } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, runTransaction } from "../db/index";
 import { recurring_transactions } from "../db/schema";
 import {
   assertEnvelopeRequired,
+  envelopeForDate,
   insertTransactionTx,
-  resolveEnvelopeForMonth,
 } from "./budget.service";
 
 /**
@@ -16,30 +22,42 @@ const MAX_CATCHUP_PERIODS = 500;
 
 export type RecurringTransaction = typeof recurring_transactions.$inferSelect;
 
-function advanceDate(dateStr: string, frequency: string): string {
-  const d = new Date(dateStr);
+/**
+ * Next occurrence after `dateStr`, as calendar-date arithmetic.
+ *
+ * This used to parse the date as UTC midnight, step it with LOCAL setMonth and
+ * print it back in UTC. West of UTC that moved every rule: in US Eastern time
+ * a rule on the 1st fired again on the 28th of the same month and stayed on
+ * the 28th, and a rule on the 31st skipped February entirely (Feb 31
+ * overflowed into March). `anchorDay` keeps month-based rules on their day,
+ * clamped to the end of short months.
+ */
+export function advanceDate(
+  dateStr: string,
+  frequency: string,
+  anchorDay?: number | null
+): string {
   switch (frequency) {
     case "weekly":
-      d.setDate(d.getDate() + 7);
-      break;
+      return addDaysIso(dateStr, 7);
     case "monthly":
-      d.setMonth(d.getMonth() + 1);
-      break;
+      return addMonthsIso(dateStr, 1, anchorDay);
     case "quarterly":
-      d.setMonth(d.getMonth() + 3);
-      break;
+      return addMonthsIso(dateStr, 3, anchorDay);
     case "annual":
-      d.setFullYear(d.getFullYear() + 1);
-      break;
+      return addMonthsIso(dateStr, 12, anchorDay);
+    default:
+      return dateStr; // unknown frequency — the caller deactivates the rule
   }
-  return d.toISOString().slice(0, 10);
 }
 
 // ─── Apply all due recurring transactions (called at startup and on demand) ───
 
 export async function applyDueRecurring(): Promise<number> {
   const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
+  // The user's calendar day, not UTC's — after ~8pm in the US, UTC is
+  // already tomorrow and would fire tomorrow's rules early.
+  const today = localIsoDate();
 
   const due = await db
     .select()
@@ -71,6 +89,7 @@ export async function applyDueRecurring(): Promise<number> {
     // transaction per server restart and stayed permanently behind.
     await runTransaction(async (tx) => {
       let nextDate = r.next_date;
+      const anchorDay = r.anchor_day ?? dayOfMonth(r.next_date);
       let generated = 0;
 
       while (nextDate <= today && generated < MAX_CATCHUP_PERIODS) {
@@ -80,16 +99,14 @@ export async function applyDueRecurring(): Promise<number> {
         // matches the month it was created in. Re-resolve it for the month
         // this occurrence lands in, or leave the transaction uncategorised —
         // charging a closed month would hide the spend from every budget.
+        // Same filing rule as every other write: the rule's category in the
+        // month this occurrence lands in (created there if needed).
         let envelopeId: string | null = null;
         if (r.envelope_id) {
-          envelopeId = await resolveEnvelopeForMonth(
-            tx,
-            r.envelope_id,
-            nextDate.slice(0, 7)
-          );
+          envelopeId = await envelopeForDate(tx, r.envelope_id, nextDate);
           if (!envelopeId) {
             console.warn(
-              `[recurring] rule ${r.id} ("${r.payee}"): no envelope matching the rule's category exists for ${nextDate.slice(0, 7)} — recording the transaction uncategorised`
+              `[recurring] rule ${r.id} ("${r.payee}"): its category no longer exists — recording the transaction uncategorised`
             );
           }
         }
@@ -106,7 +123,7 @@ export async function applyDueRecurring(): Promise<number> {
         });
         generated++;
 
-        const advanced = advanceDate(nextDate, r.frequency);
+        const advanced = advanceDate(nextDate, r.frequency, anchorDay);
         if (advanced <= nextDate) {
           // Unknown frequency — advanceDate returned the same date. Bail out
           // rather than spin forever.
@@ -179,6 +196,7 @@ export async function createRecurring(data: {
       id: nanoid(),
       ...data,
       envelope_id: data.envelope_id ?? null,
+      anchor_day: dayOfMonth(data.next_date),
       end_date: data.end_date ?? null,
       notes: data.notes ?? null,
       is_active: true,
@@ -221,7 +239,11 @@ export async function updateRecurring(
 
   const [row] = await db
     .update(recurring_transactions)
-    .set(data)
+    .set({
+      ...data,
+      // Moving the next date re-states which day of the month the rule is for.
+      ...(data.next_date ? { anchor_day: dayOfMonth(data.next_date) } : {}),
+    })
     .where(eq(recurring_transactions.id, id))
     .returning();
   if (!row)

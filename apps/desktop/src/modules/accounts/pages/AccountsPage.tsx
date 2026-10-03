@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import {
+  Car,
   Coins,
   Landmark,
   Shield,
@@ -18,11 +19,14 @@ import SavingsCheckingPage from "./SavingsCheckingPage";
 import InvestmentsPage from "@/modules/investments/pages/InvestmentsPage";
 import PoliciesPage from "@/modules/policies/pages/PoliciesPage";
 import DebtPage from "@/modules/debt/pages/DebtPage";
+import PhysicalAssetsPage from "@/modules/investments/pages/PhysicalAssetsPage";
+import { ZeroBalanceToggle } from "@/components/ZeroBalanceAccounts";
 
 const TABS = [
   { id: "cash", label: "Cash & Checking", icon: Landmark },
   { id: "investments", label: "Investments", icon: TrendingUp },
   { id: "policies", label: "Policies", icon: Shield },
+  { id: "physical", label: "Physical Assets", icon: Car },
   { id: "debt", label: "Liabilities & Debt", icon: Coins },
 ] as const;
 
@@ -54,12 +58,15 @@ export default function AccountsPage() {
   const cashInr = nwData?.breakdown.cash_inr ?? 0;
   const investmentsTotalInr = nwData?.breakdown.investments_inr ?? 0;
   const policiesTotalInr = nwData?.breakdown.policies_inr ?? 0;
+  // Vehicles etc. — the server keeps them out of investments_inr.
+  const physicalInr = nwData?.breakdown.physical_assets_inr ?? 0;
   // SIGNED, and negative: liabilities are stored with a negative balance and
   // the server sums them as-is so that total = cash + investments + policies +
   // debt. Keep this signed in all arithmetic.
   const debtInr = nwData?.breakdown.debt_inr ?? 0;
 
-  const totalAssetsInr = cashInr + investmentsTotalInr + policiesTotalInr;
+  const totalAssetsInr =
+    cashInr + investmentsTotalInr + policiesTotalInr + physicalInr;
 
   // Presentation only: the Liabilities tile shows the amount owed as a positive
   // magnitude because the label already says "Liabilities". This Math.abs must
@@ -107,7 +114,7 @@ export default function AccountsPage() {
               </p>
             )}
             <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
-              Cash + Investments + Policies
+              Cash + Investments + Policies{physicalInr > 0 ? " + Physical" : ""}
             </p>
           </CardContent>
         </Card>
@@ -162,8 +169,8 @@ export default function AccountsPage() {
       </div>
 
       {/* Tab Switcher */}
-      <div className="border-b border-border/40 pb-px">
-        <div className="flex space-x-1 p-0.5 bg-muted/40 rounded-lg w-full max-w-2xl overflow-x-auto">
+      <div className="border-b border-border/40 pb-px flex flex-wrap items-center justify-between gap-2">
+        <div className="flex space-x-1 p-0.5 bg-muted/40 rounded-lg flex-1 min-w-0 max-w-3xl overflow-x-auto">
           {TABS.map(({ id, label, icon: Icon }) => {
             const isActive = activeTab === id;
             return (
@@ -182,6 +189,7 @@ export default function AccountsPage() {
             );
           })}
         </div>
+        {activeTab !== "physical" && activeTab !== "policies" && <ZeroBalanceToggle />}
       </div>
 
       {/* Active Tab Subpage Component */}
@@ -190,6 +198,7 @@ export default function AccountsPage() {
         {activeTab === "investments" && <InvestmentsPage embed />}
         {activeTab === "policies" && <PoliciesPage embed />}
         {activeTab === "debt" && <DebtPage embed />}
+        {activeTab === "physical" && <PhysicalAssetsPage />}
       </div>
     </div>
   );

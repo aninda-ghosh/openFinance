@@ -160,7 +160,11 @@ describe("net worth", () => {
       expect(b.investments_inr).toBe(b.holdings_inr + b.off_budget_cash_inr);
       expect(b.debt_inr).toBe(-35000);
       expect(now.total_inr).toBe(
-        b.cash_inr + b.investments_inr + b.policies_inr + b.debt_inr
+        b.cash_inr +
+          b.investments_inr +
+          b.policies_inr +
+          b.physical_assets_inr +
+          b.debt_inr
       );
     });
   });
@@ -198,6 +202,60 @@ describe("net worth", () => {
   });
 
   // ─── Liabilities ───────────────────────────────────────────────────────────
+
+  // ─── Physical assets (a paid-off car) ──────────────────────────────────────
+
+  describe("physical assets", () => {
+    const car = {
+      account_id: null,
+      purchase_date: "2021-03-01",
+      asset_type: "vehicle",
+      current_value_inr: 18000,
+      quoted_inr: 20000,
+      quoted_at: "2025-08-19",
+      depreciation_rate: 10,
+    };
+
+    it("counts a vehicle in its own bucket, never in investments", () => {
+      const snap = computeNetWorthAt(
+        TODAY,
+        ctxOf({
+          investments: [
+            car,
+            { account_id: null, purchase_date: "2020-01-01", current_value_inr: 5000 },
+          ],
+        })
+      );
+      // One year after a 20,000 quote at 10%/yr.
+      expect(snap.breakdown.physical_assets_inr).toBeCloseTo(18000, -1);
+      expect(snap.breakdown.holdings_inr).toBe(5000);
+      expect(snap.breakdown.investments_inr).toBe(5000);
+      expect(snap.total_inr).toBeCloseTo(23000, -1);
+    });
+
+    it("values a depreciating vehicle as of each date, so history is higher in the past", () => {
+      const ctx = ctxOf({ investments: [car] });
+      const atQuote = computeNetWorthAt("2025-08-19", ctx);
+      const later = computeNetWorthAt(TODAY, ctx);
+      expect(atQuote.breakdown.physical_assets_inr).toBe(20000);
+      expect(later.breakdown.physical_assets_inr).toBeLessThan(20000);
+    });
+
+    it("keeps a vehicle with no rate at its flat value", () => {
+      const snap = computeNetWorthAt(
+        TODAY,
+        ctxOf({
+          investments: [{ ...car, depreciation_rate: null, current_value_inr: 15000 }],
+        })
+      );
+      expect(snap.breakdown.physical_assets_inr).toBe(15000);
+    });
+
+    it("does not count a vehicle before it was bought", () => {
+      const snap = computeNetWorthAt("2020-12-31", ctxOf({ investments: [car] }));
+      expect(snap.breakdown.physical_assets_inr).toBe(0);
+    });
+  });
 
   describe("liabilities", () => {
     it("reduces net worth by the magnitude owed, for every liability type", () => {

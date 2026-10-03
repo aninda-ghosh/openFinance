@@ -394,3 +394,23 @@ budgetRouter.post("/recurring/apply-due", async (c) => {
     return handleError(c, err);
   }
 });
+
+// ─── Data health: transactions filed under another month's category ─────────
+// Read-only check first; the repair only runs when the user asks for it.
+
+budgetRouter.get("/maintenance/misfiled", async (c) => {
+  try {
+    const rows = await budgetService.findMisfiledTransactions();
+    return c.json({ count: rows.length, transactions: rows });
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+budgetRouter.post("/maintenance/misfiled/repair", async (c) => {
+  try {
+    return c.json(await budgetService.repairMisfiledTransactions());
+  } catch (err) {
+    return handleError(c, err);
+  }
+});

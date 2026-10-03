@@ -83,8 +83,9 @@ export const transactions = sqliteTable("transactions", {
   date: text("date").notNull(), // ISO date string
   notes: text("notes"),
   import_hash: text("import_hash").unique(), // SHA-256 of raw CSV row, nullable
+  // "from_savings" only ever appears on a Transfer-in leg — see FROM_SAVINGS.
   income_category: text("income_category").$type<
-    "income" | "cashback" | "starting_balance"
+    "income" | "cashback" | "starting_balance" | "from_savings"
   >(),
   transfer_pair_id: text("transfer_pair_id"),
   created_at: text("created_at").$defaultFn(now),
@@ -109,6 +110,7 @@ export const investments = sqliteTable("investments", {
       | "cash"
       | "structured"
       | "other"
+      | "vehicle"
     >()
     .notNull(),
   currency: text("currency")
@@ -123,6 +125,9 @@ export const investments = sqliteTable("investments", {
   notes: text("notes"),
   account_id: text("account_id").references(() => accounts.id),
   maturity_date: text("maturity_date"),
+  // Physical assets only: yearly depreciation in percent, applied on read from
+  // current_value (the last quote) as of current_value_at. See depreciatedValue.
+  depreciation_rate: real("depreciation_rate"),
   created_at: text("created_at").$defaultFn(now),
   updated_at: text("updated_at").$defaultFn(now),
 });
@@ -348,6 +353,10 @@ export const recurring_transactions = sqliteTable("recurring_transactions", {
     .$type<"weekly" | "monthly" | "quarterly" | "annual">()
     .notNull(),
   next_date: text("next_date").notNull(), // YYYY-MM-DD — when it will next fire
+  // Day of month the series is meant to land on. next_date alone cannot hold
+  // it: after a short month (Jan 31 → Feb 28) the 31st would be forgotten.
+  // Null on rules created before this existed — the day of next_date is used.
+  anchor_day: integer("anchor_day"),
   end_date: text("end_date"), // nullable — stop generating after this date
   notes: text("notes"),
   is_active: integer("is_active", { mode: "boolean" }).default(true),

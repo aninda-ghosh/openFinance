@@ -47,6 +47,10 @@ export const CreateTransferSchema = z.object({
   import_hash: z.string().optional(),
   envelope_id: z.string().min(1).optional(),
   to_envelope_id: z.string().min(1).optional(),
+  // Off-Budget → On-Budget only: tag the Transfer-in leg FROM_SAVINGS so the
+  // money adds to Ready to assign (without counting as income). Mutually
+  // exclusive with to_envelope_id, which credits one envelope instead.
+  from_savings: z.boolean().optional(),
 });
 
 export const TransactionFiltersSchema = z.object({

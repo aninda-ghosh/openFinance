@@ -1,4 +1,4 @@
-import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
+import { convertFromINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
 import {
   AlertTriangle,
@@ -58,7 +58,7 @@ const EMPTY_POLICY_FORM = {
   name: "",
   provider: "",
   policy_number: "",
-  start_date: new Date().toISOString().slice(0, 10),
+  start_date: localIsoDate(),
   premium_amount: "",
   premium_frequency: "annual",
   premium_term_years: "",

@@ -1,3 +1,4 @@
+import { localYearMonth } from "@openfinance/shared/utils";
 import { TransactionFiltersSchema } from "@openfinance/shared/schemas";
 import {
   getMonthlySummary,
@@ -229,13 +230,14 @@ export async function executeTool(
         `  Cash & Accounts: ${d(nw.breakdown.cash_inr)}`,
         `  Investments:      ${d(nw.breakdown.investments_inr)}`,
         `  Policies:         ${d(nw.breakdown.policies_inr)}`,
+        `  Physical assets:  ${d(nw.breakdown.physical_assets_inr)}`,
         `  Debt:             ${d(nw.breakdown.debt_inr)}`,
       ].join("\n");
     }
 
     case "get_envelope_summary": {
       const month = String(
-        params.month ?? new Date().toISOString().slice(0, 7)
+        params.month ?? localYearMonth()
       );
       const envelopes = await listEnvelopes(month);
       if (envelopes.length === 0) return `No budget envelopes for ${month}.`;
@@ -259,7 +261,7 @@ export async function executeTool(
 
     case "get_monthly_summary": {
       const month = String(
-        params.month ?? new Date().toISOString().slice(0, 7)
+        params.month ?? localYearMonth()
       );
       const s = await getMonthlySummary(month);
       return [

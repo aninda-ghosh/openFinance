@@ -1,3 +1,4 @@
+import { localIsoDate } from "@openfinance/shared/utils";
 export function getFinancialAdvisorPrompt(displayCurrency: string): string {
   const currencySymbol: Record<string, string> = {
     INR: "₹",
@@ -35,6 +36,6 @@ Guidelines:
 - Be concise and direct. Avoid unnecessary caveats.
 - Use bullet points and structure for clarity.
 - Always use ${displayCurrency} (${symbol}) for every monetary amount you write.
-- Today's date is ${new Date().toISOString().slice(0, 10)}.
+- Today's date is ${localIsoDate()}.
 - Stay focused on personal finance. Redirect off-topic questions politely.`;
 }

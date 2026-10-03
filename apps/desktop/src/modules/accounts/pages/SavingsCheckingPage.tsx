@@ -50,6 +50,10 @@ import {
   useRunningBalances,
 } from "@/hooks/useRunningBalances";
 import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
+import {
+  HiddenZeroBalanceNotice,
+  useZeroBalanceFilter,
+} from "@/components/ZeroBalanceAccounts";
 
 const LIQUID_TYPES = ["checking", "savings", "cash"];
 
@@ -422,6 +426,9 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
   const liquidAccounts = (accountsData?.accounts ?? []).filter(
     (a) => LIQUID_TYPES.includes(a.type) && !a.off_budget
   );
+  // Listing only — totals below still use every account (zeros add nothing).
+  const { visible: shownLiquidAccounts, hiddenCount: hiddenZeroCount } =
+    useZeroBalanceFilter(liquidAccounts);
 
   // Dynamic aggregations
   const totalInr = liquidAccounts.reduce(
@@ -665,7 +672,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-          {liquidAccounts.map((a) => {
+          {shownLiquidAccounts.map((a) => {
             const isBase = a.currency === defaultCurrency;
             const displayBal = formatCurrency(a.balance, a.currency);
             const displayBase = fmt(a.balance_inr);
@@ -787,6 +794,7 @@ export default function SavingsCheckingPage({ embed }: { embed?: boolean }) {
           })}
         </div>
       )}
+      {!isLoading && <HiddenZeroBalanceNotice count={hiddenZeroCount} />}
 
       {/* Account Transactions Sheet */}
       {selectedAccount && (
