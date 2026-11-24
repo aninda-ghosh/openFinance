@@ -1,0 +1,42 @@
+{
+  "description": "routes/budget.ts edge cases: month values that pass the regex through String() (arrays), non-object JSON bodies, query decoding, percent-encoded path params, unknown sub-paths and wrong methods on every collection.",
+  "steps": [
+    { "name": "copy-previous with a one-element month array", "method": "POST", "path": "/api/budget/envelopes/copy-previous", "json": { "month": ["2026-08"] } },
+    { "name": "August after array copy", "method": "GET", "path": "/api/budget/envelopes?month=2026-08" },
+    { "name": "clear-budget with a two-element array", "method": "POST", "path": "/api/budget/envelopes/clear-budget", "json": { "month": ["2026-08", "2026-07"] } },
+    { "name": "clear-budget with a nested array", "method": "POST", "path": "/api/budget/envelopes/clear-budget", "json": { "month": [["2026-08"]] } },
+    { "name": "clear-budget with a one-element array", "method": "POST", "path": "/api/budget/envelopes/clear-budget", "json": { "month": ["2026-08"] } },
+    { "name": "August after array clear", "method": "GET", "path": "/api/budget/envelopes?month=2026-08" },
+    { "name": "clear-budget with string body", "method": "POST", "path": "/api/budget/envelopes/clear-budget", "json": "2026-08" },
+    { "name": "copy-previous with null body", "method": "POST", "path": "/api/budget/envelopes/copy-previous", "body": "null", "headers": { "Content-Type": "application/json" } },
+
+    { "name": "create account: null body", "method": "POST", "path": "/api/budget/accounts", "body": "null", "headers": { "Content-Type": "application/json" } },
+    { "name": "create account: number body", "method": "POST", "path": "/api/budget/accounts", "json": 5 },
+    { "name": "create transaction: text/plain JSON", "method": "POST", "path": "/api/budget/transactions", "body": "{\"account_id\":\"hdfc-checking-inr\",\"payee\":\"Plain\",\"amount\":1,\"type\":\"income\",\"date\":\"2026-03-03\"}", "headers": { "Content-Type": "text/plain" } },
+    { "name": "create transaction: big float amount", "method": "POST", "path": "/api/budget/transactions", "json": { "account_id": "hdfc-checking-inr", "payee": "Float", "amount": 0.1, "type": "income", "date": "2026-03-04", "notes": "\u0001ctl é ✓" } },
+    { "name": "create transaction: leap day", "method": "POST", "path": "/api/budget/transactions", "json": { "account_id": "hdfc-checking-inr", "payee": "Leap", "amount": 1e-7, "type": "income", "date": "2028-02-29" } },
+    { "name": "create transaction: non-leap day", "method": "POST", "path": "/api/budget/transactions", "json": { "account_id": "hdfc-checking-inr", "payee": "Leap", "amount": 1, "type": "income", "date": "2100-02-29" } },
+    { "name": "hdfc March", "method": "GET", "path": "/api/budget/transactions?account_id=hdfc-checking-inr&date_from=2026-03-01&date_to=2026-03-31" },
+
+    { "name": "search with unicode and encoded plus", "method": "GET", "path": "/api/budget/transactions?search=%C3%A9%2B&limit=5" },
+    { "name": "search with broken escape", "method": "GET", "path": "/api/budget/transactions?search=%E0%A4&limit=5" },
+    { "name": "search underscore", "method": "GET", "path": "/api/budget/transactions?search=_&limit=3" },
+    { "name": "query key without value", "method": "GET", "path": "/api/budget/transactions?search&limit=2" },
+    { "name": "month with plus decoded to space", "method": "GET", "path": "/api/budget/envelopes?month=2026-05+" },
+
+    { "name": "encoded id in trends", "method": "GET", "path": "/api/budget/reports/envelope-trends/env%2D2026%2D05%2D14?months=1" },
+    { "name": "broken escape in id", "method": "DELETE", "path": "/api/budget/transactions/%E0%A4" },
+    { "name": "encoded slash in id", "method": "DELETE", "path": "/api/budget/recurring/a%2Fb" },
+
+    { "name": "unknown sub-path", "method": "GET", "path": "/api/budget/nope" },
+    { "name": "budget root", "method": "GET", "path": "/api/budget" },
+    { "name": "PUT account", "method": "PUT", "path": "/api/budget/accounts/chase-checking", "json": {} },
+    { "name": "GET transaction by id", "method": "GET", "path": "/api/budget/transactions/txn-rent" },
+    { "name": "DELETE envelopes collection", "method": "DELETE", "path": "/api/budget/envelopes" },
+    { "name": "GET envelope-group by id", "method": "GET", "path": "/api/budget/envelope-groups/group-needs" },
+    { "name": "POST maintenance repair trailing slash", "method": "POST", "path": "/api/budget/maintenance/misfiled/repair/" },
+    { "name": "reports summary trailing slash", "method": "GET", "path": "/api/budget/reports/summary/?month=2026-05" },
+    { "name": "trends without id", "method": "GET", "path": "/api/budget/reports/envelope-trends/" },
+    { "name": "OPTIONS preflight", "method": "OPTIONS", "path": "/api/budget/accounts", "headers": { "Origin": "tauri://localhost", "Access-Control-Request-Method": "PATCH" } }
+  ]
+}

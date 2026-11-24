@@ -240,7 +240,7 @@ mod tests {
             ("GET", "/nope"),
             ("POST", "/health"),
             ("GET", "/api/exchange-rates/"),
-            ("GET", "/api/budget/accounts"),
+            ("GET", "/api/budget/nope"),
             ("DELETE", "/api/exchange-rates"),
         ] {
             let req = get(path).method(method).body(Body::empty()).expect("req");
