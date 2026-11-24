@@ -385,7 +385,69 @@ covers both directions:
 - Quirks: QUIRKS.md "Wave 2 — investments".
 
 ## Wave 2 — dashboard
-Not started.
+**Done** on `rust-port/wave2-dashboard` (from `4a9aea1`).
+
+- Ported: `services/dashboard.service.ts` → `services/dashboard.rs` (+
+  `dashboard/jsobj.rs`, a JS-object record that keeps `Object.entries` order:
+  array-index keys first, ascending, then insertion order), `routes/dashboard.ts`
+  → `http/routes/dashboard.rs`. No new shared helpers were needed:
+  `localYearMonth` is `dashboard::local_year_month`, everything else reuses
+  budget (`list_envelopes`, `get_account_balances`, `list_accounts`,
+  `compute_carryover_for_month`, `compute_from_savings`, `balance_delta`, …,
+  and `budget::compat::{js_make_date, month_end, add_days_iso}`), policy
+  (`select_policies`, `premium_due_dates`, `compute_invested_at`, `rate_for`,
+  `dates::*`), investment (`list_investments`, `depreciated_value`,
+  `is_physical_asset`, `jssort::js_sort_by`) and exchange_rate
+  (`get_latest_rates`, `list_rates`). `localeCompare` uses ICU4X root
+  collation like the data wave's archive sort.
+- Endpoints (`/api/dashboard`, all 9): `GET /` (`?month`), `/net-worth`,
+  `/portfolio-breakdown`, `/budget-heatmap` (`?months`), `/top-movers`
+  (`?days`, `?limit`), `/spending-trends` (`?months`), `/cash-flow` (`?month`),
+  `/net-worth-history` (`?months`, clamped `min(24, max(1, n))`; NaN → 500),
+  `/exchange-rates`. Query values go through policies' `hono::query` and JS
+  `Number()`; `/cash-flow` and `/net-worth-history` answer every error with a
+  500, the rest pass 404 through (no service raises one).
+- Rates: exchange-rate.service's `getLatestRates()` (base included) everywhere
+  `dashboard.service.ts` uses them, converted to `budget::Rates` (`Number()` of
+  each value) when handed to `computeCarryoverForMonth` / `computeFromSavings`,
+  as Node passes the same object. `listEnvelopes` / `getAccountBalances` still
+  use budget's own rates internally, as in Node.
+- **Pub API for the AI wave** (`services::dashboard`, all take `&Connection`):
+  `get_net_worth` → `NetWorthSnapshot { as_of, total_inr, breakdown:
+  NetWorthBreakdown { cash_inr, investments_inr, policies_inr, debt_inr,
+  holdings_inr, off_budget_cash_inr, physical_assets_inr } }` (the only import
+  of `context.builder.ts` and `tools/index.ts`), plus `load_net_worth_context`,
+  `compute_net_worth_at`, `net_worth_from_context`, `get_net_worth_history`,
+  `get_portfolio_breakdown`, `get_budget_heatmap`, `get_top_movers`,
+  `get_spending_trends`, `get_upcoming_premiums`, `get_cash_flow`,
+  `get_dashboard`, `local_year_month`. Clock-reading functions have an
+  `*_at(…, now_ms)` variant for tests.
+- Tests (`services/dashboard/tests.rs`, 25 + 1 in `jsobj.rs`): every remaining
+  `dashboard.test.ts` case — the formula invariant (now = last history point,
+  breakdown adds up), off-budget accounts in every month, a vehicle in its own
+  bucket / not before purchase, liabilities, linked holdings counted once,
+  holdings not before purchase, negative cash sleeve, rollback over later
+  rows, order independence, refusing an earlier date, the today clamp, linked
+  policy valued from its account, orphan policy account, inactive accounts,
+  and `loadNetWorthContext` (on a real in-memory DB: stored-positive debt,
+  orphan transfer leg, linked holding). Context-only cases build the context by
+  hand like Node; the mocked ones use real rows. Skipped as already ported:
+  the two `computeInvestedAt` policy cases (policies wave) and the two
+  vehicle-valuation cases (investments wave). Extra DB tests cover cash flow,
+  the dashboard, spending trends / heatmap (incl. fractional months), upcoming
+  premiums, breakdown key order and top movers.
+- Parity: `dashboard-reads` (68 steps: every endpoint and query form on the
+  seed), `dashboard-budget` (62: transactions, transfers incl. From Savings,
+  delete, inactive / off-budget / liability accounts), `dashboard-assets` (87:
+  investments, value changes, refresh, policies + payouts, policy accounts
+  deactivated / orphaned / shared, life insurance, base currency INR → EUR →
+  USD), `dashboard-empty` (32: after `/reset/transactions` and `/reset`),
+  `dashboard-crafted` (19: a hand-built backup import with orphan legs,
+  numeric keys, datetime / legacy / garbage payout dates, …). 0 diffs; all 27
+  scenarios pass.
+- Scenario dates are fixed (November 2026 around the port date); run later,
+  some payouts/premiums leave their windows but both servers still agree.
+- Quirks: QUIRKS.md "Wave 2 — dashboard".
 
 ## Wave 3 — ai
 Not started.

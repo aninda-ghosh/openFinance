@@ -302,3 +302,58 @@ and investment ids / asset types / currencies named like `Object.prototype`
 members (`toString`, `__proto__`, …) as keys of `contributions` /
 `byAssetType` (Node would read the inherited function). Rust's currency lookup
 does reproduce the NaN for those keys (it reuses `policy::rate_for`).
+
+## Wave 2 — dashboard
+
+Line numbers are for `apps/server/src` at `4a9aea1`. Items 1–6 are exercised
+by `dashboard*` parity scenarios.
+
+1. **The heatmap divides base-currency spend by native budget.**
+   `services/dashboard.service.ts:414`: `env.spent / env.budgeted` mixes
+   `spent` (base currency) with `budgeted` (the envelope's own currency), so a
+   ₹25,000 envelope with base USD shows a tiny percentage. Suggested fix:
+   divide by `budgeted_inr`.
+2. **`GET /budget-heatmap` writes to the database.** `:412` calls
+   `listEnvelopes(month)` for every month it shows; a month without envelopes
+   is seeded from the latest template (budget quirk 10), so merely opening the
+   heatmap creates budgets for past months. `GET /api/dashboard?month=` with an
+   arbitrary string (`abc`, `2026-13`, `2025-01`) seeds that "month" too.
+   Suggested fix: a read-only envelope listing for reports; validate `month`.
+3. **`month` is never validated.** `routes/dashboard.ts:16,75`: `abc`, an empty
+   string, `2026` or `2026-05-15` flow into date ranges like `abc-01`..`abc-NaN`
+   and `2026-05-15-01`..`2026-05-15-28` and answer 200 with odd data.
+   Suggested fix: the `YYYY-MM` regex the budget routes use, 400 otherwise.
+4. **Count parameters are used raw.** `months`/`limit` are `Number(query)`:
+   NaN and negatives give empty lists, except `limit=-1`, which is
+   `slice(0, -1)` and drops the last mover; fractional `months` in
+   spending trends step `i = 1.5, 0.5` and truncate inside `new Date`, so
+   `months=2.5` returns the two months *before* the current one; `months=abc`
+   on `/net-worth-history` survives the clamp as NaN and crashes on
+   `points[0].asOf` (500). `months=Infinity` on `/budget-heatmap` or
+   `/spending-trends` never terminates (Node hangs and runs out of memory; Rust
+   hangs the same way). `days` on `/top-movers` is ignored. Suggested fix:
+   `z.coerce.number().int().min(1).max(…)`.
+5. **Cash flow and the dashboard drop rows on accounts whose `off_budget` is
+   NULL**, unlike budget.service (`off_budget = 0 or is null`):
+   `:543`, `:574` use `eq(accounts.off_budget, false)`. Not reachable through
+   the API (the column defaults to false). Also, an orphan transfer leg (payee
+   neither "Transfer in" nor "Transfer out") with an envelope counts as an
+   expense in cash flow (`:588-591`), although balances ignore it.
+6. **Recent transactions convert twice differently.** `:759` sorts with the
+   account currency or `null` (unconverted), but `:801-806` reports
+   `currency ?? "INR"` and converts with the INR rate, so a row whose account
+   has no currency sorts by its raw amount and displays an INR-converted one.
+   Only reachable with imported data.
+7. **"Upcoming" payouts compare a UTC-midnight date with the current instant.**
+   `:770-772`: `new Date("2026-12-01")` is UTC midnight, `today` is now, so a
+   payout due today is already excluded (and in time zones west of UTC one due
+   tomorrow can be too), while non-ISO stored dates (`2026-12-3`) parse as
+   local time. Suggested fix: compare `localIsoDate` strings.
+
+Not reproduced (only reachable with a hand-made backup): payees, envelope
+group / envelope names, asset types or account types named like
+`Object.prototype` members (`__proto__`, `toString`, `constructor`, …) used as
+keys of `incomeByPayee` / `groupMap` / `byType`. Node would read the inherited
+member and turn totals into strings (or drop `__proto__`); Rust treats them as
+ordinary keys. Array-index keys ("10", "2024") *are* ordered like JS.
+
