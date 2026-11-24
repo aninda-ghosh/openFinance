@@ -46,3 +46,55 @@ Line numbers are for `apps/server/src` on `feat/rust-port` (after the
    `utils/crypto.ts:162-165`: if `keyHex` does not decode to 32 bytes,
    `createCipheriv` throws and `encryptBackup` returns the plain ZIP. Suggested
    fix: fail the export. Rust: `crypto::encrypt_backup` does the same.
+
+## Wave 1 — data
+
+Line numbers are for `apps/server/src` on `feat/rust-port`.
+
+1. **A full reset deletes exchange rates, but the comment says it keeps them.**
+   `routes/reset.ts:25` says "leaves exchange_rates … intact", but
+   `routes/reset.ts:47` deletes them. Uploaded document files also stay on disk
+   (only the rows are deleted). Suggested fix: decide which behaviour is
+   intended, and delete `uploads/documents/*` along with the rows.
+2. **`file_name` is trusted as a path.** `routes/documents.ts:71` and
+   `services/document.service.ts:188` join the stored `file_name` to the
+   uploads directory without checking it. A backup can set `../../anything`;
+   download then serves that file (decrypted if it is OFE1) and delete unlinks
+   it. `file_name: ""` points at the directory itself, so download and delete
+   return 500. Suggested fix: reject any `file_name` that is not a plain base
+   name, both on import and when reading.
+3. **Upload writes the file before the insert can fail.**
+   `services/document.service.ts:50`: the insert fails when `investment_id` is
+   unknown, or when `name`/`notes` is sent as a file part (better-sqlite3 can't
+   bind it). The response is then a 500 and the encrypted file is left orphaned.
+   Suggested fix: write the file after the insert, or unlink it on error.
+4. **A desktop backup can't be re-imported without the passcode header.**
+   On desktop, export encrypts with `deriveBackupKey(passcode, "desktop")`
+   (`routes/backup.ts:126`). Import first tries only `users.backup_key`
+   (`:153-157`), then the `x-backup-password` header (`:165`). Desktop has no
+   users row, so re-importing your own backup needs the passcode sent as a
+   header. A passcode with characters above U+00FF can never be sent, because
+   headers are ByteStrings. Suggested fix: also try the desktop-derived key in
+   step 1.
+5. **Import isn't atomic with its documents.** `routes/backup.ts:365-383`: the
+   DB restore commits first, then the files are written. A write error returns
+   500 "Import failed" after the data has already been replaced. Files from the
+   previous data are never removed.
+6. **The import pipeline does raw JS arithmetic on backup values.**
+   `routes/backup.ts:264-282` has these problems:
+   - `getFullYear() + pol.premium_term_years` concatenates when the term is a
+     string ("2020" + "2" gives year 20202).
+   - An unparseable `start_date` gives a count of 0 (the loop comparison with
+     an Invalid Date is false).
+   - `premium_amount * count` is stored whatever the result is.
+
+   Odd values are then bound the way better-sqlite3 binds them:
+   - Numbers in TEXT columns are stored as text like `"5.0"`.
+   - Arrays spread into the parameter list. An empty or two-element array
+     shifts every later column, or fails the placeholder count.
+   - Booleans, and a second object, throw (500).
+
+   Suggested fix: validate the backup with the shared zod schemas.
+7. **Bad uploads to import return 500 instead of 400.** `routes/backup.ts:393`:
+   a truncated or non-ZIP upload, or invalid JSON in `backup-data.json`,
+   returns 500 "Import failed". Suggested fix: return 400.

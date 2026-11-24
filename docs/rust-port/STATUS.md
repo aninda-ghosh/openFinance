@@ -146,7 +146,92 @@ Not started.
 Not started.
 
 ## Wave 1 — data
-Not started.
+Done on `rust-port/wave1-data`. The ported files:
+- `services/document.service.ts` → `services/document.rs` (+ `document/nodepath.rs`)
+- `routes/documents.ts` → `http/routes/documents.rs` (+ `documents/{hono,form}.rs`)
+- `routes/backup.ts` → `http/routes/backup.rs` (+ `backup/{archive,jsdate,jsjson,jsonparse,restore,tables}.rs`)
+- `routes/reset.ts` → `http/routes/reset.rs`
+
+Endpoints:
+- `GET /api/documents` (filters `investment_id`, `account_id`, `life_insurance_id`)
+- `POST /api/documents` (multipart)
+- `GET /api/documents/:docId`
+- `DELETE /api/documents/:docId`
+- `GET /api/backup/export`
+- `POST /api/backup/import`
+- `POST /api/reset`
+- `POST /api/reset/transactions`
+
+**What is reproduced:**
+- **Multipart upload.** Hono `parseBody` plus undici's multipart parser and MIME
+  parser (`documents/form.rs`), so the same bodies are accepted or rejected.
+- **Upload storage.** Files are stored as `uploads/documents/doc_<nanoid12><ext>`,
+  OFE1-encrypted, so either server can read the other's uploads.
+- **Export.**
+  - It writes the exact bytes of `JSON.stringify(backup, null, 2)`, using JS
+    number formatting.
+  - Documents are listed in `readdirSync` order (bytewise).
+  - ZIP entries are in adm-zip's sorted order: lowercase names compared with
+    `localeCompare`, done with ICU4X root collation.
+  - The archive is FWB1-encrypted with the stored `backup_key`, or on desktop
+    with a key derived from the passcode.
+- **Import.**
+  - Decrypts FWB1 the same way Node does: stored key first, then the header
+    password with the candidate usernames.
+  - Parses JSON with correctly rounded numbers (`backup/jsonparse.rs`, because
+    serde_json's default float parsing is not correctly rounded).
+  - Runs Node's whole migration pipeline, including JS `Date` and `+`
+    semantics.
+  - Inserts the way drizzle does (defaults, boolean mapping, 1000-row chunks)
+    and binds values the way better-sqlite3 does (numbers as doubles, array
+    spreading, placeholder-count errors).
+
+**Reuse for Wave 2 investments (`/api/investments/:id/documents`):**
+- `documents::{upload(state, headers, body, UploadParent::Investment(id)), download, remove}`
+- `services::document::{list_documents, DocumentFilters, read_document, delete_document}`
+
+**Runner feature added (`parity/run.mjs`).** A step can set
+`"decode": "backup"`. A binary response body is then FWB1-decrypted with the
+harness key (`deriveBackupKey(DB_KEY, "desktop")`) and unzipped with adm-zip.
+It is compared as:
+- `{ encrypted, entries: [{ name, isDirectory, json, isStringifyOutput } | { name, isDirectory, base64 }] }`
+- If decoding fails, as `{ encrypted, decodeError }`.
+
+Only the random IV and the ZIP container metadata (timestamps, compressed
+bytes) are dropped. Entry order, names, the parsed `backup-data.json` (through
+the existing normaliser, so `exported_at` is `<now>`), the check that its text
+is exactly `JSON.stringify(json, null, 2)`, and every document byte are all
+compared. No masking or normalisation rule was added. `"captureZip": "var"`
+captures the decrypted ZIP so that `bodyFrom` can re-import it. This is needed
+because the harness passcode is not a ByteString, so an encrypted backup can't
+be re-imported via `x-backup-password` (QUIRKS Wave 1 data #4).
+
+**Not compared by parity:**
+- **A successful `POST /api/documents`.** The response and later lists contain
+  `file_name: doc_<nanoid12>.<ext>`, which the normaliser does not mask (the id
+  is inside a longer string). Instead:
+  - `tests/compat_backup.rs` uploads through the Rust route and checks the
+    name shape and OFE1 bytes.
+  - Node then imports Rust's export and serves the same bytes.
+  - Parity covers list, download, delete and every upload rejection, using
+    documents restored from a backup ZIP with fixed names.
+- **Known edges that are not replicated:**
+  - V8's legacy date parser beyond the numeric `YYYY/M/D` and `M/D/YYYY` forms
+    (other forms give Invalid Date in Rust).
+  - JSON numbers outside the double range become `null`, not ±Infinity.
+  - JSON nesting deeper than 5000.
+  - Malformed ZIPs the `zip` crate and adm-zip disagree on (both reject what
+    the scenarios send).
+
+**Compatibility tests.** `cargo test -p openfinance-core --test compat_backup`
+covers both directions:
+- **Node → Rust.** Encrypted and plain fixtures produced by the real Node
+  route; regenerate them with `tests/compat/regen-backup-fixtures.sh`.
+- **Rust → Node.** Encrypted and plain exports from Rust are imported by the
+  real Node route through tsx. This needs `apps/server/node_modules`. Set
+  `OPENFINANCE_SKIP_NODE_COMPAT=1` to skip it explicitly.
+- **Equality check.** Each direction compares the decoded re-export (every row
+  and every document byte).
 
 ## Wave 2 — investments
 Not started.
