@@ -46,3 +46,66 @@ Line numbers are for `apps/server/src` on `feat/rust-port` (after the
    `utils/crypto.ts:162-165`: if `keyHex` does not decode to 32 bytes,
    `createCipheriv` throws and `encryptBackup` returns the plain ZIP. Suggested
    fix: fail the export. Rust: `crypto::encrypt_backup` does the same.
+
+## Wave 1 — budget
+
+Line numbers are for `apps/server/src` at `652ab74`. Each item is exercised by
+a `budget*` parity scenario unless noted.
+
+1. **Transaction responses always say `currency: "INR"`.**
+   `services/budget.service.ts:99` (`toTransactionResponse`): `row.currency ?? "INR"`,
+   and no caller selects a currency, so a USD account's transaction reports INR.
+   Suggested fix: join `accounts.currency`.
+2. **Deleting an account orphans the other leg of its transfers.**
+   `services/budget.service.ts:397-417` deletes the account's own rows only; the
+   paired leg in the other account stays (`type = transfer`, dangling
+   `transfer_pair_id`) and keeps moving that account's balance. Suggested fix:
+   also delete by `transfer_pair_id`.
+3. **Deleting a category a recurring rule uses is a 500.**
+   `deleteEnvelope` (`services/budget.service.ts:983`) and `deleteEnvelopeGroup`
+   (`:956`) clear `transactions.envelope_id` but not
+   `recurring_transactions.envelope_id`, so the FK fails (`500 Internal server
+   error`); neither is transactional, so the transactions are already
+   uncategorised when it fails. The recurring job's "category no longer exists"
+   branch is therefore unreachable through the API. Suggested fix: null the
+   rule's envelope too, in one transaction.
+4. **Unknown `account_id` on income / recurring create is a 500, not a 404.**
+   `createTransaction` (`:1201`) and `createRecurring`
+   (`services/recurring.service.ts:180`) only look the account up for the
+   envelope rule (expenses); other types hit the FK. Suggested fix: always look it up.
+5. **A transfer from an account to itself is accepted.**
+   `createTransfer` (`:1381`) has no `from !== to` check (bulk add has one). Both
+   legs land in the same account and cancel out.
+6. **`PATCH` with nothing to change is a 500.** `updateEnvelope` (`:889`) and
+   `updateRecurring` call drizzle `.set({})` for `{}` (or only unknown keys),
+   which throws "No values to set". `PATCH /accounts/:id` and
+   `/transactions/:id` with `{}` succeed. Suggested fix: return the row unchanged.
+7. **Non-string group `name` is a plain-text 500.** `routes/budget.ts:193,206`:
+   `body.name.trim()` throws outside the `try`, so Hono's default handler answers
+   `500 text/plain "Internal Server Error"`. Suggested fix: validate with zod.
+8. **copy-previous / clear-budget read `month` from the body but say "query
+   param".** `routes/budget.ts:107,121`. The regex test stringifies, so
+   `["2026-05"]` works (better-sqlite3 spreads it) and `[["2026-05"]]` passes the
+   check, then fails to bind (500). Rust reproduces both.
+9. **Envelope trends `months` is used raw.** `services/budget.service.ts:1903`:
+   `months=` is `Number("") = 0` → empty list; `abc` / negative → no limit;
+   `2.5` → SQLite "datatype mismatch" 500. Suggested fix: `z.coerce.number().int().min(1)`.
+10. **Listing a month before any budget seeds it from the latest month.**
+   `seedMonthFromTemplate` (`:420`) copies the newest month whatever its
+   position, so browsing 2026-02 creates February envelopes from July's budget
+   (`envelopeForDate` only seeds forward; `listEnvelopes` does not check).
+11. **A CSV with a UTF-8 BOM imports nothing.** `importCSV` (`:1522`) uses
+   csv-parse's default `bom: false`, so the first header is `﻿date`,
+   `row.date` is undefined and the insert fails with "NOT NULL constraint failed:
+   transactions.date". The `format` query param is ignored. Suggested fix: `bom: true`.
+12. **`reclaimed_inr` is in the base currency** (`:1000-1047`); the name predates
+   multi-currency, like `balance_inr` / `budgeted_inr`.
+13. **Transfer legs silently ignore `amount` / `payee` / `type` edits.**
+   `updateTransaction` (`:1238`) applies only `date` / `notes` to a transfer leg
+   and still answers 200.
+14. **budget.service.ts has its own `getLatestRates`** (`:47-60`) with the same
+   falsy-rate skip as Wave 0 quirk 3, and no base-currency entry.
+15. **`POST /accounts` answers `balance: 0` for a seeded opening balance.**
+   `createAccount` (`:286-309`) stores `balance: 0`, seeds a Starting Balance
+   transaction and returns the stored row; the next list shows the real balance.
+   Suggested fix: return the derived balance.

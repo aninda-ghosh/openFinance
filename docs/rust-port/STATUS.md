@@ -140,7 +140,49 @@ ask rather than editing the harness.
 gates) and `crates/openfinance-core/tests/compat/roundtrip.sh` (needs Node).
 
 ## Wave 1 — budget
-Not started.
+**Done** on `rust-port/wave1-budget` (not merged).
+
+- Ported: `services/budget.service.ts` (split into `services/budget/{accounts,
+  envelopes,transactions,reports,import}.rs`, plus `compat.rs` for JS
+  Date / Number semantics and `csv.rs`, a port of csv-parse 6.2 with the
+  options Node uses), `services/recurring.service.ts`, `services/bulk.service.ts`,
+  `routes/budget.ts` (`http/routes/budget.rs`), and the shared zod schemas it
+  uses (`http/routes/budget/{zod,schemas}.rs`: zod 4.3 rules and messages, which
+  matter for bulk add's `rows[].message`).
+- All 32 `/api/budget` routes: accounts (GET, POST, PATCH/DELETE `:id`);
+  envelopes (GET, POST, `copy-previous`, `clear-budget`, PATCH/DELETE `:id`,
+  POST `:id/reclaim`); envelope-groups (GET, POST, PATCH/DELETE `:id`);
+  transactions (GET, POST, `transfer`, `bulk/preview`, `bulk`, PATCH/DELETE
+  `:id`); `import`; `reports/summary`; `reports/envelope-trends/:id`; recurring
+  (GET, POST, `apply-due`, PATCH/DELETE `:id`); `maintenance/misfiled` (GET) and
+  `maintenance/misfiled/repair` (POST). Hono falls through from static paths to
+  `:id` (e.g. `PATCH /envelopes/copy-previous`, `DELETE /transactions/bulk`);
+  the router attaches the `:id` handlers to those paths to match.
+- `jobs.rs`'s startup call `recurring::apply_due_recurring` is now real.
+- `pub` API for later waves (all take `&Connection`):
+  `budget::{list_accounts, get_account_balances, list_envelopes,
+  compute_spent_by_envelope, resolve_envelope_for_month, envelope_for_date,
+  compute_carryover_for_month, compute_from_savings, get_monthly_summary,
+  list_transactions, get_latest_rates, to_inr}` (+ the CRUD functions and
+  response types), `recurring::{advance_date, apply_due_recurring,
+  apply_due_recurring_on}`, `bulk::{preview_bulk, create_bulk, payee_keys,
+  bulk_import_hash}`. `scale_budget_envelopes` is unchanged.
+- Tests: `budget.test.ts` (transfers, From Savings, envelope rule, pair delete,
+  dedupe, reconciliation, catch-up) and `dates.test.ts` (calendar helpers,
+  `advanceDate`) ported as unit tests on an in-memory DB with `bootstrap_schema`.
+- Parity: `budget-accounts` (48), `budget-envelopes` (88), `budget-transactions`
+  (82), `budget-recurring` (38), `budget-bulk-import` (35), `budget-edge-cases`
+  (33), and envelope / summary reads added to `exchange-rates` (36). 0 diffs.
+- Scenario hygiene: Node sets `created_at` per row, so two rows with the same
+  `date` written in one request (a same-account transfer) can tie in
+  `order by date desc, created_at desc` and swap; scenarios avoid listing such ties.
+- Misfiled transactions cannot be produced through the API any more (every
+  write path files by date), so the maintenance scenario only covers the empty case.
+- Known gap: `http/mod.rs`'s `health_and_not_found` test asserts
+  `GET /api/budget/accounts` is a 404 (true only for the Wave 0 stub). It fails
+  now; the fix is a one-line change in that shared file (use e.g.
+  `/api/budget/nope`), left to the lead.
+- Quirks: QUIRKS.md "Wave 1 — budget".
 
 ## Wave 1 — policies
 Not started.
