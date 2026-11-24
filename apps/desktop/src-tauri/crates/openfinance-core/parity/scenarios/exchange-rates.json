@@ -1,0 +1,38 @@
+{
+  "description": "routes/exchange-rates.ts with the network disabled (every live refresh fails with 503). TODO(wave 1): after budget routes exist, add envelope reads after the base-currency changes to show scaleBudgetEnvelopes' effect.",
+  "steps": [
+    { "name": "list seeded rates", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "trailing slash is a 404", "method": "GET", "path": "/api/exchange-rates/" },
+    { "name": "wrong method", "method": "DELETE", "path": "/api/exchange-rates" },
+    { "name": "base currency", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+
+    { "name": "refresh, no body", "method": "POST", "path": "/api/exchange-rates/refresh" },
+    { "name": "refresh one currency", "method": "POST", "path": "/api/exchange-rates/refresh", "json": { "currency": "usd" } },
+    { "name": "refresh, non-string currency", "method": "POST", "path": "/api/exchange-rates/refresh", "json": { "currency": 5 } },
+    { "name": "refresh, invalid JSON", "method": "POST", "path": "/api/exchange-rates/refresh", "body": "{not json" },
+    { "name": "refresh, GET is a 404", "method": "GET", "path": "/api/exchange-rates/refresh" },
+    { "name": "rates unchanged by failed refreshes", "method": "GET", "path": "/api/exchange-rates" },
+
+    { "name": "set base: unsupported", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "XXX" } },
+    { "name": "set base: lower-case", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "inr" } },
+    { "name": "set base: missing", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": {} },
+    { "name": "set base: number", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": 5 } },
+    { "name": "set base: array body", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": ["INR"] },
+    { "name": "set base: null body", "method": "POST", "path": "/api/exchange-rates/base-currency", "body": "null" },
+    { "name": "set base: invalid JSON", "method": "POST", "path": "/api/exchange-rates/base-currency", "body": "garbage" },
+    { "name": "set base: empty body", "method": "POST", "path": "/api/exchange-rates/base-currency" },
+    { "name": "base unchanged after rejects", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+
+    { "name": "set base to the current one (no scaling), refresh fails", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "USD" } },
+    { "name": "base still USD", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "set base INR (scales envelopes), refresh fails", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "INR" } },
+    { "name": "base is INR despite the 503", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "rates relative to the new base", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "set base NTD (no stored NTD rate)", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "NTD" } },
+    { "name": "base is NTD", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "rates with NTD base", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "set base with extra fields and allowed origin", "method": "POST", "path": "/api/exchange-rates/base-currency", "headers": { "Origin": "tauri://localhost" }, "json": { "base_currency": "SGD", "other": true } },
+    { "name": "base is SGD", "method": "GET", "path": "/api/exchange-rates/base-currency", "headers": { "Origin": "tauri://localhost" } },
+    { "name": "final rates", "method": "GET", "path": "/api/exchange-rates" }
+  ]
+}

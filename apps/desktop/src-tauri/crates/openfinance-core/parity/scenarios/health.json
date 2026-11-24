@@ -1,0 +1,44 @@
+{
+  "description": "GET /health, the desktop origin guard, CORS (simple + preflight) and Hono's 404s (index.ts).",
+  "steps": [
+    { "name": "health", "method": "GET", "path": "/health" },
+    { "name": "health HEAD", "method": "HEAD", "path": "/health" },
+    { "name": "allowed origin (macOS app)", "method": "GET", "path": "/health", "headers": { "Origin": "tauri://localhost" } },
+    { "name": "allowed origin (Windows app)", "method": "GET", "path": "/health", "headers": { "Origin": "http://tauri.localhost" } },
+    { "name": "allowed origin (vite)", "method": "GET", "path": "/health", "headers": { "Origin": "http://localhost:1420" } },
+    { "name": "allowed origin (vite 127)", "method": "GET", "path": "/health", "headers": { "Origin": "http://127.0.0.1:1420" } },
+    { "name": "forbidden origin", "method": "GET", "path": "/health", "headers": { "Origin": "https://evil.example" } },
+    { "name": "forbidden origin on unknown path", "method": "GET", "path": "/nope", "headers": { "Origin": "https://evil.example" } },
+    { "name": "forbidden origin on a mutation", "method": "POST", "path": "/api/exchange-rates/base-currency", "headers": { "Origin": "https://evil.example" }, "json": { "base_currency": "INR" } },
+    { "name": "mutation was not applied", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "origin 'null' is forbidden", "method": "GET", "path": "/health", "headers": { "Origin": "null" } },
+    {
+      "name": "preflight, allowed origin, request headers",
+      "method": "OPTIONS",
+      "path": "/api/exchange-rates/refresh",
+      "headers": {
+        "Origin": "http://localhost:1420",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type , x-backup-password"
+      }
+    },
+    {
+      "name": "preflight, allowed origin, no request headers",
+      "method": "OPTIONS",
+      "path": "/api/exchange-rates",
+      "headers": { "Origin": "tauri://localhost", "Access-Control-Request-Method": "GET" }
+    },
+    {
+      "name": "preflight, forbidden origin",
+      "method": "OPTIONS",
+      "path": "/api/exchange-rates",
+      "headers": { "Origin": "https://evil.example", "Access-Control-Request-Method": "POST" }
+    },
+    { "name": "OPTIONS without origin", "method": "OPTIONS", "path": "/nope" },
+    { "name": "unknown path", "method": "GET", "path": "/nope" },
+    { "name": "unknown api path", "method": "GET", "path": "/api/nope" },
+    { "name": "unknown path, allowed origin", "method": "GET", "path": "/nope", "headers": { "Origin": "tauri://localhost" } },
+    { "name": "wrong method on /health", "method": "POST", "path": "/health" },
+    { "name": "trailing slash on /health", "method": "GET", "path": "/health/" }
+  ]
+}
