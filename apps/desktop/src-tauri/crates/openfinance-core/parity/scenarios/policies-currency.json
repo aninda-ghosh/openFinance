@@ -1,0 +1,33 @@
+{
+  "description": "routes/policies.ts + life-insurance.ts currency conversion: *_inr fields before and after the base currency changes (the base-currency refresh fails offline but the change sticks).",
+  "steps": [
+    { "name": "base currency", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "create INR policy", "method": "POST", "path": "/api/policies",
+      "json": { "name": "C INR", "provider": "LIC", "currency": "INR", "start_date": "2023-03-31", "premium_amount": 12345.67, "premium_frequency": "monthly", "premium_term_years": 4, "policy_term_years": 8, "maturity_date": "2031-03-31", "sum_assured": 1000000, "maturity_value": 1234567.89, "surrender_value": 98765.43 },
+      "capture": { "inr": "id" } },
+    { "name": "create GBP policy", "method": "POST", "path": "/api/policies",
+      "json": { "name": "C GBP", "provider": "Aviva", "currency": "GBP", "start_date": "2022-12-31", "premium_amount": 99.99, "premium_frequency": "quarterly", "premium_term_years": 10, "policy_term_years": 10, "maturity_date": "2032-12-31", "sum_assured": 10000, "maturity_value": 12000.01, "surrender_value": 0.1 },
+      "capture": { "gbp": "id" } },
+    { "name": "create EUR life cover", "method": "POST", "path": "/api/life-insurance",
+      "json": { "name": "L EUR", "insured_person": "Sam", "provider": "Allianz", "currency": "EUR", "coverage_amount": 250000.5, "renewal_date": "2027-01-01", "premium_amount": 33.33, "premium_frequency": "monthly" } },
+    { "name": "create NTD life cover, premium without frequency", "method": "POST", "path": "/api/life-insurance",
+      "json": { "name": "L NTD", "insured_person": "Lee", "provider": "Cathay", "currency": "NTD", "coverage_amount": 3000000, "renewal_date": "2026-12-24", "premium_amount": 1500 } },
+    { "name": "sync account balances", "method": "PATCH", "path": "/api/policies/{{inr}}", "json": {} },
+    { "name": "sync account balances (GBP)", "method": "PATCH", "path": "/api/policies/{{gbp}}", "json": {} },
+    { "name": "policies in USD base", "method": "GET", "path": "/api/policies" },
+    { "name": "life cover in USD base", "method": "GET", "path": "/api/life-insurance" },
+
+    { "name": "switch base to INR (503, but applied)", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "INR" } },
+    { "name": "rates in INR base", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "policies in INR base", "method": "GET", "path": "/api/policies" },
+    { "name": "life cover in INR base", "method": "GET", "path": "/api/life-insurance" },
+    { "name": "create policy without currency in INR base (zod default INR)", "method": "POST", "path": "/api/policies",
+      "json": { "name": "C Default", "provider": "X", "start_date": "2026-01-01", "premium_amount": 1, "premium_frequency": "annual", "premium_term_years": 1, "policy_term_years": 1, "maturity_date": "2027-01-01", "sum_assured": 1, "maturity_value": 1 } },
+
+    { "name": "switch base to JPY", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "JPY" } },
+    { "name": "policies in JPY base", "method": "GET", "path": "/api/policies" },
+    { "name": "life cover in JPY base", "method": "GET", "path": "/api/life-insurance" },
+    { "name": "update the GBP policy to NTD", "method": "PATCH", "path": "/api/policies/{{gbp}}", "json": { "currency": "NTD", "premium_amount": 2500 } },
+    { "name": "policies after currency change", "method": "GET", "path": "/api/policies" }
+  ]
+}
