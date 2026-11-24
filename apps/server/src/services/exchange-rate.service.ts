@@ -138,6 +138,8 @@ export async function refreshFromWeb(
 
   let rates: Record<string, number> = {};
   try {
+    // Test-only (Rust port parity harness): behave as if the network were down.
+    if (process.env.OPENFINANCE_NO_NETWORK === "1") throw new TypeError("fetch failed");
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(url, { signal: controller.signal });

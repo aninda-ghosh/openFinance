@@ -155,6 +155,8 @@ async function fetchWithTimeout(
   ms: number,
   headers: Record<string, string> = {}
 ): Promise<Response> {
+  // Test-only (Rust port parity harness): behave as if the network were down.
+  if (process.env.OPENFINANCE_NO_NETWORK === "1") throw new TypeError("fetch failed");
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), ms);
   try {
