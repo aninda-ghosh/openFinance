@@ -9,7 +9,7 @@ pub mod form;
 pub mod hono;
 
 use axum::body::{Body, Bytes};
-use axum::extract::{RawPathParams, State};
+use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -35,13 +35,13 @@ fn query_or_null(uri: &Uri, name: &str) -> Option<String> {
     hono::query_param(uri.query(), name).filter(|v| !v.is_empty())
 }
 
-/// The first raw path parameter, decoded like `c.req.param(...)`.
-fn param(params: &RawPathParams) -> String {
-    params
-        .iter()
-        .next()
-        .map(|(_, v)| hono::path_param(v))
-        .unwrap_or_default()
+/// The `/:docId` segment, decoded like `c.req.param(...)`. Taken from the
+/// still-encoded URI (inside the nested router the path is `/<docId>`):
+/// axum's path extractors decode it themselves and reject invalid UTF-8 with
+/// a 400, where Hono keeps the undecodable escapes.
+fn param(uri: &Uri) -> String {
+    let raw = uri.path().strip_prefix('/').unwrap_or(uri.path());
+    hono::path_param(raw)
 }
 
 /// GET /api/documents?investment_id=&account_id=&life_insurance_id=
@@ -121,8 +121,8 @@ async fn upload_inner(
 }
 
 /// GET /api/documents/:docId — the decrypted file, served inline.
-async fn get_one(State(state): State<AppState>, params: RawPathParams) -> Response {
-    download(&state, param(&params)).await
+async fn get_one(State(state): State<AppState>, uri: Uri) -> Response {
+    download(&state, param(&uri)).await
 }
 
 /// The download handler shared with the investments routes.
@@ -162,8 +162,8 @@ fn file_response(data: Vec<u8>, name: &str, mime_type: &str) -> ApiResult<Respon
 }
 
 /// DELETE /api/documents/:docId
-async fn delete_one(State(state): State<AppState>, params: RawPathParams) -> ApiResult<Json<Value>> {
-    remove(&state, param(&params)).await
+async fn delete_one(State(state): State<AppState>, uri: Uri) -> ApiResult<Json<Value>> {
+    remove(&state, param(&uri)).await
 }
 
 /// The delete handler shared with the investments routes.
