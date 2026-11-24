@@ -198,7 +198,13 @@ pub fn prepare(data: Value) -> Result<Prepared, Thrown> {
         Value::Array(_) => Map::new(),
         _ => return Err(type_error("Cannot create property 'accounts' on primitive")),
     };
-    for key in ["accounts", "investment_documents", "investments", "policies", "life_insurance"] {
+    for key in [
+        "accounts",
+        "investment_documents",
+        "investments",
+        "policies",
+        "life_insurance",
+    ] {
         default_empty(&mut d, key);
     }
     if !truthy(d.get("exchange_rates")) {
@@ -249,7 +255,9 @@ pub fn prepare(data: Value) -> Result<Prepared, Thrown> {
             continue;
         }
         let Value::Object(o) = inv else {
-            return Err(type_error("Cannot create property 'account_id' on primitive"));
+            return Err(type_error(
+                "Cannot create property 'account_id' on primitive",
+            ));
         };
         let currency = match o.get("currency") {
             None | Some(Value::Null) => Value::String("INR".into()),
@@ -298,10 +306,16 @@ pub fn prepare(data: Value) -> Result<Prepared, Thrown> {
             } else {
                 nanoid()
             };
-            o.insert("account_id".into(), Value::String(format!("policy-acc-{suffix}")));
+            o.insert(
+                "account_id".into(),
+                Value::String(format!("policy-acc-{suffix}")),
+            );
         }
         let account_id = o.get("account_id").cloned();
-        if !accounts.iter().any(|a| strict_eq(a.id(), account_id.as_ref())) {
+        if !accounts
+            .iter()
+            .any(|a| strict_eq(a.id(), account_id.as_ref()))
+        {
             let invested = calculated_invested(o);
             let currency = match o.get("currency") {
                 None | Some(Value::Null) => Value::String("INR".into()),
@@ -389,7 +403,11 @@ fn default_slot(default: Default) -> Slot {
 }
 
 /// `tx.insert(table).values(chunk)` for rows given as (key, value) lookups.
-fn insert_chunk(conn: &Connection, table: &Table, rows: &[Vec<(String, Cell)>]) -> Result<(), Thrown> {
+fn insert_chunk(
+    conn: &Connection,
+    table: &Table,
+    rows: &[Vec<(String, Cell)>],
+) -> Result<(), Thrown> {
     let cols = table
         .columns
         .iter()
@@ -403,7 +421,11 @@ fn insert_chunk(conn: &Connection, table: &Table, rows: &[Vec<(String, Cell)>]) 
     for row in rows {
         let mut parts = Vec::with_capacity(table.columns.len());
         for col in table.columns {
-            let present = row.iter().rev().find(|(k, _)| k == col.name).map(|(_, v)| v);
+            let present = row
+                .iter()
+                .rev()
+                .find(|(k, _)| k == col.name)
+                .map(|(_, v)| v);
             let slot = match present {
                 Some(cell) => Slot::Params(bind_cell(cell, col.boolean, &mut named_seen)?),
                 None => default_slot(col.default),
@@ -420,10 +442,14 @@ fn insert_chunk(conn: &Connection, table: &Table, rows: &[Vec<(String, Cell)>]) 
         tuples.push(format!("({})", parts.join(", ")));
     }
     if params.len() < placeholders {
-        return Err(Thrown("RangeError: Too few parameter values were provided".into()));
+        return Err(Thrown(
+            "RangeError: Too few parameter values were provided".into(),
+        ));
     }
     if params.len() > placeholders {
-        return Err(Thrown("RangeError: Too many parameter values were provided".into()));
+        return Err(Thrown(
+            "RangeError: Too many parameter values were provided".into(),
+        ));
     }
     let sql = format!(
         "insert into \"{}\" ({cols}) values {}",
@@ -460,7 +486,10 @@ fn insert_table(conn: &Connection, table: &Table, value: Option<&Value>) -> Resu
         _ => return Ok(()),
     };
     for chunk in items.chunks(1000) {
-        let rows = chunk.iter().map(row_of_value).collect::<Result<Vec<_>, _>>()?;
+        let rows = chunk
+            .iter()
+            .map(row_of_value)
+            .collect::<Result<Vec<_>, _>>()?;
         insert_chunk(conn, table, &rows)?;
     }
     Ok(())
@@ -543,9 +572,23 @@ mod tests {
             .expect("q")
             .map(|r| r.expect("row"))
             .collect();
-        assert_eq!(names[0], ("a1".into(), "Brokerage Portfolio".into(), Some(0.0), 0));
-        assert_eq!(names[1], ("brokerage-usd-imported".into(), "Brokerage Portfolio".into(), Some(0.0), 1));
-        assert_eq!(names[2], ("policy-acc-p1".into(), "P".into(), Some(200.0), 1));
+        assert_eq!(
+            names[0],
+            ("a1".into(), "Brokerage Portfolio".into(), Some(0.0), 0)
+        );
+        assert_eq!(
+            names[1],
+            (
+                "brokerage-usd-imported".into(),
+                "Brokerage Portfolio".into(),
+                Some(0.0),
+                1
+            )
+        );
+        assert_eq!(
+            names[2],
+            ("policy-acc-p1".into(), "P".into(), Some(200.0), 1)
+        );
         let rates: i64 = c
             .query_row("select count(*) from exchange_rates", [], |r| r.get(0))
             .expect("rates");

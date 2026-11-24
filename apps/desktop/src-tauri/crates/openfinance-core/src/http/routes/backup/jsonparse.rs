@@ -23,7 +23,10 @@ pub fn parse(text: &str) -> Result<Value, String> {
     let v = p.value(0)?;
     p.ws();
     if p.i != p.s.len() {
-        return Err(format!("Unexpected non-whitespace character at position {}", p.i));
+        return Err(format!(
+            "Unexpected non-whitespace character at position {}",
+            p.i
+        ));
     }
     Ok(v)
 }
@@ -222,7 +225,9 @@ impl Parser<'_> {
             self.digits();
         }
         let text = std::str::from_utf8(&self.s[start..self.i]).map_err(|e| e.to_string())?;
-        let f: f64 = text.parse().map_err(|e: std::num::ParseFloatError| e.to_string())?;
+        let f: f64 = text
+            .parse()
+            .map_err(|e: std::num::ParseFloatError| e.to_string())?;
         Ok(Number::from_f64(f).map_or(Value::Null, Value::Number))
     }
 
@@ -253,12 +258,30 @@ mod tests {
             parse(" {\"a\": [1, -0.5, 1e3, true, null, \"x\\u00e9\\n\"], \"a\": 2} ").expect("ok"),
             json!({"a": 2.0})
         );
-        assert_eq!(parse("91750.79000000001").expect("ok").as_f64(), Some(91750.79000000001));
-        assert_eq!(parse("0.30000000000000004").expect("ok").as_f64(), Some(0.1 + 0.2));
+        assert_eq!(
+            parse("91750.79000000001").expect("ok").as_f64(),
+            Some(91750.79000000001)
+        );
+        assert_eq!(
+            parse("0.30000000000000004").expect("ok").as_f64(),
+            Some(0.1 + 0.2)
+        );
         assert_eq!(parse("\"\\ud83d\\ude00\"").expect("ok"), json!("😀"));
         assert_eq!(parse("\"\\ud800x\"").expect("ok"), json!("\u{fffd}x"));
         assert_eq!(parse("1e400").expect("ok"), Value::Null);
-        for bad in ["", "01", "1.", "-", "[1,]", "{\"a\":1,}", "\u{feff}{}", "'a'", "\"\t\"", "nul", "{} x"] {
+        for bad in [
+            "",
+            "01",
+            "1.",
+            "-",
+            "[1,]",
+            "{\"a\":1,}",
+            "\u{feff}{}",
+            "'a'",
+            "\"\t\"",
+            "nul",
+            "{} x",
+        ] {
             assert!(parse(bad).is_err(), "{bad:?}");
         }
     }

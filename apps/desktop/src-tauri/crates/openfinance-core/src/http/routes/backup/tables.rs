@@ -79,7 +79,12 @@ pub const ACCOUNTS: Table = Table {
 
 pub const ENVELOPE_GROUPS: Table = Table {
     name: "envelope_groups",
-    columns: &[ID, c("name"), d("sort_order", ZERO), d("created_at", Default::Now)],
+    columns: &[
+        ID,
+        c("name"),
+        d("sort_order", ZERO),
+        d("created_at", Default::Now),
+    ],
 };
 
 pub const ENVELOPES: Table = Table {

@@ -284,21 +284,39 @@ mod tests {
     #[test]
     fn query_like_hono() {
         let q = |s: &str, k: &str| query_param(Some(s), k);
-        assert_eq!(q("investment_id=abc", "investment_id").as_deref(), Some("abc"));
-        assert_eq!(q("a=1&investment_id=x%20y", "investment_id").as_deref(), Some("x y"));
+        assert_eq!(
+            q("investment_id=abc", "investment_id").as_deref(),
+            Some("abc")
+        );
+        assert_eq!(
+            q("a=1&investment_id=x%20y", "investment_id").as_deref(),
+            Some("x y")
+        );
         assert_eq!(q("investment_id", "investment_id").as_deref(), Some(""));
         assert_eq!(q("investment_id&b=1", "investment_id").as_deref(), Some(""));
         assert_eq!(q("investment_idx=1", "investment_id"), None);
         assert_eq!(q("investment_idx=1&c=%41", "investment_id"), None);
-        assert_eq!(q("investment_i%64=7", "investment_id").as_deref(), Some("7"));
-        assert_eq!(q("x=1&investment_id=a&investment_id=b", "investment_id").as_deref(), Some("a"));
-        assert_eq!(q("investment_id=a+b", "investment_id").as_deref(), Some("a b"));
+        assert_eq!(
+            q("investment_i%64=7", "investment_id").as_deref(),
+            Some("7")
+        );
+        assert_eq!(
+            q("x=1&investment_id=a&investment_id=b", "investment_id").as_deref(),
+            Some("a")
+        );
+        assert_eq!(
+            q("investment_id=a+b", "investment_id").as_deref(),
+            Some("a b")
+        );
         assert_eq!(query_param(None, "investment_id"), None);
     }
 
     #[test]
     fn header_values() {
-        assert_eq!(response_header_bytes(" application/pdf "), Some(b"application/pdf".to_vec()));
+        assert_eq!(
+            response_header_bytes(" application/pdf "),
+            Some(b"application/pdf".to_vec())
+        );
         assert_eq!(response_header_bytes("a\nb"), None);
         assert_eq!(response_header_bytes("ü"), Some(vec![0xFC]));
         assert_eq!(response_header_bytes("✓"), None);

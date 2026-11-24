@@ -66,13 +66,15 @@ impl Archive {
 }
 
 /// `new AdmZip()` + `addFile(name, data)` for each file + `toBuffer()`
-/// (deflated entries, like adm-zip).
+/// (deflated entries, like adm-zip, in adm-zip's sorted order).
 pub fn write(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, String> {
+    let mut sorted: Vec<&(String, Vec<u8>)> = files.iter().collect();
+    sort_entries(&mut sorted)?;
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
-    for (name, data) in files {
+    for (name, data) in sorted {
         zip.start_file(name.as_str(), options)
             .map_err(|e| e.to_string())?;
         zip.write_all(data).map_err(|e| e.to_string())?;
@@ -81,9 +83,68 @@ pub fn write(files: &[(String, Vec<u8>)]) -> Result<Vec<u8>, String> {
     Ok(cursor.into_inner())
 }
 
+/// adm-zip's `sortEntries()` in `toBuffer()`: a stable sort by
+/// `a.entryName.toLowerCase().localeCompare(b.entryName.toLowerCase())`.
+/// Node's default collator is ICU en-US (root collation, tertiary strength),
+/// which ICU4X's compiled root data reproduces.
+fn sort_entries(entries: &mut [&(String, Vec<u8>)]) -> Result<(), String> {
+    if entries.len() <= 1 {
+        return Ok(());
+    }
+    let collator = icu_collator::Collator::try_new(
+        Default::default(),
+        icu_collator::options::CollatorOptions::default(),
+    )
+    .map_err(|e| e.to_string())?;
+    entries.sort_by(|a, b| collator.compare(&a.0.to_lowercase(), &b.0.to_lowercase()));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sorts_like_adm_zip() {
+        let names = [
+            "documents/doc_compat000001.pdf",
+            "documents/doc_DKtFeeOPfgDx.txt",
+            "documents/doc_9HdsA1OfMoRF.txt",
+            "backup-data.json",
+            "documents/doc-x.txt",
+            "documents/doc_a.b",
+            "documents/doc_ab",
+            "documents/Doc_AB",
+            "documents/doc_é.txt",
+            "documents/doc_e.txt",
+            "documents/doc_f.txt",
+            "documents/doc__x",
+            "documents/doc.x",
+        ];
+        let files: Vec<(String, Vec<u8>)> =
+            names.iter().map(|n| (n.to_string(), Vec::new())).collect();
+        let a = Archive::open(write(&files).expect("write")).expect("open");
+        let got: Vec<&str> = a.entries().iter().map(|e| e.name.as_str()).collect();
+        // The order adm-zip 0.5.17 writes these in (Node 24.21, ICU 78.3).
+        assert_eq!(
+            got,
+            [
+                "backup-data.json",
+                "documents/doc__x",
+                "documents/doc_9HdsA1OfMoRF.txt",
+                "documents/doc_a.b",
+                "documents/doc_ab",
+                "documents/Doc_AB",
+                "documents/doc_compat000001.pdf",
+                "documents/doc_DKtFeeOPfgDx.txt",
+                "documents/doc_e.txt",
+                "documents/doc_é.txt",
+                "documents/doc_f.txt",
+                "documents/doc-x.txt",
+                "documents/doc.x",
+            ]
+        );
+    }
 
     #[test]
     fn roundtrip() {
@@ -95,7 +156,10 @@ mod tests {
         let bytes = write(&files).expect("write");
         let mut a = Archive::open(bytes).expect("open");
         let names: Vec<&str> = a.entries().iter().map(|e| e.name.as_str()).collect();
-        assert_eq!(names, ["backup-data.json", "documents/doc_a.pdf", "documents/empty"]);
+        assert_eq!(
+            names,
+            ["backup-data.json", "documents/doc_a.pdf", "documents/empty"]
+        );
         let e = a.entry("documents/doc_a.pdf").expect("entry");
         assert_eq!(a.data(&e).expect("data"), vec![0u8; 1000]);
         assert!(Archive::open(Vec::new()).is_err());

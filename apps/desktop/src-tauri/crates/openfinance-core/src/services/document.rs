@@ -123,7 +123,11 @@ pub fn create_document(
     }
 
     let ext = nodepath::extname(&doc.original_name);
-    let extension = if ext.is_empty() { ".dat".to_string() } else { ext };
+    let extension = if ext.is_empty() {
+        ".dat".to_string()
+    } else {
+        ext
+    };
     let disk_file_name = format!("doc_{}{}", ids::nanoid_sized(12), extension);
     let path = file_path(uploads, &disk_file_name);
 
@@ -226,7 +230,8 @@ fn migrate_plaintext_in(uploads: &Path, file_crypto: &FileCrypto) -> ApiResult<u
     Ok(migrated)
 }
 
-/// `fs.readdirSync(dir)`: entry names, sorted bytewise like libuv's scandir.
+/// `fs.readdirSync(dir)`: entry names sorted bytewise (libuv's scandir sorts
+/// with strcmp).
 pub fn read_dir_sorted(dir: &Path) -> ApiResult<Vec<String>> {
     let mut names = Vec::new();
     for entry in std::fs::read_dir(dir).map_err(ApiError::internal)? {
@@ -249,7 +254,10 @@ pub struct DocumentFilters {
 /// (output key, SQL expression).
 const LIST_FIELDS: [(&str, &str); 28] = [
     ("id", "\"investment_documents\".\"id\""),
-    ("investment_id", "\"investment_documents\".\"investment_id\""),
+    (
+        "investment_id",
+        "\"investment_documents\".\"investment_id\"",
+    ),
     ("account_id", "\"investment_documents\".\"account_id\""),
     (
         "life_insurance_id",
@@ -265,10 +273,19 @@ const LIST_FIELDS: [(&str, &str); 28] = [
     ("investment_name", "\"investments\".\"name\""),
     ("investment_asset_type", "\"investments\".\"asset_type\""),
     ("investment_currency", "\"investments\".\"currency\""),
-    ("investment_purchase_value", "\"investments\".\"purchase_value\""),
+    (
+        "investment_purchase_value",
+        "\"investments\".\"purchase_value\"",
+    ),
     ("investment_units", "\"investments\".\"units\""),
-    ("investment_current_value", "\"investments\".\"current_value\""),
-    ("investment_purchase_date", "\"investments\".\"purchase_date\""),
+    (
+        "investment_current_value",
+        "\"investments\".\"current_value\"",
+    ),
+    (
+        "investment_purchase_date",
+        "\"investments\".\"purchase_date\"",
+    ),
     ("account_name", "\"accounts\".\"name\""),
     ("account_type", "\"accounts\".\"type\""),
     ("account_currency", "\"accounts\".\"currency\""),
@@ -354,7 +371,10 @@ pub fn list_documents(conn: &Connection, investment_id: &str) -> ApiResult<Vec<V
 }
 
 /// `getDocumentById(docId)`: the full row, or `None`.
-pub fn get_document_by_id(conn: &Connection, doc_id: &str) -> ApiResult<Option<Map<String, Value>>> {
+pub fn get_document_by_id(
+    conn: &Connection,
+    doc_id: &str,
+) -> ApiResult<Option<Map<String, Value>>> {
     let sql = format!(
         "select {} from \"investment_documents\" where \"investment_documents\".\"id\" = ? limit 1",
         quoted(&COLUMNS)

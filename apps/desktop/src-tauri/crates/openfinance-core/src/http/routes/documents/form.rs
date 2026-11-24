@@ -84,7 +84,9 @@ fn not_form_error() -> FormError {
 }
 
 fn parsing_error(cause: &str) -> FormError {
-    FormError(format!("TypeError: Failed to parse body as FormData. ({cause})"))
+    FormError(format!(
+        "TypeError: Failed to parse body as FormData. ({cause})"
+    ))
 }
 
 // ── MIME type (fetch/data-url.js, fetch/util.js) ─────────────────────────────
@@ -132,8 +134,9 @@ fn token_string(s: &str) -> bool {
 
 fn quoted_string_tokens(s: &str) -> bool {
     !s.is_empty()
-        && s.chars()
-            .all(|c| c == '\t' || ('\u{20}'..='\u{7e}').contains(&c) || ('\u{80}'..='\u{ff}').contains(&c))
+        && s.chars().all(|c| {
+            c == '\t' || ('\u{20}'..='\u{7e}').contains(&c) || ('\u{80}'..='\u{ff}').contains(&c)
+        })
 }
 
 /// `collectAnHTTPQuotedString(input, position, extractValue)` on chars.
@@ -304,7 +307,20 @@ fn is_ctl(c: u8) -> bool {
 fn is_tspecial(c: u8) -> bool {
     matches!(
         c,
-        b'(' | b')' | b'<' | b'>' | b'@' | b',' | b';' | b':' | b'\\' | b'"' | b'/' | b'[' | b']' | b'?' | b'='
+        b'(' | b')'
+            | b'<'
+            | b'>'
+            | b'@'
+            | b','
+            | b';'
+            | b':'
+            | b'\\'
+            | b'"'
+            | b'/'
+            | b'['
+            | b']'
+            | b'?'
+            | b'='
     )
 }
 
@@ -392,7 +408,10 @@ struct Attribute {
     extended: bool,
 }
 
-fn parse_disposition_attribute(input: &[u8], pos: &mut usize) -> Result<Option<Attribute>, FormError> {
+fn parse_disposition_attribute(
+    input: &[u8],
+    pos: &mut usize,
+) -> Result<Option<Attribute>, FormError> {
     if input.get(*pos) == Some(&b';') {
         *pos += 1;
     }
@@ -412,7 +431,9 @@ fn parse_disposition_attribute(input: &[u8], pos: &mut usize) -> Result<Option<A
     *pos += 1;
     collect(input, pos, |c| c == b' ' || c == b'\t');
     let value = if extended {
-        let v = collect(input, pos, |c| c != b' ' && c != b'\r' && c != b'\n' && c != b';');
+        let v = collect(input, pos, |c| {
+            c != b' ' && c != b'\r' && c != b'\n' && c != b';'
+        });
         let ok = v.len() >= 5
             && (v[0] == b'u' || v[0] == b'U')
             && (v[1] == b't' || v[1] == b'T')
@@ -499,7 +520,9 @@ fn parse_part_headers(input: &[u8], pos: &mut usize) -> Result<PartHeaders, Form
                 let mut filename_extended = false;
                 let disposition = collect(input, pos, is_token);
                 if !String::from_utf8_lossy(disposition).eq_ignore_ascii_case("form-data") {
-                    return Err(parsing_error("expected form-data for content-disposition header"));
+                    return Err(parsing_error(
+                        "expected form-data for content-disposition header",
+                    ));
                 }
                 while *pos < input.len()
                     && (input.get(*pos) != Some(&b'\r') || input.get(*pos + 1) != Some(&b'\n'))
@@ -560,7 +583,9 @@ fn multipart_parser(input: &[u8], mime: &MimeType) -> Result<Vec<(String, FormVa
         if input.get(pos..pos + boundary.len()) == Some(boundary.as_slice()) {
             pos += boundary.len();
         } else {
-            return Err(parsing_error("expected a value starting with -- and the boundary"));
+            return Err(parsing_error(
+                "expected a value starting with -- and the boundary",
+            ));
         }
         if starts_with_at(input, b"--", pos) {
             return Ok(entries);
@@ -613,7 +638,10 @@ mod tests {
 
     fn headers(ct: &str) -> HeaderMap {
         let mut h = HeaderMap::new();
-        h.insert("content-type", HeaderValue::from_bytes(ct.as_bytes()).expect("hv"));
+        h.insert(
+            "content-type",
+            HeaderValue::from_bytes(ct.as_bytes()).expect("hv"),
+        );
         h
     }
 
@@ -634,7 +662,8 @@ mod tests {
             "Content-Disposition: form-data; name=\"name\"\r\n\r\nMy Doc",
             "Content-Disposition: form-data; name=\"file\"; filename=\"a b.PDF\"\r\nContent-Type: Application/PDF\r\n\r\n%PDF-1\r\nbody",
         ]);
-        let form = parse_body(&headers(&format!("multipart/form-data; boundary={B}")), &b).expect("parse");
+        let form =
+            parse_body(&headers(&format!("multipart/form-data; boundary={B}")), &b).expect("parse");
         assert_eq!(form.get("name"), Some(&FormValue::Text("My Doc".into())));
         match form.get("file") {
             Some(FormValue::File(f)) => {
@@ -651,7 +680,11 @@ mod tests {
         let b = body(&[
             "Content-Disposition: form-data; name=\"file\"; filename=\"x.txt\"; filename*=UTF-8''%E2%9C%93.txt\r\n\r\nhi",
         ]);
-        let form = parse_body(&headers(&format!("multipart/form-data; boundary=\"{B}\"")), &b).expect("parse");
+        let form = parse_body(
+            &headers(&format!("multipart/form-data; boundary=\"{B}\"")),
+            &b,
+        )
+        .expect("parse");
         match form.get("file") {
             Some(FormValue::File(f)) => {
                 assert_eq!(f.name, "✓.txt");
@@ -669,11 +702,18 @@ mod tests {
         assert!(parse_body(&headers("multipart/form-data-x; boundary=abc"), b"--abc--").is_err());
         let bad = body(&["Content-Disposition: form-data\r\n\r\nx"]);
         assert!(parse_body(&headers(&ok_ct), &bad).is_err());
-        let bad_uri = body(&["Content-Disposition: form-data; name=\"f\"; filename*=utf-8''%E2\r\n\r\nx"]);
+        let bad_uri =
+            body(&["Content-Disposition: form-data; name=\"f\"; filename*=utf-8''%E2\r\n\r\nx"]);
         assert!(parse_body(&headers(&ok_ct), &bad_uri).is_err());
         // Not a form content type: Hono returns {} without touching the body.
-        assert_eq!(parse_body(&headers("application/json"), b"{").expect("ok"), FormBody::new());
-        assert_eq!(parse_body(&HeaderMap::new(), b"").expect("ok"), FormBody::new());
+        assert_eq!(
+            parse_body(&headers("application/json"), b"{").expect("ok"),
+            FormBody::new()
+        );
+        assert_eq!(
+            parse_body(&HeaderMap::new(), b"").expect("ok"),
+            FormBody::new()
+        );
         assert_eq!(
             parse_body(&headers("application/x-www-form-urlencoded"), b"file=x").expect("ok"),
             FormBody::new()

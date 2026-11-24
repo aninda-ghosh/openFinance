@@ -209,7 +209,10 @@ impl Cursor<'_> {
             self.i = start;
             return None;
         }
-        let v = std::str::from_utf8(&self.s[start..self.i]).ok()?.parse().ok()?;
+        let v = std::str::from_utf8(&self.s[start..self.i])
+            .ok()?
+            .parse()
+            .ok()?;
         Some((v, len))
     }
     fn done(&self) -> bool {
@@ -220,7 +223,10 @@ impl Cursor<'_> {
 /// `None` when the string is not in ISO shape (the legacy parser then gets
 /// it); `Some(NaN)` for ISO shape with out-of-range fields.
 fn parse_iso(s: &str) -> Option<f64> {
-    let mut c = Cursor { s: s.as_bytes(), i: 0 };
+    let mut c = Cursor {
+        s: s.as_bytes(),
+        i: 0,
+    };
     let year = match c.peek() {
         Some(sign @ (b'+' | b'-')) => {
             c.i += 1;
@@ -300,7 +306,10 @@ fn parse_iso(s: &str) -> Option<f64> {
 /// The numeric forms of V8's legacy parser, in local time.
 fn parse_legacy(s: &str) -> f64 {
     let t = s.trim_matches(|c: char| c.is_ascii_whitespace());
-    let mut c = Cursor { s: t.as_bytes(), i: 0 };
+    let mut c = Cursor {
+        s: t.as_bytes(),
+        i: 0,
+    };
     let parsed = (|| {
         c.eat(b'+');
         let (a, alen) = c.digit_run(1, 6)?;
@@ -369,7 +378,18 @@ mod tests {
         assert_eq!(parse("-000001-01-01"), -62198755200000.0);
         assert_eq!(parse("2020-01-15T10:00:00.000z"), 1579082400000.0);
         assert_eq!(parse("+010000-01-01"), 253402300800000.0);
-        for bad in ["2020-13-01", "", "abc", "1577836800000", "2020-01-32", "2020-00-10", "2020-01-15T10:00:60", "2020-01-15T24:00:01", "2020-01-15T10", "20200115"] {
+        for bad in [
+            "2020-13-01",
+            "",
+            "abc",
+            "1577836800000",
+            "2020-01-32",
+            "2020-00-10",
+            "2020-01-15T10:00:60",
+            "2020-01-15T24:00:01",
+            "2020-01-15T10",
+            "20200115",
+        ] {
             assert!(parse(bad).is_nan(), "{bad}");
         }
     }
@@ -377,7 +397,14 @@ mod tests {
     #[test]
     fn local_forms_match_utc_plus_offset() {
         let local_midnight = utc(make_date(make_day(2020.0, 0.0, 15.0), 0.0));
-        for s in ["2020/01/15", "01/15/2020", "  2020-01-15", "2020-01-15 ", "2020-1-15", "002020-01-15"] {
+        for s in [
+            "2020/01/15",
+            "01/15/2020",
+            "  2020-01-15",
+            "2020-01-15 ",
+            "2020-1-15",
+            "002020-01-15",
+        ] {
             assert_eq!(parse(s), local_midnight, "{s}");
         }
         assert_eq!(

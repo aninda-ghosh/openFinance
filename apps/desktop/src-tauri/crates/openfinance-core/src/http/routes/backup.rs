@@ -35,6 +35,8 @@ use crate::state::AppState;
 
 pub use archive::Archive;
 pub use jsjson::{number_to_string, stringify_pretty};
+/// `JSON.parse` with correctly rounded numbers (see `jsonparse.rs`).
+pub use jsonparse::parse as parse_json;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -101,7 +103,10 @@ fn first_user_field(conn: &Connection, column: &str) -> rusqlite::Result<Option<
 pub fn export_data(conn: &Connection) -> rusqlite::Result<Map<String, Value>> {
     let mut data = Map::new();
     for table in tables::EXPORT_ORDER {
-        data.insert(table.name.to_string(), Value::Array(select_all(conn, &table)?));
+        data.insert(
+            table.name.to_string(),
+            Value::Array(select_all(conn, &table)?),
+        );
     }
     Ok(data)
 }
@@ -181,7 +186,10 @@ async fn export(State(state): State<AppState>) -> Response {
         }
         Err(err) => {
             tracing::error!("Export failed: {err}");
-            json_error(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "Export failed" }))
+            json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({ "error": "Export failed" }),
+            )
         }
     }
 }
@@ -197,7 +205,11 @@ const MAGIC: &[u8; 4] = b"FWB1";
 
 /// Decrypts an FWB1 backup like the route: the stored backup_key first, then
 /// the `x-backup-password` header with each candidate username.
-fn decrypt_import(state: &AppState, headers: &HeaderMap, raw: &[u8]) -> Result<Option<Vec<u8>>, String> {
+fn decrypt_import(
+    state: &AppState,
+    headers: &HeaderMap,
+    raw: &[u8],
+) -> Result<Option<Vec<u8>>, String> {
     let stored = state
         .db_blocking(|conn| Ok(first_user_field(conn, "backup_key")?))
         .map_err(|e| e.to_string())?;
@@ -208,7 +220,8 @@ fn decrypt_import(state: &AppState, headers: &HeaderMap, raw: &[u8]) -> Result<O
             }
         }
     }
-    let Some(password) = header_string(headers, "x-backup-password").filter(|p| !p.is_empty()) else {
+    let Some(password) = header_string(headers, "x-backup-password").filter(|p| !p.is_empty())
+    else {
         return Ok(None);
     };
     let header_user = header_string(headers, "x-backup-username").filter(|u| !u.is_empty());
@@ -322,7 +335,10 @@ async fn import(State(state): State<AppState>, headers: HeaderMap, body: Bytes) 
         }
         Err(err) => {
             tracing::error!("Import failed: {err}");
-            json_error(StatusCode::INTERNAL_SERVER_ERROR, json!({ "error": "Import failed" }))
+            json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({ "error": "Import failed" }),
+            )
         }
     }
 }

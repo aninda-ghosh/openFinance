@@ -68,7 +68,11 @@ impl Formatter for JsPretty {
     fn end_array<W: ?Sized + io::Write>(&mut self, w: &mut W) -> io::Result<()> {
         self.0.end_array(w)
     }
-    fn begin_array_value<W: ?Sized + io::Write>(&mut self, w: &mut W, first: bool) -> io::Result<()> {
+    fn begin_array_value<W: ?Sized + io::Write>(
+        &mut self,
+        w: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
         self.0.begin_array_value(w, first)
     }
     fn end_array_value<W: ?Sized + io::Write>(&mut self, w: &mut W) -> io::Result<()> {
@@ -80,7 +84,11 @@ impl Formatter for JsPretty {
     fn end_object<W: ?Sized + io::Write>(&mut self, w: &mut W) -> io::Result<()> {
         self.0.end_object(w)
     }
-    fn begin_object_key<W: ?Sized + io::Write>(&mut self, w: &mut W, first: bool) -> io::Result<()> {
+    fn begin_object_key<W: ?Sized + io::Write>(
+        &mut self,
+        w: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
         self.0.begin_object_key(w, first)
     }
     fn begin_object_value<W: ?Sized + io::Write>(&mut self, w: &mut W) -> io::Result<()> {
@@ -94,7 +102,10 @@ impl Formatter for JsPretty {
 /// `JSON.stringify(value, null, 2)`.
 pub fn stringify_pretty(value: &Value) -> serde_json::Result<Vec<u8>> {
     let mut out = Vec::new();
-    let mut ser = serde_json::Serializer::with_formatter(&mut out, JsPretty(PrettyFormatter::with_indent(b"  ")));
+    let mut ser = serde_json::Serializer::with_formatter(
+        &mut out,
+        JsPretty(PrettyFormatter::with_indent(b"  ")),
+    );
     value.serialize(&mut ser)?;
     Ok(out)
 }

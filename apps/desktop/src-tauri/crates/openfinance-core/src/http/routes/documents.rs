@@ -73,7 +73,12 @@ async fn create(State(state): State<AppState>, headers: HeaderMap, body: Bytes) 
 }
 
 /// The upload handler shared with the investments routes.
-pub async fn upload(state: &AppState, headers: &HeaderMap, body: &[u8], parent: UploadParent) -> Response {
+pub async fn upload(
+    state: &AppState,
+    headers: &HeaderMap,
+    body: &[u8],
+    parent: UploadParent,
+) -> Response {
     match upload_inner(state, headers, body, parent).await {
         Ok(resp) => resp,
         Err(e) => e.handled(PASSTHROUGH).into_response(),
