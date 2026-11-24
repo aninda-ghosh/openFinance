@@ -1,0 +1,373 @@
+{
+  "description": "Value history, contributions and cost basis (SetContributionSchema, BulkContributionSchema), price history with from/to filters, and refresh-price (Node's fetchCurrentPrice never goes online: it re-reads the stored value, so it succeeds with the network off; physical assets and zero prices are 400/422 in the service and 500 through handleError).",
+  "steps": [
+    {
+      "name": "aapl value history",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "voo value history",
+      "method": "GET",
+      "path": "/api/investments/inv-voo/value-history"
+    },
+    {
+      "name": "unknown value history",
+      "method": "GET",
+      "path": "/api/investments/nope/value-history"
+    },
+    {
+      "name": "aapl price history",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history"
+    },
+    {
+      "name": "price history from (string compare)",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history?from=2000"
+    },
+    {
+      "name": "price history to",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history?to=2000"
+    },
+    {
+      "name": "price history from future",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history?from=9999"
+    },
+    {
+      "name": "price history empty bounds",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history?from=&to="
+    },
+    {
+      "name": "unknown price history",
+      "method": "GET",
+      "path": "/api/investments/nope/price-history"
+    },
+    {
+      "name": "bulk: no body",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions"
+    },
+    {
+      "name": "bulk: bad mode",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {
+        "mode": "all"
+      }
+    },
+    {
+      "name": "bulk: mode missing",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {}
+    },
+    {
+      "name": "bulk on unknown investment",
+      "method": "POST",
+      "path": "/api/investments/nope/value-history/bulk-contributions",
+      "json": {
+        "mode": "clear"
+      }
+    },
+    {
+      "name": "bulk match_delta",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {
+        "mode": "match_delta",
+        "extra": 1
+      }
+    },
+    {
+      "name": "aapl history after match_delta",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "bulk match_delta again (no-op)",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {
+        "mode": "match_delta"
+      }
+    },
+    {
+      "name": "list shows cost basis",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary unaffected by basis",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "set: no body",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-2"
+    },
+    {
+      "name": "set: contribution missing",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-2",
+      "json": {}
+    },
+    {
+      "name": "set: contribution string",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-2",
+      "json": {
+        "contribution": "1"
+      }
+    },
+    {
+      "name": "set: unknown entry",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/nope",
+      "json": {
+        "contribution": 1
+      }
+    },
+    {
+      "name": "set: entry of another investment",
+      "method": "PATCH",
+      "path": "/api/investments/inv-voo/value-history/vh-aapl-2",
+      "json": {
+        "contribution": 1
+      }
+    },
+    {
+      "name": "set: unknown investment",
+      "method": "PATCH",
+      "path": "/api/investments/nope/value-history/vh-aapl-2",
+      "json": {
+        "contribution": 1
+      }
+    },
+    {
+      "name": "set: PATCH bulk-contributions is an entry id",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {
+        "contribution": 1
+      }
+    },
+    {
+      "name": "set entry",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-2",
+      "json": {
+        "contribution": 100.25
+      }
+    },
+    {
+      "name": "set negative entry",
+      "method": "PATCH",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-1",
+      "json": {
+        "contribution": -50
+      }
+    },
+    {
+      "name": "POST to an entry id is not a route",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/vh-aapl-2",
+      "json": {
+        "mode": "clear"
+      }
+    },
+    {
+      "name": "aapl history after sets",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "bulk clear",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/value-history/bulk-contributions",
+      "json": {
+        "mode": "clear"
+      }
+    },
+    {
+      "name": "aapl history after clear",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "voo match_delta",
+      "method": "POST",
+      "path": "/api/investments/inv-voo/value-history/bulk-contributions",
+      "json": {
+        "mode": "match_delta"
+      }
+    },
+    {
+      "name": "refresh unknown",
+      "method": "POST",
+      "path": "/api/investments/nope/refresh-price"
+    },
+    {
+      "name": "refresh aapl (offline: stored value)",
+      "method": "POST",
+      "path": "/api/investments/inv-aapl/refresh-price"
+    },
+    {
+      "name": "aapl after refresh",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "aapl prices after refresh",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history"
+    },
+    {
+      "name": "prices from now on",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history?from=2026-06"
+    },
+    {
+      "name": "list after refresh",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "refresh voo",
+      "method": "POST",
+      "path": "/api/investments/inv-voo/refresh-price"
+    },
+    {
+      "name": "contribution moves basis, then refresh",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Payroll 401k",
+        "asset_type": "other",
+        "currency": "USD",
+        "purchase_value": 100,
+        "purchase_date": "2025-01-01",
+        "current_value": 100,
+        "account_id": "fidelity-brokerage"
+      },
+      "capture": {
+        "k": "id"
+      }
+    },
+    {
+      "name": "deposit",
+      "method": "PATCH",
+      "path": "/api/investments/{{k}}",
+      "json": {
+        "current_value": 300,
+        "contribution": 200
+      }
+    },
+    {
+      "name": "market move",
+      "method": "PATCH",
+      "path": "/api/investments/{{k}}",
+      "json": {
+        "current_value": 330
+      }
+    },
+    {
+      "name": "refresh 401k",
+      "method": "POST",
+      "path": "/api/investments/{{k}}/refresh-price"
+    },
+    {
+      "name": "401k history",
+      "method": "GET",
+      "path": "/api/investments/{{k}}/value-history"
+    },
+    {
+      "name": "401k match_delta",
+      "method": "POST",
+      "path": "/api/investments/{{k}}/value-history/bulk-contributions",
+      "json": {
+        "mode": "match_delta"
+      }
+    },
+    {
+      "name": "401k history after match",
+      "method": "GET",
+      "path": "/api/investments/{{k}}/value-history"
+    },
+    {
+      "name": "zero-value holding",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Empty",
+        "asset_type": "cash",
+        "purchase_value": 1,
+        "purchase_date": "2025-01-01",
+        "current_value": 0
+      },
+      "capture": {
+        "z": "id"
+      }
+    },
+    {
+      "name": "refresh zero price (422 → 500)",
+      "method": "POST",
+      "path": "/api/investments/{{z}}/refresh-price"
+    },
+    {
+      "name": "no rows after failed refresh",
+      "method": "GET",
+      "path": "/api/investments/{{z}}/value-history"
+    },
+    {
+      "name": "vehicle",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Car",
+        "asset_type": "vehicle",
+        "purchase_value": 20000,
+        "purchase_date": "2024-01-01",
+        "current_value": 15000,
+        "depreciation_rate": 10
+      },
+      "capture": {
+        "car": "id"
+      }
+    },
+    {
+      "name": "refresh vehicle (400 → 500)",
+      "method": "POST",
+      "path": "/api/investments/{{car}}/refresh-price"
+    },
+    {
+      "name": "refresh-price is POST only",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/refresh-price"
+    },
+    {
+      "name": "POST /documents/refresh-price is /:id/refresh-price",
+      "method": "POST",
+      "path": "/api/investments/documents/refresh-price"
+    },
+    {
+      "name": "GET /documents/price-history is /:id/price-history",
+      "method": "GET",
+      "path": "/api/investments/documents/price-history"
+    },
+    {
+      "name": "GET /documents/value-history is /:id/value-history",
+      "method": "GET",
+      "path": "/api/investments/documents/value-history"
+    },
+    {
+      "name": "summary at end",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    }
+  ]
+}
