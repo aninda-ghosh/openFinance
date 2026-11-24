@@ -242,3 +242,63 @@ Line numbers are for `apps/server/src` on `feat/rust-port`.
 7. **Bad uploads to import return 500 instead of 400.** `routes/backup.ts:393`:
    a truncated or non-ZIP upload, or invalid JSON in `backup-data.json`,
    returns 500 "Import failed". Suggested fix: return 400.
+
+## Wave 2 — investments
+
+Line numbers are for `apps/server/src` on `feat/rust-port` (`1ef3ebc`). Each
+item is exercised by an `investments*` parity scenario unless noted.
+
+1. **"Refresh price" never fetches a price.** `services/price.service.ts:27-41`:
+   `fetchCurrentPrice` returns the stored `current_value` with
+   `source_url: "manual://stored-value"`; the mfapi.in and Stooq lookups
+   (`_fetchMutualFundNAV` `:47`, `_fetchYahooFinancePrice` `:93`,
+   `fetchStooqQuote`) are dead code. So refresh works offline, and every call
+   still appends a `price_history` row and a `price_refresh` value-history row
+   whose `previous_value` equals `new_value` (`services/investment.service.ts:321-334`).
+   Suggested fix: either wire the lookups back in or drop the endpoint.
+   Rust: `services/price.rs` ports the dead lookups too (unit-tested parsing),
+   unused like in Node.
+2. **Refresh stores a timestamp in `current_value_at`.**
+   `services/investment.service.ts:342`: `current_value_at` (a `YYYY-MM-DD`
+   quote date everywhere else) gets `fetched_at`, a full ISO timestamp.
+   Harmless for market assets (only physical assets read it, and they can't be
+   refreshed). Suggested fix: store `fetched_at.slice(0, 10)`.
+3. **Refresh errors other than 404 become 500s.** `routes/investments.ts:16-21`
+   (`handleError` passes only 404 through): a physical asset (service 400
+   "Physical assets have no market price to refresh.", `:298-302`) and a zero
+   price (service 422, `:311-318`) both answer `500 {"error":"Internal server
+   error"}`. Suggested fix: pass 400 and 422 through.
+4. **Deleting an investment leaves its document files on disk.**
+   `services/investment.service.ts:268-279`: `investment_documents` rows go via
+   `ON DELETE CASCADE`, but the encrypted files in `uploads/documents` stay
+   (visible in the next backup export). Not transactional either. Suggested
+   fix: delete the documents through `deleteDocument` first, in one transaction.
+5. **A vehicle linked to an account still counts against that account's cash.**
+   `getPortfolioSummary` (`services/investment.service.ts:495-507`) skips
+   physical assets in the holdings buckets but subtracts *every* linked
+   holding, vehicles included, from an off-budget account's balance to get its
+   cash. Creating/updating a vehicle drops the link, but a backup import links
+   orphaned investments, vehicles included, to a generated
+   `brokerage-<cur>-imported` account (`routes/backup.ts:235-257`); the
+   bootstrap migration that unlinks vehicles (`db/bootstrap.ts:317`) only runs
+   at the next start. Suggested fix: filter physical assets out of `accInvs`
+   too, and skip them in the import's orphan step.
+6. **Literal path segments are also ids.** Hono tries routes in registration
+   order, so `GET /documents/documents` lists the documents of investment
+   "documents" (not document "documents"), `POST /documents/refresh-price`
+   refreshes investment "documents", `PATCH|DELETE /portfolio-summary` is a 404
+   "Investment not found", and `PATCH /:id/value-history/bulk-contributions` is
+   a 404 "History entry not found". Rust reproduces the order (`http/routes/investments.rs::dispatch`).
+7. **`PATCH` re-dating a vehicle silently moves its value.**
+   `services/investment.service.ts:204-225`: `{ current_value_at }` alone
+   re-anchors the depreciation curve without a history row, and with a rate
+   change it is overwritten by today (`columns.current_value_at = todayIso()`).
+   Suggested fix: treat a new anchor date as a new quote, or reject it without
+   `current_value`.
+
+Not reproduced (only reachable with a hand-made backup): non-numeric text in a
+REAL column (Node would concatenate strings in `purchase_value + contributions`),
+and investment ids / asset types / currencies named like `Object.prototype`
+members (`toString`, `__proto__`, …) as keys of `contributions` /
+`byAssetType` (Node would read the inherited function). Rust's currency lookup
+does reproduce the NaN for those keys (it reuses `policy::rate_for`).

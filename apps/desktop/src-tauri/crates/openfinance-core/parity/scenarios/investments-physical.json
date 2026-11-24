@@ -1,0 +1,351 @@
+{
+  "description": "Physical assets (vehicle): depreciation from the quote date to today, the account link being dropped, the rate cleared on non-physical assets, edits that echo the derived value (no new quote), rate changes re-anchoring at today's value, new quotes logged with the derived previous value, conversions between physical and market assets, and their exclusion from the portfolio summary.",
+  "steps": [
+    {
+      "name": "vehicle quoted in the past",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Family Car",
+        "asset_type": "vehicle",
+        "currency": "INR",
+        "purchase_value": 900000,
+        "purchase_date": "2021-03-01",
+        "current_value": 600000,
+        "current_value_at": "2024-01-15",
+        "depreciation_rate": 15,
+        "account_id": "fidelity-brokerage",
+        "notes": "hatchback"
+      },
+      "capture": {
+        "car": "id",
+        "cv": "current_value"
+      }
+    },
+    {
+      "name": "vehicle without a rate",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Old Bike",
+        "asset_type": "vehicle",
+        "purchase_value": 50000,
+        "purchase_date": "2015-01-01",
+        "current_value": 20000,
+        "current_value_at": "2019-01-01"
+      },
+      "capture": {
+        "bike": "id"
+      }
+    },
+    {
+      "name": "vehicle anchored today",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "New Van",
+        "asset_type": "vehicle",
+        "currency": "USD",
+        "purchase_value": 30000,
+        "purchase_date": "2026-01-01",
+        "current_value": 28000,
+        "depreciation_rate": 20
+      },
+      "capture": {
+        "van": "id"
+      }
+    },
+    {
+      "name": "vehicle at 100%/yr",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Scrap",
+        "asset_type": "vehicle",
+        "purchase_value": 1000,
+        "purchase_date": "2020-01-01",
+        "current_value": 500,
+        "current_value_at": "2020-01-01",
+        "depreciation_rate": 100
+      }
+    },
+    {
+      "name": "vehicle at 0%/yr",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Classic",
+        "asset_type": "vehicle",
+        "currency": "GBP",
+        "purchase_value": 10000,
+        "purchase_date": "2000-01-01",
+        "current_value": 25000,
+        "current_value_at": "2010-06-30",
+        "depreciation_rate": 0
+      }
+    },
+    {
+      "name": "vehicle quoted in the future",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Preorder",
+        "asset_type": "vehicle",
+        "currency": "EUR",
+        "purchase_value": 40000,
+        "purchase_date": "2026-01-01",
+        "current_value": 40000,
+        "current_value_at": "2030-01-01",
+        "depreciation_rate": 7.5
+      }
+    },
+    {
+      "name": "list with vehicles",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "filter vehicle",
+      "method": "GET",
+      "path": "/api/investments?asset_type=vehicle"
+    },
+    {
+      "name": "sort by gain",
+      "method": "GET",
+      "path": "/api/investments?sort=gain_desc"
+    },
+    {
+      "name": "summary excludes vehicles",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "echo the displayed value (no new quote)",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"current_value\": {{cv}}}"
+    },
+    {
+      "name": "no history from the echo",
+      "method": "GET",
+      "path": "/api/investments/{{car}}/value-history"
+    },
+    {
+      "name": "same rate (no re-anchor)",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "depreciation_rate": 15
+      }
+    },
+    {
+      "name": "new rate re-anchors today",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "depreciation_rate": 20
+      },
+      "capture": {
+        "cv2": "current_value"
+      }
+    },
+    {
+      "name": "still no history",
+      "method": "GET",
+      "path": "/api/investments/{{car}}/value-history"
+    },
+    {
+      "name": "echo the re-anchored value",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{\"current_value\": {{cv2}}, \"notes\": \"echo\"}"
+    },
+    {
+      "name": "new quote",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "current_value": 450000
+      }
+    },
+    {
+      "name": "quote with date, contribution and notes",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "current_value": 440000,
+        "current_value_at": "2025-06-01",
+        "contribution": 1000,
+        "notes": "service"
+      }
+    },
+    {
+      "name": "car history",
+      "method": "GET",
+      "path": "/api/investments/{{car}}/value-history"
+    },
+    {
+      "name": "clear the rate (re-anchor, flat)",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "depreciation_rate": null
+      }
+    },
+    {
+      "name": "date only",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "current_value_at": "2020-01-01"
+      }
+    },
+    {
+      "name": "rate again re-anchors over the given date",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "depreciation_rate": 10,
+        "current_value_at": "2021-01-01"
+      }
+    },
+    {
+      "name": "try to link to an account",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "account_id": "fidelity-brokerage"
+      }
+    },
+    {
+      "name": "rate out of range",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "depreciation_rate": 101
+      }
+    },
+    {
+      "name": "contribution on a vehicle",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "contribution": 2500
+      }
+    },
+    {
+      "name": "car history again",
+      "method": "GET",
+      "path": "/api/investments/{{car}}/value-history"
+    },
+    {
+      "name": "vehicle becomes a stock",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "asset_type": "stock",
+        "account_id": "fidelity-brokerage",
+        "depreciation_rate": 9
+      }
+    },
+    {
+      "name": "and back to a vehicle",
+      "method": "PATCH",
+      "path": "/api/investments/{{car}}",
+      "json": {
+        "asset_type": "vehicle",
+        "depreciation_rate": 5
+      }
+    },
+    {
+      "name": "bike gets a rate",
+      "method": "PATCH",
+      "path": "/api/investments/{{bike}}",
+      "json": {
+        "depreciation_rate": 8
+      }
+    },
+    {
+      "name": "bike new quote with date",
+      "method": "PATCH",
+      "path": "/api/investments/{{bike}}",
+      "json": {
+        "current_value": 15000,
+        "current_value_at": "2023-03-03"
+      }
+    },
+    {
+      "name": "van rename only",
+      "method": "PATCH",
+      "path": "/api/investments/{{van}}",
+      "json": {
+        "name": "Van"
+      }
+    },
+    {
+      "name": "seed ETF becomes a vehicle",
+      "method": "PATCH",
+      "path": "/api/investments/inv-voo",
+      "json": {
+        "asset_type": "vehicle"
+      }
+    },
+    {
+      "name": "seed vehicle gets a rate",
+      "method": "PATCH",
+      "path": "/api/investments/inv-voo",
+      "json": {
+        "depreciation_rate": 12
+      }
+    },
+    {
+      "name": "voo history",
+      "method": "GET",
+      "path": "/api/investments/inv-voo/value-history"
+    },
+    {
+      "name": "bulk match on the car",
+      "method": "POST",
+      "path": "/api/investments/{{car}}/value-history/bulk-contributions",
+      "json": {
+        "mode": "match_delta"
+      }
+    },
+    {
+      "name": "list after edits",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary after edits",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "accounts after vehicle edits",
+      "method": "GET",
+      "path": "/api/budget/accounts"
+    },
+    {
+      "name": "delete the car",
+      "method": "DELETE",
+      "path": "/api/investments/{{car}}"
+    },
+    {
+      "name": "car history after delete",
+      "method": "GET",
+      "path": "/api/investments/{{car}}/value-history"
+    },
+    {
+      "name": "list at end",
+      "method": "GET",
+      "path": "/api/investments"
+    }
+  ]
+}

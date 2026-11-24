@@ -1,0 +1,901 @@
+{
+  "description": "routes/investments.ts list / create / update / delete and portfolio summary: filters and sort, every CreateInvestmentSchema / UpdateInvestmentSchema rule, currency conversion with the seed rates (USD base), linked accounts, value history written by updates and contributions, not-found paths and Hono's literal-vs-:id route overlaps.",
+  "steps": [
+    {
+      "name": "list (seed)",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "filter stock",
+      "method": "GET",
+      "path": "/api/investments?asset_type=stock"
+    },
+    {
+      "name": "filter etf",
+      "method": "GET",
+      "path": "/api/investments?asset_type=etf"
+    },
+    {
+      "name": "empty filter ignored",
+      "method": "GET",
+      "path": "/api/investments?asset_type="
+    },
+    {
+      "name": "unknown filter",
+      "method": "GET",
+      "path": "/api/investments?asset_type=nope"
+    },
+    {
+      "name": "encoded filter",
+      "method": "GET",
+      "path": "/api/investments?asset_type=s%74ock"
+    },
+    {
+      "name": "sort gain_desc",
+      "method": "GET",
+      "path": "/api/investments?sort=gain_desc"
+    },
+    {
+      "name": "unknown sort",
+      "method": "GET",
+      "path": "/api/investments?sort=gain_asc"
+    },
+    {
+      "name": "portfolio summary (seed)",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "trailing slash",
+      "method": "GET",
+      "path": "/api/investments/"
+    },
+    {
+      "name": "PUT not allowed",
+      "method": "PUT",
+      "path": "/api/investments/inv-aapl"
+    },
+    {
+      "name": "GET /:id is not a route",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl"
+    },
+    {
+      "name": "unknown sub path",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/nope"
+    },
+    {
+      "name": "empty segment",
+      "method": "GET",
+      "path": "/api/investments//value-history"
+    },
+    {
+      "name": "create: no body",
+      "method": "POST",
+      "path": "/api/investments"
+    },
+    {
+      "name": "create: invalid JSON",
+      "method": "POST",
+      "path": "/api/investments",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{nope"
+    },
+    {
+      "name": "create: array",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": []
+    },
+    {
+      "name": "create: null",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": null
+    },
+    {
+      "name": "create: missing name",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: empty name",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: name not a string",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": 5,
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: bad asset_type",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "crypto",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: bad currency",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "currency": "CHF"
+      }
+    },
+    {
+      "name": "create: currency null",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "currency": null
+      }
+    },
+    {
+      "name": "create: purchase_value 0",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 0,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: purchase_value string",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": "1000",
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: missing purchase_value",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: negative current_value",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": -1
+      }
+    },
+    {
+      "name": "create: missing current_value",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15"
+      }
+    },
+    {
+      "name": "create: units 0",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "units": 0
+      }
+    },
+    {
+      "name": "create: units null",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "units": null
+      }
+    },
+    {
+      "name": "create: bad purchase_date",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-02-30",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: purchase_date with time",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15T00:00:00Z",
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: missing purchase_date",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "current_value": 1250
+      }
+    },
+    {
+      "name": "create: bad current_value_at",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "current_value_at": "15/01/2025"
+      }
+    },
+    {
+      "name": "create: current_value_at null",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "current_value_at": null
+      }
+    },
+    {
+      "name": "create: bad maturity_date",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "maturity_date": "2030-13-01"
+      }
+    },
+    {
+      "name": "create: notes null",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "notes": null
+      }
+    },
+    {
+      "name": "create: current_value_source number",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "current_value_source": 1
+      }
+    },
+    {
+      "name": "create: account_id number",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "account_id": 7
+      }
+    },
+    {
+      "name": "create: rate above 100",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "depreciation_rate": 100.01
+      }
+    },
+    {
+      "name": "create: negative rate",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "depreciation_rate": -1
+      }
+    },
+    {
+      "name": "create: rate string",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "depreciation_rate": "5"
+      }
+    },
+    {
+      "name": "create: unknown account (FK)",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250,
+        "account_id": "no-such-account"
+      }
+    },
+    {
+      "name": "create INR fund (defaults)",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Index Fund",
+        "asset_type": "mutual_fund",
+        "purchase_value": 1000,
+        "purchase_date": "2025-01-15",
+        "current_value": 1250
+      },
+      "capture": {
+        "fund": "id"
+      }
+    },
+    {
+      "name": "create USD stock linked to Fidelity",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Microsoft",
+        "asset_type": "stock",
+        "currency": "USD",
+        "purchase_value": 3000,
+        "units": 7.5,
+        "purchase_date": "2024-06-01",
+        "current_value": 3999.99,
+        "current_value_source": "broker",
+        "current_value_at": "2026-01-02",
+        "notes": "taxable",
+        "account_id": "fidelity-brokerage",
+        "maturity_date": null,
+        "depreciation_rate": 12,
+        "ignored": true
+      },
+      "capture": {
+        "msft": "id"
+      }
+    },
+    {
+      "name": "create SGD bond with maturity",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "SGS Bond",
+        "asset_type": "bond",
+        "currency": "SGD",
+        "purchase_value": 5000,
+        "purchase_date": "2023-03-03",
+        "current_value": 4800.5,
+        "maturity_date": "2033-03-03",
+        "account_id": null
+      },
+      "capture": {
+        "bond": "id"
+      }
+    },
+    {
+      "name": "create JPY cash",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Yen",
+        "asset_type": "cash",
+        "currency": "JPY",
+        "purchase_value": 100000,
+        "purchase_date": "2024-01-01",
+        "current_value": 98765
+      },
+      "capture": {
+        "yen": "id"
+      }
+    },
+    {
+      "name": "create NTD fd at zero value",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "TW Deposit",
+        "asset_type": "fd",
+        "currency": "NTD",
+        "purchase_value": 0.1,
+        "purchase_date": "2024-01-01",
+        "current_value": 0
+      },
+      "capture": {
+        "ntd": "id"
+      }
+    },
+    {
+      "name": "create GBP/EUR pair",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "aaa lowercase first?",
+        "asset_type": "other",
+        "currency": "GBP",
+        "purchase_value": 333.33,
+        "purchase_date": "2020-02-29",
+        "current_value": 111.11
+      }
+    },
+    {
+      "name": "create EUR structured",
+      "method": "POST",
+      "path": "/api/investments",
+      "json": {
+        "name": "Zeta Note",
+        "asset_type": "structured",
+        "currency": "EUR",
+        "purchase_value": 1e-7,
+        "purchase_date": "2021-01-01",
+        "current_value": 12345678.9
+      }
+    },
+    {
+      "name": "list after creates",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "sorted by gain",
+      "method": "GET",
+      "path": "/api/investments?sort=gain_desc"
+    },
+    {
+      "name": "summary after creates",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "accounts reflect linked holding",
+      "method": "GET",
+      "path": "/api/budget/accounts"
+    },
+    {
+      "name": "update unknown",
+      "method": "PATCH",
+      "path": "/api/investments/nope",
+      "json": {
+        "name": "x"
+      }
+    },
+    {
+      "name": "update unknown with invalid body",
+      "method": "PATCH",
+      "path": "/api/investments/nope",
+      "json": {
+        "name": ""
+      }
+    },
+    {
+      "name": "update: no body",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}"
+    },
+    {
+      "name": "update: invalid JSON",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": "{"
+    },
+    {
+      "name": "update: array",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": []
+    },
+    {
+      "name": "update: contribution null",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "contribution": null
+      }
+    },
+    {
+      "name": "update: contribution string",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "contribution": "5"
+      }
+    },
+    {
+      "name": "update: empty name",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "name": ""
+      }
+    },
+    {
+      "name": "update: bad currency",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "currency": "BTC"
+      }
+    },
+    {
+      "name": "update: units negative",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "units": -2
+      }
+    },
+    {
+      "name": "update: purchase_value 0",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "purchase_value": 0
+      }
+    },
+    {
+      "name": "update: bad dates",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "purchase_date": "x",
+        "current_value_at": "2025-1-1"
+      }
+    },
+    {
+      "name": "update: empty object",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {}
+    },
+    {
+      "name": "history untouched",
+      "method": "GET",
+      "path": "/api/investments/{{fund}}/value-history"
+    },
+    {
+      "name": "rename + notes",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "name": "Renamed Fund",
+        "notes": "edited",
+        "unknown": 1
+      }
+    },
+    {
+      "name": "new value (history row)",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 1400
+      }
+    },
+    {
+      "name": "same value again (no row)",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 1400
+      }
+    },
+    {
+      "name": "value + contribution + notes",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 2000,
+        "contribution": 500,
+        "notes": "payroll"
+      }
+    },
+    {
+      "name": "contribution only",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "contribution": 250
+      }
+    },
+    {
+      "name": "zero contribution only (no row)",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "contribution": 0
+      }
+    },
+    {
+      "name": "withdrawal",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 1800,
+        "contribution": -200
+      }
+    },
+    {
+      "name": "value to zero",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 0
+      }
+    },
+    {
+      "name": "value back",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "current_value": 1900.555
+      }
+    },
+    {
+      "name": "fund history",
+      "method": "GET",
+      "path": "/api/investments/{{fund}}/value-history"
+    },
+    {
+      "name": "change currency to USD",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "currency": "USD"
+      }
+    },
+    {
+      "name": "rate on a non-physical asset is cleared",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "depreciation_rate": 30
+      }
+    },
+    {
+      "name": "link to account",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "account_id": "ally-hysa"
+      }
+    },
+    {
+      "name": "unlink",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "account_id": null,
+        "maturity_date": null
+      }
+    },
+    {
+      "name": "link to unknown account (FK)",
+      "method": "PATCH",
+      "path": "/api/investments/{{fund}}",
+      "json": {
+        "account_id": "no-such-account"
+      }
+    },
+    {
+      "name": "units and source",
+      "method": "PATCH",
+      "path": "/api/investments/{{msft}}",
+      "json": {
+        "units": 8,
+        "current_value_source": "manual",
+        "current_value_at": "2026-02-02"
+      }
+    },
+    {
+      "name": "purchase changes",
+      "method": "PATCH",
+      "path": "/api/investments/{{msft}}",
+      "json": {
+        "purchase_value": 2500,
+        "purchase_date": "2024-05-01"
+      }
+    },
+    {
+      "name": "ntd value from zero",
+      "method": "PATCH",
+      "path": "/api/investments/{{ntd}}",
+      "json": {
+        "current_value": 0.3
+      }
+    },
+    {
+      "name": "list after updates",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary after updates",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "PATCH /portfolio-summary is PATCH /:id",
+      "method": "PATCH",
+      "path": "/api/investments/portfolio-summary",
+      "json": {
+        "name": "x"
+      }
+    },
+    {
+      "name": "DELETE /portfolio-summary is DELETE /:id",
+      "method": "DELETE",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "PATCH /documents is PATCH /:id",
+      "method": "PATCH",
+      "path": "/api/investments/documents",
+      "json": {}
+    },
+    {
+      "name": "delete unknown",
+      "method": "DELETE",
+      "path": "/api/investments/nope"
+    },
+    {
+      "name": "delete encoded unknown",
+      "method": "DELETE",
+      "path": "/api/investments/n%6Fpe%2F%E2%zz"
+    },
+    {
+      "name": "delete fund",
+      "method": "DELETE",
+      "path": "/api/investments/{{fund}}"
+    },
+    {
+      "name": "delete fund again",
+      "method": "DELETE",
+      "path": "/api/investments/{{fund}}"
+    },
+    {
+      "name": "fund history after delete",
+      "method": "GET",
+      "path": "/api/investments/{{fund}}/value-history"
+    },
+    {
+      "name": "delete seed holding with history",
+      "method": "DELETE",
+      "path": "/api/investments/inv-aapl"
+    },
+    {
+      "name": "seed history after delete",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/value-history"
+    },
+    {
+      "name": "seed prices after delete",
+      "method": "GET",
+      "path": "/api/investments/inv-aapl/price-history"
+    },
+    {
+      "name": "list after deletes",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary after deletes",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "HEAD list",
+      "method": "HEAD",
+      "path": "/api/investments"
+    },
+    {
+      "name": "HEAD summary",
+      "method": "HEAD",
+      "path": "/api/investments/portfolio-summary"
+    }
+  ]
+}

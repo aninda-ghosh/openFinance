@@ -1,0 +1,268 @@
+{
+  "description": "Investment documents (routes/investments.ts /:id/documents and /documents/:docId) on documents restored from a backup ZIP with fixed disk names: list, download, delete, cascade on investment delete, Hono's route overlaps (/documents/documents lists the documents of investment \"documents\"; DELETE /documents/documents deletes document \"documents\"), and every upload rejection. A successful upload is not compared (its disk name doc_<nanoid(12)><ext> is random, see STATUS.md); it is covered by the Rust route test in http/routes/investments.rs. Also: imported holdings (an orphaned vehicle linked to the generated brokerage, a linked vehicle) in the list and portfolio summary.",
+  "steps": [
+    {
+      "name": "import fixture backup",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "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"
+    },
+    {
+      "name": "list after import",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary after import (vehicle in a linked account)",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "inv-a value history (null contribution)",
+      "method": "GET",
+      "path": "/api/investments/inv-a/value-history"
+    },
+    {
+      "name": "inv-a price history",
+      "method": "GET",
+      "path": "/api/investments/inv-a/price-history"
+    },
+    {
+      "name": "inv-a price history window",
+      "method": "GET",
+      "path": "/api/investments/inv-a/price-history?from=2025-01-01T00:00:00.001Z&to=2026-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "inv-a documents",
+      "method": "GET",
+      "path": "/api/investments/inv-a/documents"
+    },
+    {
+      "name": "documents of investment 'documents' (route overlap)",
+      "method": "GET",
+      "path": "/api/investments/documents/documents"
+    },
+    {
+      "name": "documents of encoded id",
+      "method": "GET",
+      "path": "/api/investments/%64ocuments/documents"
+    },
+    {
+      "name": "unknown investment documents",
+      "method": "GET",
+      "path": "/api/investments/nope/documents"
+    },
+    {
+      "name": "download pdf",
+      "method": "GET",
+      "path": "/api/investments/documents/doc-a1"
+    },
+    {
+      "name": "download txt",
+      "method": "GET",
+      "path": "/api/investments/documents/doc-a2"
+    },
+    {
+      "name": "download png via encoded id",
+      "method": "GET",
+      "path": "/api/investments/documents/doc%2Da1"
+    },
+    {
+      "name": "download account doc through investments route",
+      "method": "GET",
+      "path": "/api/investments/documents/doc-acc"
+    },
+    {
+      "name": "download missing file",
+      "method": "GET",
+      "path": "/api/investments/documents/doc-gone"
+    },
+    {
+      "name": "download unknown",
+      "method": "GET",
+      "path": "/api/investments/documents/nope"
+    },
+    {
+      "name": "download bad escape",
+      "method": "GET",
+      "path": "/api/investments/documents/%E2%zz"
+    },
+    {
+      "name": "HEAD download",
+      "method": "HEAD",
+      "path": "/api/investments/documents/doc-a2"
+    },
+    {
+      "name": "PUT download path",
+      "method": "PUT",
+      "path": "/api/investments/documents/doc-a2"
+    },
+    {
+      "name": "POST /documents/:docId is not a route",
+      "method": "POST",
+      "path": "/api/investments/documents/doc-a1",
+      "json": {}
+    },
+    {
+      "name": "upload: no body",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents"
+    },
+    {
+      "name": "upload: JSON body",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "json": {
+        "file": "x"
+      }
+    },
+    {
+      "name": "upload: urlencoded",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "headers": {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "body": "file=abc"
+    },
+    {
+      "name": "upload: multipart without file",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "multipart": {
+        "fields": {
+          "name": "x",
+          "notes": "n"
+        }
+      }
+    },
+    {
+      "name": "upload: file field as text",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "multipart": {
+        "fields": {
+          "file": "not a file"
+        }
+      }
+    },
+    {
+      "name": "upload: missing closing boundary",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "headers": {
+        "Content-Type": "multipart/form-data; boundary=----parityBoundary0123456789abcdef"
+      },
+      "body": "------parityBoundary0123456789abcdef\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\n\r\nx\r\n"
+    },
+    {
+      "name": "upload: missing boundary",
+      "method": "POST",
+      "path": "/api/investments/inv-a/documents",
+      "headers": {
+        "Content-Type": "multipart/form-data"
+      },
+      "body": "x"
+    },
+    {
+      "name": "upload to investment 'documents' without a file (route overlap)",
+      "method": "POST",
+      "path": "/api/investments/documents/documents"
+    },
+    {
+      "name": "documents unchanged",
+      "method": "GET",
+      "path": "/api/investments/inv-a/documents"
+    },
+    {
+      "name": "delete document doc-a2",
+      "method": "DELETE",
+      "path": "/api/investments/documents/doc-a2"
+    },
+    {
+      "name": "delete doc-a2 again",
+      "method": "DELETE",
+      "path": "/api/investments/documents/doc-a2"
+    },
+    {
+      "name": "delete document with missing file",
+      "method": "DELETE",
+      "path": "/api/investments/documents/doc-gone"
+    },
+    {
+      "name": "DELETE /documents/documents deletes document 'documents'",
+      "method": "DELETE",
+      "path": "/api/investments/documents/documents"
+    },
+    {
+      "name": "delete unknown document",
+      "method": "DELETE",
+      "path": "/api/investments/documents/nope"
+    },
+    {
+      "name": "inv-a documents after deletes",
+      "method": "GET",
+      "path": "/api/investments/inv-a/documents"
+    },
+    {
+      "name": "investment 'documents' documents after delete",
+      "method": "GET",
+      "path": "/api/investments/documents/documents"
+    },
+    {
+      "name": "all documents",
+      "method": "GET",
+      "path": "/api/documents"
+    },
+    {
+      "name": "delete investment inv-a (documents cascade)",
+      "method": "DELETE",
+      "path": "/api/investments/inv-a"
+    },
+    {
+      "name": "inv-a documents after investment delete",
+      "method": "GET",
+      "path": "/api/investments/inv-a/documents"
+    },
+    {
+      "name": "all documents after cascade",
+      "method": "GET",
+      "path": "/api/documents"
+    },
+    {
+      "name": "delete investment 'documents'",
+      "method": "DELETE",
+      "path": "/api/investments/documents"
+    },
+    {
+      "name": "list after deletes",
+      "method": "GET",
+      "path": "/api/investments"
+    },
+    {
+      "name": "summary after deletes",
+      "method": "GET",
+      "path": "/api/investments/portfolio-summary"
+    },
+    {
+      "name": "export after deletes",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "upload to an unknown investment (FK after writing the file)",
+      "method": "POST",
+      "path": "/api/investments/nope/documents",
+      "headers": {
+        "Content-Type": "multipart/form-data; boundary=----parityBoundary0123456789abcdef"
+      },
+      "body": "------parityBoundary0123456789abcdef\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.pdf\"\r\nContent-Type: application/pdf\r\n\r\n%PDF\r\n------parityBoundary0123456789abcdef\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nN\r\n------parityBoundary0123456789abcdef--\r\n"
+    },
+    {
+      "name": "no row from the failed upload",
+      "method": "GET",
+      "path": "/api/documents"
+    }
+  ]
+}
