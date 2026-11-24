@@ -28,7 +28,10 @@ export function createNormaliser({ known, runStartedAt }) {
 
   function mapString(s) {
     if (isNow(s)) return "<now>";
-    if (ID_RE.test(s) && !known.has(s)) {
+    // A real nanoid has an uppercase letter, digit or "-" except with odds of
+    // (27/64)^21 ≈ 1e-8; requiring one keeps 21-char words such as the key
+    // `investment_asset_type` from being masked as ids.
+    if (ID_RE.test(s) && /[A-Z0-9-]/.test(s) && !known.has(s)) {
       if (!ids.has(s)) ids.set(s, `<id:${ids.size + 1}>`);
       return ids.get(s);
     }
