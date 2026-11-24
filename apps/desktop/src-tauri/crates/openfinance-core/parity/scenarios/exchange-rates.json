@@ -1,5 +1,5 @@
 {
-  "description": "routes/exchange-rates.ts with the network disabled (every live refresh fails with 503). TODO(wave 1): after budget routes exist, add envelope reads after the base-currency changes to show scaleBudgetEnvelopes' effect.",
+  "description": "routes/exchange-rates.ts with the network disabled (every live refresh fails with 503). Envelope reads after each base-currency change show scaleBudgetEnvelopes' effect.",
   "steps": [
     { "name": "list seeded rates", "method": "GET", "path": "/api/exchange-rates" },
     { "name": "trailing slash is a 404", "method": "GET", "path": "/api/exchange-rates/" },
@@ -25,14 +25,20 @@
 
     { "name": "set base to the current one (no scaling), refresh fails", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "USD" } },
     { "name": "base still USD", "method": "GET", "path": "/api/exchange-rates/base-currency" },
+    { "name": "May envelopes unscaled", "method": "GET", "path": "/api/budget/envelopes?month=2026-05" },
     { "name": "set base INR (scales envelopes), refresh fails", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "INR" } },
     { "name": "base is INR despite the 503", "method": "GET", "path": "/api/exchange-rates/base-currency" },
     { "name": "rates relative to the new base", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "May envelopes scaled to INR", "method": "GET", "path": "/api/budget/envelopes?month=2026-05" },
+    { "name": "June summary in INR", "method": "GET", "path": "/api/budget/reports/summary?month=2026-06" },
     { "name": "set base NTD (no stored NTD rate)", "method": "POST", "path": "/api/exchange-rates/base-currency", "json": { "base_currency": "NTD" } },
     { "name": "base is NTD", "method": "GET", "path": "/api/exchange-rates/base-currency" },
     { "name": "rates with NTD base", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "May envelopes scaled to NTD", "method": "GET", "path": "/api/budget/envelopes?month=2026-05" },
     { "name": "set base with extra fields and allowed origin", "method": "POST", "path": "/api/exchange-rates/base-currency", "headers": { "Origin": "tauri://localhost" }, "json": { "base_currency": "SGD", "other": true } },
     { "name": "base is SGD", "method": "GET", "path": "/api/exchange-rates/base-currency", "headers": { "Origin": "tauri://localhost" } },
-    { "name": "final rates", "method": "GET", "path": "/api/exchange-rates" }
+    { "name": "final rates", "method": "GET", "path": "/api/exchange-rates" },
+    { "name": "final May envelopes (SGD)", "method": "GET", "path": "/api/budget/envelopes?month=2026-05" },
+    { "name": "final accounts", "method": "GET", "path": "/api/budget/accounts" }
   ]
 }

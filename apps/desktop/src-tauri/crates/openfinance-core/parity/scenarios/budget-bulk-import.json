@@ -1,0 +1,494 @@
+{
+  "description": "routes/budget.ts bulk add (preview: imported flags, duplicates, suggested categories; create: zod row messages, business-rule row messages, all-or-nothing save, source-key dedupe) and CSV import (csv-parse rules, row errors, dedupe, all-or-nothing), with reads after each mutation.",
+  "steps": [
+    {
+      "name": "preview: validation",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "",
+        "category_month": "2026-5",
+        "rows": [
+          {
+            "date": "x",
+            "payee": 1,
+            "amount": "2"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview: invalid JSON",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "body": "nope"
+    },
+    {
+      "name": "preview: no rows",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "nope",
+        "category_month": "2026-05",
+        "rows": []
+      }
+    },
+    {
+      "name": "preview: unknown account",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "nope",
+        "category_month": "2026-05",
+        "rows": [
+          {
+            "date": "2026-05-10",
+            "payee": "x",
+            "amount": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview: source key too long",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "chase-checking",
+        "category_month": "2026-05",
+        "rows": [
+          {
+            "date": "2026-05-10",
+            "payee": "x",
+            "amount": 1,
+            "source_key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview against seeded history",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "chase-checking",
+        "category_month": "2026-06",
+        "rows": [
+          {
+            "date": "2026-05-11",
+            "payee": "WHOLE FOODS MKT #123",
+            "amount": -125.5,
+            "source_key": "a1"
+          },
+          {
+            "date": "2026-05-28",
+            "payee": "Transfer to Ally",
+            "amount": 500,
+            "source_key": "a2"
+          },
+          {
+            "date": "2026-05-03",
+            "payee": "APT COMPLEX LANDLORD ACH",
+            "amount": 1200
+          },
+          {
+            "date": "2026-06-30",
+            "payee": "Sushi Restaurant",
+            "amount": 10
+          },
+          {
+            "date": "2026-05-01",
+            "payee": "The Co",
+            "amount": 5000.004
+          }
+        ]
+      }
+    },
+    {
+      "name": "preview: GET is a 404",
+      "method": "GET",
+      "path": "/api/budget/transactions/bulk/preview"
+    },
+    {
+      "name": "bulk: invalid JSON",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "body": "{"
+    },
+    {
+      "name": "bulk: missing account",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "rows": [
+          {
+            "date": "2026-05-10",
+            "payee": "x",
+            "amount": 1,
+            "type": "income"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulk: empty rows",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "chase-checking",
+        "rows": []
+      }
+    },
+    {
+      "name": "bulk: rows not an array",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "chase-checking",
+        "rows": "x"
+      }
+    },
+    {
+      "name": "bulk: row problems",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "",
+        "rows": [
+          {
+            "date": "2026-02-29",
+            "payee": "   ",
+            "amount": 0,
+            "type": "refund"
+          },
+          5,
+          {
+            "date": "2026-05-10",
+            "payee": "ok",
+            "amount": 1,
+            "type": "income",
+            "direction": "sideways",
+            "source_key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+            "envelope_id": ""
+          },
+          {
+            "payee": "x"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulk: unknown account",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "nope",
+        "rows": [
+          {
+            "date": "2026-05-10",
+            "payee": "x",
+            "amount": 1,
+            "type": "income"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulk: business-rule problems",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "chase-checking",
+        "rows": [
+          {
+            "date": "2026-05-10",
+            "payee": "Shop",
+            "amount": 1,
+            "type": "expense"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Shop",
+            "amount": 1,
+            "type": "expense",
+            "envelope_id": "gone"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "out"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "chase-checking"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "nope"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "hdfc-checking-inr"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "ally-hysa"
+          },
+          {
+            "date": "2026-05-10",
+            "payee": "Move",
+            "amount": 1,
+            "type": "transfer",
+            "direction": "in",
+            "counterpart_account_id": "ally-hysa"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulk create",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "chase-checking",
+        "rows": [
+          {
+            "date": "2026-06-03",
+            "payee": "  Blue Bottle  ",
+            "amount": 6.5,
+            "type": "expense",
+            "envelope_id": "env-2026-05-16",
+            "notes": "  ",
+            "source_key": "line-1"
+          },
+          {
+            "date": "2026-06-04",
+            "payee": "Paycheck",
+            "amount": 2500,
+            "type": "income",
+            "source_key": "line-2"
+          },
+          {
+            "date": "2026-06-05",
+            "payee": "Refund",
+            "amount": 20,
+            "type": "income",
+            "income_category": "cashback",
+            "envelope_id": "env-2026-05-16",
+            "notes": " r "
+          },
+          {
+            "date": "2026-06-06",
+            "payee": "To brokerage",
+            "amount": 300,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "fidelity-brokerage",
+            "envelope_id": "env-2026-05-20",
+            "source_key": "line-4"
+          },
+          {
+            "date": "2026-06-07",
+            "payee": "From HYSA",
+            "amount": 50,
+            "type": "transfer",
+            "direction": "in",
+            "counterpart_account_id": "ally-hysa",
+            "notes": "top up"
+          },
+          {
+            "date": "2026-06-08",
+            "payee": "Card",
+            "amount": 40,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "amex-gold"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bulk create again skips keyed rows",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk",
+      "json": {
+        "account_id": "chase-checking",
+        "rows": [
+          {
+            "date": "2026-06-03",
+            "payee": "Blue Bottle",
+            "amount": 6.5,
+            "type": "expense",
+            "envelope_id": "env-2026-05-16",
+            "source_key": "line-1"
+          },
+          {
+            "date": "2026-06-09",
+            "payee": "Paycheck",
+            "amount": 2500,
+            "type": "income",
+            "source_key": "line-2"
+          },
+          {
+            "date": "2026-06-10",
+            "payee": "To brokerage",
+            "amount": 300,
+            "type": "transfer",
+            "direction": "out",
+            "counterpart_account_id": "fidelity-brokerage",
+            "envelope_id": "env-2026-05-20",
+            "source_key": "line-4"
+          }
+        ]
+      }
+    },
+    {
+      "name": "chase June transactions",
+      "method": "GET",
+      "path": "/api/budget/transactions?account_id=chase-checking&date_from=2026-06-01&date_to=2026-06-30"
+    },
+    {
+      "name": "June envelopes after bulk",
+      "method": "GET",
+      "path": "/api/budget/envelopes?month=2026-06"
+    },
+    {
+      "name": "preview after bulk",
+      "method": "POST",
+      "path": "/api/budget/transactions/bulk/preview",
+      "json": {
+        "account_id": "chase-checking",
+        "category_month": "2026-07",
+        "rows": [
+          {
+            "date": "2026-06-04",
+            "payee": "BLUE BOTTLE COFFEE",
+            "amount": 6.5,
+            "source_key": "line-1"
+          },
+          {
+            "date": "2026-06-09",
+            "payee": "x",
+            "amount": 300,
+            "source_key": "line-4"
+          }
+        ]
+      }
+    },
+    {
+      "name": "import: no account_id",
+      "method": "POST",
+      "path": "/api/budget/import",
+      "body": "date,payee,amount,type\n"
+    },
+    {
+      "name": "import: empty account_id",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=",
+      "body": "a\n1\n"
+    },
+    {
+      "name": "import: unknown account",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=nope",
+      "body": "date,payee,amount,type\n2026-04-01,X,1,income\n"
+    },
+    {
+      "name": "import: unparseable CSV",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=chase-checking",
+      "body": "a,b\n1,2,3\n"
+    },
+    {
+      "name": "import: unclosed quote",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=chase-checking",
+      "body": "a,b\n\"1,2\n"
+    },
+    {
+      "name": "import: empty body",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=chase-checking"
+    },
+    {
+      "name": "import mixed rows",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr&format=generic",
+      "body": "date,payee,amount,type,notes\r\n2026-04-01,Salary,50000,INCOME,april\r\n2026-04-02, Grocer ,1200.50,expense,\r\n2026-04-02, Grocer ,1200.50,expense,\r\n\r\n2026-04-03,\"Quoted, payee\",12abc,expense,\"multi\"\"quote\"\r\n2026-04-04,Bad,-5,expense,\r\n2026-04-05,Zero,0,income,\r\n2026-04-06,Bad,abc,income,\r\n2026-04-07,Odd,5,refund,\r\n2026-04-08,Move,7,transfer,x\r\n"
+    },
+    {
+      "name": "import same rows again",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr",
+      "body": "date,payee,amount,type,notes\r\n2026-04-01,Salary,50000,INCOME,april\r\n2026-04-02, Grocer ,1200.50,expense,\r\n"
+    },
+    {
+      "name": "import with BOM header",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr",
+      "bodyBase64": "77u/ZGF0ZSxwYXllZSxhbW91bnQsdHlwZQoyMDI2LTAzLTAxLEJvbSwxMCxpbmNvbWUK"
+    },
+    {
+      "name": "import missing columns",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr",
+      "body": "payee,amount\nX,5\n"
+    },
+    {
+      "name": "import missing date rolls back",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr",
+      "body": "date,payee,amount,type\n2026-03-10,Fine,1,income\n,NoDate,2,income\n"
+    },
+    {
+      "name": "import without payee column",
+      "method": "POST",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr",
+      "body": "date,amount,type\n2026-03-15,3.5,income\n"
+    },
+    {
+      "name": "import GET is a 404",
+      "method": "GET",
+      "path": "/api/budget/import?account_id=hdfc-checking-inr"
+    },
+    {
+      "name": "hdfc after imports",
+      "method": "GET",
+      "path": "/api/budget/transactions?account_id=hdfc-checking-inr&limit=100"
+    },
+    {
+      "name": "summary April after import",
+      "method": "GET",
+      "path": "/api/budget/reports/summary?month=2026-04"
+    },
+    {
+      "name": "accounts after bulk and import",
+      "method": "GET",
+      "path": "/api/budget/accounts"
+    }
+  ]
+}

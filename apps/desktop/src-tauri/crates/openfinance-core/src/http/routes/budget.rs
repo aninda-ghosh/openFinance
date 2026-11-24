@@ -235,15 +235,33 @@ fn validate(schema: &zod::Schema, body: &Value) -> ApiResult<Value> {
         .map_err(|issues| ApiError::validation(zod::details(&issues)))
 }
 
-/// A `YYYY-MM` month as the regex sees it (`regex.test` stringifies).
-fn month_of(v: Option<&Value>) -> Option<String> {
-    let s = match v? {
-        Value::String(s) => s.clone(),
-        // better-sqlite3 flattens a one-element array into its value.
-        Value::Array(items) if items.len() == 1 => items[0].as_str()?.to_string(),
-        _ => return None,
-    };
-    zod::is_year_month(&s).then_some(s)
+/// `body?.month` checked the way budget.ts does: `regex.test` stringifies
+/// (so `["2026-05"]` and `[["2026-05"]]` pass), then better-sqlite3 binds
+/// it: a one-element array spreads into its value, a nested one throws
+/// (`500 Internal server error`). Only single-element arrays can stringify to
+/// a comma-free `YYYY-MM`.
+fn month_of(v: Option<&Value>) -> ApiResult<String> {
+    let mut depth = 0;
+    let mut cur = v;
+    while let Some(Value::Array(items)) = cur {
+        if items.len() != 1 {
+            return Err(ApiError::bad_request(MONTH_REQUIRED));
+        }
+        cur = items.first();
+        depth += 1;
+    }
+    match cur {
+        Some(Value::String(s)) if zod::is_year_month(s) => {
+            if depth > 1 {
+                Err(ApiError::plain(
+                    "SQLite3 can only bind numbers, strings, bigints, buffers, and null",
+                ))
+            } else {
+                Ok(s.clone())
+            }
+        }
+        _ => Err(ApiError::bad_request(MONTH_REQUIRED)),
+    }
 }
 
 /// An uncaught TypeError in a Hono handler: Hono's default error handler.
@@ -317,8 +335,7 @@ async fn list_envelopes(
 
 async fn copy_previous(State(state): State<AppState>, body: Bytes) -> ApiResult<Json<Value>> {
     let body = body_or_null(&body);
-    let month =
-        month_of(field(&body, "month")).ok_or_else(|| ApiError::bad_request(MONTH_REQUIRED))?;
+    let month = month_of(field(&body, "month")).map_err(|e| e.handled(PASSTHROUGH))?;
     let result = state
         .db(move |conn| budget::copy_previous_month_budget(conn, &month))
         .await
@@ -328,8 +345,7 @@ async fn copy_previous(State(state): State<AppState>, body: Bytes) -> ApiResult<
 
 async fn clear_budget(State(state): State<AppState>, body: Bytes) -> ApiResult<Json<Value>> {
     let body = body_or_null(&body);
-    let month =
-        month_of(field(&body, "month")).ok_or_else(|| ApiError::bad_request(MONTH_REQUIRED))?;
+    let month = month_of(field(&body, "month")).map_err(|e| e.handled(PASSTHROUGH))?;
     let result = state
         .db(move |conn| budget::clear_month_budget(conn, &month))
         .await
