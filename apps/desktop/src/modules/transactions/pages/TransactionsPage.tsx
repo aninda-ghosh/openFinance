@@ -1,4 +1,6 @@
-import { ChevronLeft, ChevronRight, Search, X, Edit2, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListPlus, Search, X, Edit2, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { MOD } from "@/lib/shortcuts";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -121,6 +123,7 @@ function Filters({
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <Input
           placeholder="Search payee…"
+          data-shortcut="search"
           value={filters.search ?? ""}
           onChange={(e) => set({ search: e.target.value || undefined })}
           className="pl-8 w-48 h-8 text-sm"
@@ -390,11 +393,21 @@ export default function TransactionsPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
         <h1 className="text-xl font-semibold">Transactions</h1>
-        {total > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {total.toLocaleString()} total
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {total > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {total.toLocaleString()} total
+            </span>
+          )}
+          <Link
+            to="/bulk-add"
+            title={`Paste a statement (${MOD}⇧N)`}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <ListPlus className="w-4 h-4" />
+            Bulk add
+          </Link>
+        </div>
       </div>
 
       {/* Filter bar */}

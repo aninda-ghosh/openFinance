@@ -1,6 +1,10 @@
 import type {
   AccountListResponse,
   AccountResponse,
+  BulkCreateRequest,
+  BulkCreateResponse,
+  BulkPreviewRequest,
+  BulkPreviewResponse,
   CreateAccountRequest,
   CreateEnvelopeRequest,
   CreateTransactionRequest,
@@ -123,6 +127,20 @@ export const budgetApi = {
   deleteTransaction: (id: string) =>
     apiFetch<{ success: boolean }>(`${BASE}/transactions/${id}`, {
       method: "DELETE",
+    }),
+
+  bulkPreview: (data: BulkPreviewRequest) =>
+    apiFetch<BulkPreviewResponse>(`${BASE}/transactions/bulk/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  bulkCreate: (data: BulkCreateRequest) =>
+    apiFetch<BulkCreateResponse>(`${BASE}/transactions/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     }),
 
   createTransfer: (data: {

@@ -1,6 +1,6 @@
 import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
-import { convertFromINR, formatCurrency, formatINR, localIsoDate } from "@openfinance/shared/utils";
+import { convertFromINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 import {
   ArrowUpDown,
   ChevronDown,
@@ -125,12 +125,17 @@ function MoneyCell({
   native,
   nativeCurrency,
   inr,
+  fmt,
+  defaultCurrency,
 }: {
   native: number;
   nativeCurrency: string;
   inr: number;
+  fmt: (inr: number) => string;
+  defaultCurrency: string;
 }) {
-  const isINR = nativeCurrency === "INR";
+  // `inr` is the value converted to the app's default/base currency
+  const isINR = nativeCurrency === defaultCurrency;
   return (
     <div className="text-right">
       <div className="font-medium tabular-nums">
@@ -138,7 +143,7 @@ function MoneyCell({
       </div>
       {!isINR && (
         <div className="text-xs text-muted-foreground tabular-nums">
-          ≈ {formatINR(inr)}
+          ≈ {fmt(inr)}
         </div>
       )}
     </div>
@@ -240,6 +245,9 @@ function LinkedAccountSheet({
     rates
   );
   const runningBalances = useRunningBalances(txns, seedBalance);
+  const linkedHoldings = (investmentsData?.investments ?? []).filter(
+    (i: any) => i.account_id === account.id && !isPhysicalAsset(i.asset_type)
+  );
 
   const showHint = account.currency !== defaultCurrency;
   const fmtDefault = (inr: number) =>
@@ -271,6 +279,37 @@ function LinkedAccountSheet({
             </span>
           </p>
         </SheetHeader>
+
+        {/* Where the balance comes from: linked holdings + cash/opening balance */}
+        <div className="mx-6 mt-4 rounded-2xl border border-border/30 bg-card/50 px-4 py-3 text-xs flex-shrink-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-2 select-none">
+            Balance breakdown
+          </p>
+          {linkedHoldings.map((inv) => (
+            <div key={inv.id} className="flex justify-between py-0.5">
+              <span className="truncate pr-3">
+                {inv.name}
+                <span className="text-muted-foreground">
+                  {" "}· {ASSET_LABELS[inv.asset_type] ?? inv.asset_type}
+                </span>
+              </span>
+              <span className="tabular-nums">
+                {formatCurrency(
+                  convertFromINR(inv.current_value_inr, account.currency as any, rates),
+                  account.currency
+                )}
+              </span>
+            </div>
+          ))}
+          <div className="flex justify-between py-0.5 border-t border-border/30 mt-1 pt-1">
+            <span className="text-muted-foreground">
+              Cash &amp; opening balance (not from holdings)
+            </span>
+            <span className="tabular-nums">
+              {formatCurrency(seedBalance, account.currency)}
+            </span>
+          </div>
+        </div>
 
         {/* Floating Quick Entry Form */}
         <div className="bg-card border border-border/30 rounded-3xl shadow-sm mx-6 my-4 overflow-hidden animate-fade-in flex-shrink-0">
@@ -1959,6 +1998,8 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                   native={inv.cost_basis}
                                   nativeCurrency={inv.currency}
                                   inr={inv.cost_basis_inr}
+                                  fmt={fmt}
+                                  defaultCurrency={defaultCurrency}
                                 />
                               </td>
                               <td className="px-4 py-3">
@@ -1966,6 +2007,8 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                   native={inv.current_value}
                                   nativeCurrency={inv.currency}
                                   inr={inv.current_value_inr}
+                                  fmt={fmt}
+                                  defaultCurrency={defaultCurrency}
                                 />
                               </td>
                               <td className="px-4 py-3">
@@ -2127,6 +2170,8 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                           native={inv.cost_basis}
                           nativeCurrency={inv.currency}
                           inr={inv.cost_basis_inr}
+                                  fmt={fmt}
+                                  defaultCurrency={defaultCurrency}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -2134,6 +2179,8 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                           native={inv.current_value}
                           nativeCurrency={inv.currency}
                           inr={inv.current_value_inr}
+                                  fmt={fmt}
+                                  defaultCurrency={defaultCurrency}
                         />
                       </td>
                       <td className="px-4 py-3">

@@ -1,4 +1,6 @@
 import {
+  BulkCreateSchema,
+  BulkPreviewSchema,
   CreateAccountSchema,
   CreateEnvelopeSchema,
   CreateRecurringSchema,
@@ -12,6 +14,11 @@ import {
 } from "@openfinance/shared/schemas";
 import { type Context, Hono } from "hono";
 import * as budgetService from "../services/budget.service";
+import {
+  BulkValidationError,
+  createBulk,
+  previewBulk,
+} from "../services/bulk.service";
 import * as recurringService from "../services/recurring.service";
 
 export const budgetRouter = new Hono();
@@ -277,6 +284,44 @@ budgetRouter.post("/transactions/transfer", async (c) => {
       return c.json({ skipped: true, reason: "duplicate" }, 409);
     return c.json(result, 201);
   } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+// ─── Bulk add ─────────────────────────────────────────────────────────────────
+
+budgetRouter.post("/transactions/bulk/preview", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = BulkPreviewSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Validation failed", details: parsed.error }, 400);
+  }
+  try {
+    return c.json(await previewBulk(parsed.data));
+  } catch (err) {
+    return handleError(c, err);
+  }
+});
+
+budgetRouter.post("/transactions/bulk", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = BulkCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    // Point each problem at its row so the grid can highlight it.
+    const rows = parsed.error.issues
+      .filter((i) => i.path[0] === "rows" && typeof i.path[1] === "number")
+      .map((i) => ({ index: i.path[1] as number, message: i.message }));
+    return c.json(
+      { error: rows.length ? "Some rows need attention" : "Validation failed", rows },
+      400
+    );
+  }
+  try {
+    return c.json(await createBulk(parsed.data), 201);
+  } catch (err) {
+    if (err instanceof BulkValidationError) {
+      return c.json({ error: err.message, rows: err.errors }, 400);
+    }
     return handleError(c, err);
   }
 });

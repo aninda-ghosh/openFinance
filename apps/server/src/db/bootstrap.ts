@@ -310,6 +310,13 @@ export async function bootstrapSchema(): Promise<void> {
     );
   }
 
+  // ── Physical assets are never holdings inside an account ────────────────────
+  // Older rows (or imports) could link a vehicle to an account, folding the car
+  // into that account's balance on top of the net-worth "Physical assets" bucket.
+  getSqlite().exec(
+    "UPDATE investments SET account_id = NULL WHERE asset_type = 'vehicle' AND account_id IS NOT NULL"
+  );
+
   // ── Indexes ─────────────────────────────────────────────────────────────────
   await sql`CREATE INDEX IF NOT EXISTS idx_txn_account ON transactions (account_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_txn_date ON transactions (date)`;

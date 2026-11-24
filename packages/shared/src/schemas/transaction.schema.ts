@@ -64,3 +64,48 @@ export const TransactionFiltersSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   off_budget: z.union([z.boolean(), z.string()]).optional(),
 });
+
+// ─── Bulk add ─────────────────────────────────────────────────────────────────
+//
+// Many rows for ONE account (e.g. a pasted card statement), saved in a single
+// all-or-nothing database transaction.
+
+export const BulkRowSchema = z.object({
+  date: z.string().date("Date must be ISO format YYYY-MM-DD"),
+  payee: z.string().trim().min(1, "Payee is required"),
+  // Positive magnitude; direction comes from `type` (and `direction` for transfers).
+  amount: z.number().positive("Amount must be greater than zero"),
+  type: TransactionTypeEnum,
+  envelope_id: z.string().min(1).optional(),
+  income_category: IncomeCategoryEnum.optional(),
+  notes: z.string().optional(),
+  // Transfers only: the other account, and whether money moves into ("in")
+  // or out of ("out") the batch account.
+  counterpart_account_id: z.string().min(1).optional(),
+  direction: z.enum(["in", "out"]).optional(),
+  // Identifies the pasted line this row came from. Saved as an import hash so
+  // pasting the same statement again skips rows that are already in.
+  source_key: z.string().max(1000).optional(),
+});
+
+export const BulkCreateSchema = z.object({
+  account_id: z.string().min(1),
+  rows: z.array(BulkRowSchema).min(1).max(1000),
+});
+
+export const BulkPreviewSchema = z.object({
+  account_id: z.string().min(1),
+  // The month whose categories the grid offers; suggestions are returned as
+  // that month's envelope ids (the save re-files each row under its own month).
+  category_month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+  rows: z
+    .array(
+      z.object({
+        date: z.string().date(),
+        payee: z.string(),
+        amount: z.number(),
+        source_key: z.string().max(1000).optional(),
+      })
+    )
+    .max(1000),
+});

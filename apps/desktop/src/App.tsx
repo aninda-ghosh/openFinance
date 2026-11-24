@@ -4,9 +4,12 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { BottomNav } from "@/components/BottomNav";
 import { LoginGate } from "@/components/LoginGate";
 import QuickAddTransactionDrawer from "@/components/QuickAddTransactionDrawer";
+import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
+import { MOD } from "@/lib/shortcuts";
 import { getToken, clearToken } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 import { useAppStore } from "@/stores/app.store";
@@ -38,6 +41,9 @@ const SettingsPage = lazy(
   () => import("@/modules/settings/pages/SettingsPage")
 );
 const FAQPage = lazy(() => import("@/modules/faq/pages/FAQPage"));
+const BulkAddPage = lazy(
+  () => import("@/modules/transactions/pages/BulkAddPage")
+);
 const QuickAddPage = lazy(
   () => import("@/modules/transactions/pages/QuickAddPage")
 );
@@ -72,8 +78,9 @@ function ThemeSync() {
   return null;
 }
 
-function AppContent() {
+function AppContent({ onLock }: { onLock: () => void }) {
   const { quickAddOpen, setQuickAddOpen } = useAppStore();
+  useKeyboardShortcuts({ onLock });
 
   return (
     <div
@@ -97,6 +104,7 @@ function AppContent() {
             <Route path="/networth" element={<NetWorthPage />} />
             <Route path="/budget" element={<BudgetPage />} />
             <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/bulk-add" element={<BulkAddPage />} />
             <Route path="/investments" element={<Navigate to="/accounts?tab=investments" replace />} />
             <Route path="/debt" element={<Navigate to="/accounts?tab=debt" replace />} />
             <Route path="/policies" element={<Navigate to="/accounts?tab=policies" replace />} />
@@ -119,12 +127,13 @@ function AppContent() {
           quickAddOpen && "rotate-45 from-muted to-muted/80 text-muted-foreground border-border/40 shadow-md dark:shadow-none"
         )}
         aria-label="Quick Add Transaction"
-        title="Quick Add Transaction"
+        title={`Quick Add Transaction (N or ${MOD}N)`}
       >
         <Plus className="w-5.5 h-5.5 stroke-[2.5]" />
       </button>
 
       <QuickAddTransactionDrawer />
+      <ShortcutsDialog />
     </div>
   );
 }
@@ -201,7 +210,12 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeSync />
       <BrowserRouter>
-        <AppContent />
+        <AppContent
+          onLock={() => {
+            clearToken();
+            setUnlocked(false);
+          }}
+        />
       </BrowserRouter>
       <Toaster richColors position="top-right" />
     </QueryClientProvider>

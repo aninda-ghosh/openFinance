@@ -18,7 +18,36 @@ import { verifyToken } from "./services/auth.service";
 
 const app = new Hono();
 
-app.use("*", cors({ origin: "*" }));
+// The desktop app has no login (the database password is the gate), so its
+// server must only answer the app's own window: listen on this Mac only (see
+// serve() below) and refuse browser requests from any other origin, which
+// otherwise lets any web page read and change the data while it's unlocked.
+const IS_DESKTOP = process.env.OPENFINANCE_DESKTOP === "true";
+const DESKTOP_ORIGINS = [
+  "tauri://localhost", // packaged app on macOS
+  "http://tauri.localhost", // packaged app on Windows
+  "http://localhost:1420", // vite dev server
+  "http://127.0.0.1:1420",
+];
+app.use(
+  "*",
+  cors({
+    origin: IS_DESKTOP
+      ? (origin) => (DESKTOP_ORIGINS.includes(origin) ? origin : null)
+      : "*",
+  })
+);
+if (IS_DESKTOP) {
+  // CORS only hides responses; this also stops other sites' requests from
+  // running (a form post or no-cors fetch would still change data).
+  app.use("*", async (c, next) => {
+    const origin = c.req.header("Origin");
+    if (origin && !DESKTOP_ORIGINS.includes(origin)) {
+      return c.json({ error: "Forbidden origin" }, 403);
+    }
+    return next();
+  });
+}
 app.use("*", logger());
 
 // ── Bootstrap schema + incremental migrations ─────────────────────────────────
@@ -140,6 +169,11 @@ app.route("/api/documents", documentsRouter);
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = Number(process.env.PORT ?? 3001);
 
-serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`openFinance server running on http://localhost:${PORT}`);
+// Desktop: this Mac only. Self-hosted: HOST, else all interfaces as before.
+const HOSTNAME = IS_DESKTOP ? "127.0.0.1" : process.env.HOST;
+
+serve({ fetch: app.fetch, port: PORT, hostname: HOSTNAME }, () => {
+  console.log(
+    `openFinance server running on http://${HOSTNAME ?? "localhost"}:${PORT}`
+  );
 });

@@ -22,13 +22,14 @@ import {
   bearsHoldings,
   isLiabilityType,
   isTransferIn,
+  PHYSICAL_ASSET_TYPES,
   STARTING_BALANCE_PAYEE,
   TRANSFER_IN,
   TRANSFER_OUT,
 } from "@openfinance/shared/constants";
 import { hashRow } from "@openfinance/shared/utils/hash";
 import { parse } from "csv-parse/sync";
-import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { getDb, runTransaction } from "../db/index";
 import {
@@ -199,6 +200,9 @@ async function deriveAccountBalances(
       total: sql<number>`sum(${investments.current_value})`,
     })
     .from(investments)
+    // Physical assets (vehicles) are owned, not held in an account — never fold
+    // them into a balance even if a stale account link exists.
+    .where(notInArray(investments.asset_type, [...PHYSICAL_ASSET_TYPES]))
     .groupBy(investments.account_id, investments.currency);
 
   const invDeltaNative: Record<string, number> = {};

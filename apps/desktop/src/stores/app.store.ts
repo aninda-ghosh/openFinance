@@ -9,6 +9,8 @@ interface AppState {
   defaultCurrency: string;
   aiModel: string;
   quickAddOpen: boolean;
+  /** Keyboard shortcut cheat sheet ("?"). */
+  shortcutsOpen: boolean;
   /** Accounts pages: also list accounts whose balance is exactly zero. */
   showZeroBalanceAccounts: boolean;
   setShowZeroBalanceAccounts: (show: boolean) => void;
@@ -18,6 +20,7 @@ interface AppState {
   setDefaultCurrency: (currency: string) => void;
   setAiModel: (model: string) => void;
   setQuickAddOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
 }
 
 const currentMonth = () => localYearMonth();
@@ -32,6 +35,7 @@ export const useAppStore = create<AppState>()(
       // Empty = use the server-configured default model (Settings → AI Assistant)
       aiModel: "",
       quickAddOpen: false,
+      shortcutsOpen: false,
       showZeroBalanceAccounts: false,
       setShowZeroBalanceAccounts: (show) =>
         set({ showZeroBalanceAccounts: show }),
@@ -42,11 +46,12 @@ export const useAppStore = create<AppState>()(
       setDefaultCurrency: (currency) => set({ defaultCurrency: currency }),
       setAiModel: (model) => set({ aiModel: model }),
       setQuickAddOpen: (open) => set({ quickAddOpen: open }),
+      setShortcutsOpen: (open) => set({ shortcutsOpen: open }),
     }),
     {
       name: "openfinance-app",
       partialize: (state) => {
-        const { quickAddOpen, ...rest } = state;
+        const { quickAddOpen, shortcutsOpen, ...rest } = state;
         return rest;
       },
     }

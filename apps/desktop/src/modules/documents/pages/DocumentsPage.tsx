@@ -20,6 +20,16 @@ import {
 } from "../hooks";
 import { useInvestments } from "@/modules/investments/hooks/useInvestments";
 import { useAccounts } from "@/modules/budget/hooks/useBudget";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -199,21 +209,24 @@ export default function DocumentsPage() {
     );
   };
 
-  // Delete handler
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const performDelete = (docId: string) => {
+    deleteDoc(
+      { docId },
+      {
+        onSuccess: () => {
+          toast.success("Document deleted successfully!");
+        },
+        onError: (err) => {
+          toast.error(err.message || "Failed to delete document.");
+        },
+      }
+    );
+  };
+
   const handleDelete = (docId: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete "${name}"?`)) {
-      deleteDoc(
-        { docId },
-        {
-          onSuccess: () => {
-            toast.success("Document deleted successfully!");
-          },
-          onError: (err) => {
-            toast.error(err.message || "Failed to delete document.");
-          },
-        }
-      );
-    }
+    setPendingDelete({ id: docId, name });
   };
 
   return (
@@ -574,6 +587,30 @@ export default function DocumentsPage() {
           </div>
         )}
       </div>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete "{pendingDelete?.name}"? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) performDelete(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

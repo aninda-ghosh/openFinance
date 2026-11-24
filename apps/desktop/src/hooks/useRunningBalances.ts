@@ -1,4 +1,4 @@
-import { balanceDelta, bearsHoldings } from "@openfinance/shared/constants";
+import { balanceDelta, bearsHoldings, isPhysicalAsset } from "@openfinance/shared/constants";
 import { convertFromINR, convertToINR } from "@openfinance/shared/utils";
 import { useMemo } from "react";
 
@@ -104,6 +104,7 @@ export type SeedAccount = {
 export type SeedInvestment = {
   account_id?: string | null;
   currency: string;
+  asset_type?: string;
   current_value: number;
   /** Server-converted base-currency value; preferred when present. */
   current_value_inr?: number;
@@ -125,6 +126,7 @@ export function holdingsValueForAccount(
   let totalInr = 0;
   for (const inv of investments) {
     if (inv.account_id !== account.id) continue;
+    if (inv.asset_type && isPhysicalAsset(inv.asset_type)) continue;
     totalInr +=
       inv.current_value_inr ??
       convertToINR(inv.current_value, inv.currency as any, rates);

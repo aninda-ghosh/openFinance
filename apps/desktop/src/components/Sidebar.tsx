@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { navShortcutHint } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app.store";
 
@@ -63,7 +64,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center gap-2 px-3 py-4 border-b border-sidebar-border">
         <img
-          src="/OpenFinance.png"
+          src="/icon-192.png"
           alt="openFinance"
           className="w-7 h-7 rounded-md object-contain flex-shrink-0"
         />
@@ -85,6 +86,7 @@ export function Sidebar() {
               <NavLink
                 key={to}
                 to={to}
+                title={`${label} (${navShortcutHint(to) ?? ""})`}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 px-2 py-2 rounded-md text-sm font-medium transition-colors",

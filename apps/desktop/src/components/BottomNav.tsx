@@ -112,7 +112,7 @@ export function BottomNav() {
         <SheetContent side="right" className="w-72 p-0 flex flex-col gap-0 border-l border-border bg-sidebar">
           <SheetHeader className="px-5 py-4 border-b border-sidebar-border bg-sidebar flex-shrink-0 flex flex-row items-center gap-2">
             <img
-              src="/OpenFinance.png"
+              src="/icon-192.png"
               alt="openFinance"
               className="w-7 h-7 rounded-md object-contain flex-shrink-0"
             />

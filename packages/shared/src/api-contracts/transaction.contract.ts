@@ -1,5 +1,8 @@
 import type { z } from "zod";
 import type {
+  BulkCreateSchema,
+  BulkPreviewSchema,
+  BulkRowSchema,
   CreateTransactionSchema,
   TransactionFiltersSchema,
   UpdateTransactionSchema,
@@ -48,3 +51,35 @@ export type ImportResult = {
   uncategorised?: number;
   errors: string[];
 };
+
+// ─── Bulk add ─────────────────────────────────────────────────────────────────
+
+export type BulkRow = z.infer<typeof BulkRowSchema>;
+export type BulkCreateRequest = z.infer<typeof BulkCreateSchema>;
+export type BulkPreviewRequest = z.infer<typeof BulkPreviewSchema>;
+
+export type BulkRowError = { index: number; message: string };
+
+export type BulkCreateResponse = {
+  /** Rows written (a transfer counts once, though it stores two legs). */
+  created: number;
+  /** Rows skipped because the same pasted line was already imported. */
+  skipped: number;
+};
+
+export type BulkPreviewRow = {
+  /** This exact pasted line was saved by an earlier bulk add. */
+  already_imported: boolean;
+  /** Existing rows in the account with the same amount within a few days. */
+  possible_duplicates: {
+    id: string;
+    date: string;
+    payee: string;
+    amount: number;
+    type: "income" | "expense" | "transfer";
+  }[];
+  /** The category last used for a similar payee, if any. */
+  suggested_envelope_id: string | null;
+};
+
+export type BulkPreviewResponse = { rows: BulkPreviewRow[] };

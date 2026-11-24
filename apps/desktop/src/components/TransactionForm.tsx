@@ -1,3 +1,4 @@
+import { isModKey } from "@/lib/shortcuts";
 import {
   ArrowRightLeft,
   Calendar,
@@ -751,11 +752,21 @@ export default function TransactionForm({
     : ["expense", "income", "transfer"];
 
   return (
-    <div className={cn(
-      "relative flex flex-col min-h-0",
-      layout === "split" ? "h-full" : "h-auto",
-      className
-    )}>
+    <div
+      className={cn(
+        "relative flex flex-col min-h-0",
+        layout === "split" ? "h-full" : "h-auto",
+        className
+      )}
+      onKeyDown={(e) => {
+        // Mod+Enter saves from any field, including notes
+        if (e.key === "Enter" && isModKey(e) && !pending && !deleting) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleSubmit();
+        }
+      }}
+    >
       {/* Premium Custom Envelope Selector Overlay */}
       {showEnvelopeSelect && (
         <div className="absolute inset-0 z-50 flex flex-col bg-card animate-slide-up">

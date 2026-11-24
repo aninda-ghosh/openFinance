@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { BASE_URL } from "@/lib/api";
 
 interface Props {
   onUnlocked: () => void;
@@ -33,7 +34,7 @@ export function PasswordGate({ onUnlocked }: Props) {
           return;
         }
         try {
-          const res = await fetch("http://localhost:3001/health", {
+          const res = await fetch(`${BASE_URL}/health`, {
             signal: AbortSignal.timeout(1000),
           });
           if (res.ok) {
