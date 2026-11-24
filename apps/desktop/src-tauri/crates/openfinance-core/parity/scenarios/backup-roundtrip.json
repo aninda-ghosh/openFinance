@@ -1,0 +1,54 @@
+{
+  "description": "routes/backup.ts export → import round trip on each server: the decrypted export ZIP is imported back (plain ZIP path) and exported again; also the import of a ZIP holding documents.",
+  "steps": [
+    {
+      "name": "export seed",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup",
+      "captureZip": "seedZip"
+    },
+    {
+      "name": "import documents",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "UEsDBBQAAAgIAEFMeF0n/o4FpAAAAP0AAAAQAAAAYmFja3VwLWRhdGEuanNvbl2OwQrCMAyG3yXnObMdPPTmO3hSpIQ2YmHtxpqN6di7m8kGYsjhS/L/4Z9h5D6HNoGBCgrgqWt7YW9JdFNjfTpgpX1BNN8uEfGqQk9CYGYg59ohSQZzmyF4NZFeE0VWPCvKq1vRUX7Cci8gpJGzRE5ifeuGFX7Mfg2x/bT/75LiIzRst1n9thfcqyplkl2Sw1sldQExRLZbCOFJjl1DIWmUZfkAUEsDBBQAAAgIAEFMeF3MSt2YAwAAAAEAAAAQAAAAZG9jdW1lbnRzL2RvY19fZEsBAFBLAwQUAAAICABBTHhdhWcHjQMAAAABAAAAEwAAAGRvY3VtZW50cy9kb2NfOS50eHSzBABQSwMEFAAACAgAQUx4XUO+t+gDAAAAAQAAABMAAABkb2N1bWVudHMvZG9jX2EudHh0SwQAUEsDBBQAAAgIAEFMeF35775xAwAAAAEAAAATAAAAZG9jdW1lbnRzL2RvY19CLnR4dEsCAFBLAwQUAAAICABBTHhdWnra7wMAAAABAAAAFAAAAGRvY3VtZW50cy9kb2Nfw6kudHh0SwUAUEsDBBQAAAgIAEFMeF2sKpPYBAAAAAIAAAAeAAAAZG9jdW1lbnRzL2RvY19ydDAwMDAwMDAwMDEudHh0y8gEAFBLAwQUAAAICABBTHhdb9+5BgMAAAABAAAAEwAAAGRvY3VtZW50cy9kb2MtYy50eHRLBgBQSwECFAMUAAAICABBTHhdJ/6OBaQAAAD9AAAAEAAAAAAAAAAAAAAApIEAAAAAYmFja3VwLWRhdGEuanNvblBLAQIUAxQAAAgIAEFMeF3MSt2YAwAAAAEAAAAQAAAAAAAAAAAAAACkgdIAAABkb2N1bWVudHMvZG9jX19kUEsBAhQDFAAACAgAQUx4XYVnB40DAAAAAQAAABMAAAAAAAAAAAAAAKSBAwEAAGRvY3VtZW50cy9kb2NfOS50eHRQSwECFAMUAAAICABBTHhdQ7636AMAAAABAAAAEwAAAAAAAAAAAAAApIE3AQAAZG9jdW1lbnRzL2RvY19hLnR4dFBLAQIUAxQAAAgIAEFMeF35775xAwAAAAEAAAATAAAAAAAAAAAAAACkgWsBAABkb2N1bWVudHMvZG9jX0IudHh0UEsBAhQDFAAACAgAQUx4XVp62u8DAAAAAQAAABQAAAAAAAAAAAAAAKSBnwEAAGRvY3VtZW50cy9kb2Nfw6kudHh0UEsBAhQDFAAACAgAQUx4Xawqk9gEAAAAAgAAAB4AAAAAAAAAAAAAAKSB1AEAAGRvY3VtZW50cy9kb2NfcnQwMDAwMDAwMDAxLnR4dFBLAQIUAxQAAAgIAEFMeF1v37kGAwAAAAEAAAATAAAAAAAAAAAAAACkgRQCAABkb2N1bWVudHMvZG9jLWMudHh0UEsFBgAAAAAIAAgADgIAAEgCAAAAAA=="
+    },
+    {
+      "name": "export with a document",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup",
+      "captureZip": "docZip"
+    },
+    {
+      "name": "re-import seed",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyFrom": "seedZip"
+    },
+    {
+      "name": "export after seed re-import (document file stays on disk)",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "re-import document export",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyFrom": "docZip"
+    },
+    {
+      "name": "export after document re-import",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "download restored document",
+      "method": "GET",
+      "path": "/api/documents/d1"
+    }
+  ]
+}

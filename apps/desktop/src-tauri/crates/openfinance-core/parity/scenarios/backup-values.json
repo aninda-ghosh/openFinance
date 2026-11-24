@@ -1,0 +1,41 @@
+{
+  "description": "routes/backup.ts import of unusual but accepted values (array data, one-element arrays, numbers in text columns, ignored non-array tables, empty tables) and their effect, read back through decoded exports.",
+  "steps": [
+    {
+      "name": "data is an array",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "UEsDBBQAAAgIAEFMeF2OWJgIEAAAAA4AAAAQAAAAYmFja3VwLWRhdGEuanNvbqtWSkksSVSyijbUMYqtBQBQSwECFAMUAAAICABBTHhdjliYCBAAAAAOAAAAEAAAAAAAAAAAAAAApIEAAAAAYmFja3VwLWRhdGEuanNvblBLBQYAAAAAAQABAD4AAAA+AAAAAAA="
+    },
+    {
+      "name": "everything wiped",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "odd values",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "UEsDBBQAAAgIAEFMeF2Ei45K+AEAABUEAAAQAAAAYmFja3VwLWRhdGEuanNvbm1T24rbMBD9lTDP6SKHpgU/tyzpQ1m6u9A2BDGRx4moLbm6hJjgP+nf9Mc6cpw42xgEFjPnzJwZH53gQM5rayCHDOZAx8a6QIXEwJGFWHx4JzI+L0Lk/XkQQvxkYIEBIT8BKmWjCR7y9Ql0wR/ADDZzMFgT5O8XcwhtwzdQ6PdM3GKFRqVAtnhYCo5oL1EFfeDYmom2LOU2FjtKCjitHOFF0RqOsOkYROZAlW1I7pyNjU9KjE0ENDN0DlvoRhCnlyzDofGpkTUcCC4Si+n7SKzIpRFSu0qXJLXx0Z1lChbIdXyoyQRZWBXThcElVp5LoJbKmrRFHEoPiwDF1YIOVZr15b9BTl0/xVHt0exIOk6cmaWztVTROTKqZeLr8yemprwMVm7R91vq5vfI1ddv90hYwCT48+sEOO1kEv38eC8CZjNxzMQMpghfnn7cE1am1EYH/jU8emMrrTSN6/p4sQw8MbVx9qALcmmE78lOPqDj9XNFyE2sqgShWsdaYp0MyMDlZgyWjn7HQUxtTdhXLYzZQK6WLaHz12JJTvsmkc2hxhAdKx76svlYSGrp2R5UvMUcsIrUh8ZFnIvf/njopx8ddeMXDdcVrPjKTdiaw+PxwapfaYLo2DKebrpdQ4NIfrTi/GjhIiVMioO/f3pzDU9YJhGi23TdP1BLAQIUAxQAAAgIAEFMeF2Ei45K+AEAABUEAAAQAAAAAAAAAAAAAACkgQAAAABiYWNrdXAtZGF0YS5qc29uUEsFBgAAAAABAAEAPgAAACYCAAAAAA=="
+    },
+    {
+      "name": "odd values read back",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "dates and premium terms",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "UEsDBBQAAAgIAEFMeF0i8IDfWwEAAEkGAAAQAAAAYmFja3VwLWRhdGEuanNvbrXUX2+CMBAA8K9i+jqYVyr+4XP4NGNIJ+dGRgFL6yTG775DZzoTEbII6UPbtL37pVeObI+6SoucRYwzj+GhLLTBJJaGZgIIpj5wakuA6NxeAeCNFibSSBYdWVlk6SbFikWrI0sT2pQ05+RSIfUldUtd7NMENQ1LGlZGahPTdrwEgCaA4OeFqFKrYqkKm1N47qa2GncW801Ne1SRm8+s/rPBoFZxjVJTFhy8S0717bTHlDRWp6a+xj40yTThqspqTG7X7GVmaRE/eVdV4FTv3aqJD4EfLJaBiAT0t+0sHYO6VceaLAbhCcfbdPBGIwJSUQifT0b9bd+IX60woy0OJJs4WfJYxsPZbC6mc2i+p9XjUAUZOhf2fGY8XPLfd/wCYUtl4ouA+b+oA0GnDrrtgAIfCz4mrrgj88V9lcxzK7MW1EqsB2LNHOuj8/4Wi8t/uP9ze6h68lWtT6cfUEsBAhQDFAAACAgAQUx4XSLwgN9bAQAASQYAABAAAAAAAAAAAAAAAKSBAAAAAGJhY2t1cC1kYXRhLmpzb25QSwUGAAAAAAEAAQA+AAAAiQEAAAAA"
+    },
+    {
+      "name": "policy accounts read back",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    }
+  ]
+}

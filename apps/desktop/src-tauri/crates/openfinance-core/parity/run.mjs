@@ -16,6 +16,7 @@ import { spawn, execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as net from "node:net";
+import * as crypto from "node:crypto";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -272,7 +273,53 @@ async function send(server, step, vars) {
     kind = "bytes";
     value = `<${raw.length} bytes, base64 ${raw.toString("base64")}>`;
   }
-  return { status: res.status, headers: picked, kind, value, raw };
+  let zip = null;
+  if (step.decode === "backup" && kind === "bytes") {
+    // Added by Wave 1 (data), see STATUS.md: compare a backup by content.
+    ({ value, zip } = decodeBackup(raw));
+    kind = "backup";
+  }
+  return { status: res.status, headers: picked, kind, value, raw, zip };
+}
+
+// ── Backup decoding (`"decode": "backup"`, Wave 1 data) ──────────────────────
+// An export is FWB1(AES-GCM, random IV) over a ZIP whose headers carry write
+// times, so its bytes never match between two runs. This decodes it instead:
+// whether it was encrypted, then every ZIP entry in order with its name, its
+// directory flag and its data (backup-data.json parsed, plus whether its text
+// is exactly `JSON.stringify(parsed, null, 2)`; other entries as base64). The
+// result goes through the normaliser like any JSON body. Nothing is dropped
+// except the IV and the ZIP container metadata.
+
+let backupKey = null;
+function decodeBackup(raw) {
+  const require = createRequire(path.join(SERVER, "package.json"));
+  const AdmZip = require("adm-zip");
+  let zipBuf = raw;
+  const encrypted = raw.subarray(0, 4).equals(Buffer.from("FWB1"));
+  try {
+    if (encrypted) {
+      backupKey ??= crypto.pbkdf2Sync(DB_KEY, "finwise-backup-desktop", 200_000, 32, "sha256");
+      const decipher = crypto.createDecipheriv("aes-256-gcm", backupKey, raw.subarray(4, 16));
+      decipher.setAuthTag(raw.subarray(16, 32));
+      zipBuf = Buffer.concat([decipher.update(raw.subarray(32)), decipher.final()]);
+    }
+    const entries = new AdmZip(zipBuf).getEntries().map((e) => {
+      const data = e.getData();
+      const entry = { name: e.entryName, isDirectory: e.isDirectory };
+      if (e.entryName === "backup-data.json") {
+        const text = data.toString("utf8");
+        entry.json = JSON.parse(text);
+        entry.isStringifyOutput = text === JSON.stringify(entry.json, null, 2);
+      } else {
+        entry.base64 = data.toString("base64");
+      }
+      return entry;
+    });
+    return { value: { encrypted, entries }, zip: zipBuf };
+  } catch (err) {
+    return { value: { encrypted, decodeError: String(err) }, zip: null };
+  }
 }
 
 function lineDiff(a, b) {
@@ -328,11 +375,12 @@ async function runScenario(file, seedDir, tmp, bin, known) {
         const r = await send(c.server, step, c.vars);
         for (const [v, p] of Object.entries(step.capture ?? {})) c.vars[v] = getPath(r.value, p);
         if (step.captureBody) c.vars[step.captureBody] = r.raw;
+        if (step.captureZip) c.vars[step.captureZip] = r.zip;
         shown[kind] = canonical({
           status: r.status,
           headers: r.headers,
           kind: r.kind,
-          body: r.kind === "json" ? c.norm.body(r.status, r.value) : r.value,
+          body: r.kind === "json" || r.kind === "backup" ? c.norm.body(r.status, r.value) : r.value,
         });
       }
       if (shown.node === shown.rust) {

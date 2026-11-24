@@ -1,0 +1,154 @@
+{
+  "description": "routes/backup.ts import: migration pipeline (orphaned investments, policy accounts and premium counts, brokerage renames, rate filtering), JS binding of odd values, documents restored from the ZIP and served by routes/documents.ts; every import is read back through a decoded export.",
+  "steps": [
+    {
+      "name": "seed export",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "rich import",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "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"
+    },
+    {
+      "name": "export after rich import",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "documents list after import",
+      "method": "GET",
+      "path": "/api/documents"
+    },
+    {
+      "name": "filter by investment",
+      "method": "GET",
+      "path": "/api/documents?investment_id=inv-ok"
+    },
+    {
+      "name": "filter by account",
+      "method": "GET",
+      "path": "/api/documents?account_id=acc-b"
+    },
+    {
+      "name": "filter by life insurance",
+      "method": "GET",
+      "path": "/api/documents?life_insurance_id=li1"
+    },
+    {
+      "name": "filters combine",
+      "method": "GET",
+      "path": "/api/documents?investment_id=inv-ok&account_id=acc-b"
+    },
+    {
+      "name": "empty filter is ignored",
+      "method": "GET",
+      "path": "/api/documents?investment_id=&account_id"
+    },
+    {
+      "name": "encoded filter",
+      "method": "GET",
+      "path": "/api/documents?life_insurance_id=l%69%31"
+    },
+    {
+      "name": "unknown filter value",
+      "method": "GET",
+      "path": "/api/documents?investment_id=nope"
+    },
+    {
+      "name": "download doc-1",
+      "method": "GET",
+      "path": "/api/documents/doc-1"
+    },
+    {
+      "name": "download doc-1 via encoded id",
+      "method": "GET",
+      "path": "/api/documents/doc%2D1"
+    },
+    {
+      "name": "download missing physical file",
+      "method": "GET",
+      "path": "/api/documents/doc-2"
+    },
+    {
+      "name": "download empty mime",
+      "method": "GET",
+      "path": "/api/documents/doc-3"
+    },
+    {
+      "name": "download invalid mime header",
+      "method": "GET",
+      "path": "/api/documents/doc-4"
+    },
+    {
+      "name": "download latin-1 mime",
+      "method": "GET",
+      "path": "/api/documents/doc-5"
+    },
+    {
+      "name": "download directory path",
+      "method": "GET",
+      "path": "/api/documents/doc-6"
+    },
+    {
+      "name": "download traversal path",
+      "method": "GET",
+      "path": "/api/documents/doc-7"
+    },
+    {
+      "name": "download unknown",
+      "method": "GET",
+      "path": "/api/documents/nope"
+    },
+    {
+      "name": "download bad escape",
+      "method": "GET",
+      "path": "/api/documents/%E2%zz"
+    },
+    {
+      "name": "HEAD download",
+      "method": "HEAD",
+      "path": "/api/documents/doc-1"
+    },
+    {
+      "name": "delete doc-1",
+      "method": "DELETE",
+      "path": "/api/documents/doc-1"
+    },
+    {
+      "name": "delete doc-1 again",
+      "method": "DELETE",
+      "path": "/api/documents/doc-1"
+    },
+    {
+      "name": "delete doc-2 (no file)",
+      "method": "DELETE",
+      "path": "/api/documents/doc-2"
+    },
+    {
+      "name": "delete doc-6 (directory)",
+      "method": "DELETE",
+      "path": "/api/documents/doc-6"
+    },
+    {
+      "name": "documents after deletes",
+      "method": "GET",
+      "path": "/api/documents"
+    },
+    {
+      "name": "export after deletes",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "rates after import",
+      "method": "GET",
+      "path": "/api/exchange-rates"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "description": "routes/reset.ts: POST /transactions (deletes transactions and alerts, zeroes envelope budgets) and POST / (wipes all user tables including exchange rates), each read back through a decoded export; also wrong methods and a reset with documents on disk.",
+  "steps": [
+    {
+      "name": "add alerts, documents and AI rows",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "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"
+    },
+    {
+      "name": "before resets",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "GET is a 404",
+      "method": "GET",
+      "path": "/api/reset"
+    },
+    {
+      "name": "GET transactions is a 404",
+      "method": "GET",
+      "path": "/api/reset/transactions"
+    },
+    {
+      "name": "trailing slash",
+      "method": "POST",
+      "path": "/api/reset/transactions/"
+    },
+    {
+      "name": "reset transactions",
+      "method": "POST",
+      "path": "/api/reset/transactions"
+    },
+    {
+      "name": "after transaction reset",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "reset transactions again",
+      "method": "POST",
+      "path": "/api/reset/transactions",
+      "json": {
+        "ignored": true
+      }
+    },
+    {
+      "name": "reset all",
+      "method": "POST",
+      "path": "/api/reset"
+    },
+    {
+      "name": "after full reset (document files stay on disk)",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "documents after reset",
+      "method": "GET",
+      "path": "/api/documents"
+    },
+    {
+      "name": "rates after reset",
+      "method": "GET",
+      "path": "/api/exchange-rates"
+    },
+    {
+      "name": "reset all again",
+      "method": "POST",
+      "path": "/api/reset"
+    },
+    {
+      "name": "still empty",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    }
+  ]
+}
