@@ -1,0 +1,31 @@
+[package]
+name = "openfinance-core"
+version = "0.1.0"
+edition = "2021"
+description = "openFinance backend (Rust port of apps/server)"
+publish = false
+
+[lib]
+name = "openfinance_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "openfinance-server"
+path = "src/bin/openfinance-server.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+base64 = "0.22"
+chrono = "0.4.45"
+hex = "0.4.3"
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+rand = "0.8"
+rusqlite = { version = "0.43.0", features = ["bundled-sqlcipher"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+sha2 = "0.10"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+
+[dev-dependencies]
+tempfile = "3.27.0"
