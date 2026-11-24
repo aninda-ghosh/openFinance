@@ -143,7 +143,51 @@ gates) and `crates/openfinance-core/tests/compat/roundtrip.sh` (needs Node).
 Not started.
 
 ## Wave 1 — policies
-Not started.
+**Done** on `rust-port/wave1-policies`.
+
+- Ported: `services/policy.service.ts` → `services/policy.rs`,
+  `services/life-insurance.service.ts` → `services/life_insurance.rs`,
+  `routes/policies.ts` → `http/routes/policies.rs`, `routes/life-insurance.ts`
+  → `http/routes/life_insurance.rs`, and the zod schemas they use
+  (`policy.schema.ts`, `life-insurance.schema.ts`, `CurrencyEnum`; zod 4.3.6
+  semantics: safe-integer `.int()`, the ISO date regex, defaults, key stripping)
+  → `services/policy/schemas.rs`.
+- Endpoints (`/api/policies`): `GET /`, `POST /`, `PATCH /:id`, `DELETE /:id`,
+  `POST /:id/payouts/generate`, `GET /:id/payouts`, `POST /:id/payouts`,
+  `PATCH /:id/payouts/:payoutId`, `POST /:id/payouts/:payoutId/mark-received`,
+  `GET /timeline`, `GET /alerts`. (`/api/life-insurance`): `GET /`, `GET /alerts`,
+  `GET /:id`, `POST /`, `PATCH /:id`, `DELETE /:id`. Literal segments that Hono
+  would also match as `:id` (`PATCH|DELETE /timeline`, `/alerts`,
+  `PATCH /:id/payouts/generate`) are routed to the `:id` handlers.
+- Parity: `policies` (73 steps), `policies-payouts` (58), `policies-currency`
+  (19), `life-insurance` (48), 0 diffs.
+- **Pub API for later waves** (all take `&Connection` unless pure):
+  `policy::{list_policies, select_policies (no ORDER BY, = db.select().from(policies)),
+  premium_due_dates(start_date, frequency, term_years), PolicyRow::premium_due_dates,
+  compute_invested_at(&PolicyRow, AsOf::Iso(&str) | AsOf::Date(ms)), get_timeline(conn, years),
+  get_upcoming_alerts, PolicyRow, PolicyResponse, TimelineEvent, Rates}` and
+  `life_insurance::{list_life_insurance, get_renewal_alerts, LifeInsuranceResponse}`.
+  Raw column values are `serde_json::Value` (as better-sqlite3 returns them);
+  use `json::to_number` for arithmetic.
+- **JS date helpers** other waves can reuse: `services::policy::dates` ports
+  `addMonthsIso`, `dayOfMonth`, `daysBetweenIso`, `daysInMonth`, `localIsoDate`
+  with exact JS number behaviour, plus `Date.UTC`, `MakeDay`, local-time
+  conversion (chrono `Local`, V8's "former" rule for DST gaps/overlaps),
+  `setFullYear`, `new Date(string)` (ES5 ISO exact; legacy only for
+  digit/`-` forms) and `String(number)`. Verified against V8 on ~1,300 inputs.
+- Hono request helpers in `http/routes/policies.rs::hono`: `param()` decodes a
+  raw path segment like `c.req.param()` (decodeURI with `%25` protection, then
+  `tryDecodeURIComponent`), `query()` mirrors `c.req.query()` (fast path, `+`,
+  `tryDecode`). Handlers read params from `OriginalUri` instead of axum's
+  `Path`, which would 400 on malformed escapes.
+- **Temporary duplicate:** `life_insurance.rs::delete_document` reimplements
+  `document.service.ts::deleteDocument` (row lookup, `path.join` + unlink,
+  row delete) because the data wave owns `services/document.rs`. Replace it
+  with the data wave's `delete_document` after both merge.
+- Tests: `dates.test.ts` (calendar-date arithmetic, local day, premium schedule)
+  and the `computeInvestedAt` cases from `dashboard.test.ts` (premiums paid by
+  a date, own-currency conversion) as unit tests, plus schema, Hono decoding,
+  CRUD and payout tests on an in-memory DB.
 
 ## Wave 1 — data
 Not started.
