@@ -59,3 +59,73 @@ pub fn open(path: &Path, key: Option<&str>) -> Result<Connection, OpenError> {
     conn.pragma_update(None, "busy_timeout", 5000)?;
     Ok(conn)
 }
+
+/// `runTransaction` for code that already holds the connection: BEGIN, run
+/// `f`, COMMIT; ROLLBACK and return the error when `f` (or COMMIT) fails.
+/// Inside an open transaction it simply runs `f`, joining the outer one, as
+/// Node does for a service helper that calls another.
+pub fn run_transaction<T, E, F>(conn: &Connection, f: F) -> Result<T, E>
+where
+    F: FnOnce(&Connection) -> Result<T, E>,
+    E: From<rusqlite::Error>,
+{
+    if !conn.is_autocommit() {
+        return f(conn);
+    }
+    conn.execute_batch("BEGIN")?;
+    let result = f(conn).and_then(|value| {
+        conn.execute_batch("COMMIT")?;
+        Ok(value)
+    });
+    if result.is_err() && !conn.is_autocommit() {
+        // Ignore failure: SQLite may already have rolled back (constraint abort).
+        let _ = conn.execute_batch("ROLLBACK");
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conn() -> Connection {
+        let c = Connection::open_in_memory().expect("open");
+        c.execute_batch("CREATE TABLE t (v INTEGER)")
+            .expect("table");
+        c
+    }
+
+    fn count(c: &Connection) -> i64 {
+        c.query_row("SELECT count(*) FROM t", [], |r| r.get(0))
+            .expect("count")
+    }
+
+    #[test]
+    fn commits_and_rolls_back() {
+        let c = conn();
+        run_transaction::<_, rusqlite::Error, _>(&c, |c| c.execute("INSERT INTO t VALUES (1)", []))
+            .expect("commit");
+        assert_eq!(count(&c), 1);
+        let res: Result<(), rusqlite::Error> = run_transaction(&c, |c| {
+            c.execute("INSERT INTO t VALUES (2)", [])?;
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        });
+        assert!(res.is_err());
+        assert_eq!(count(&c), 1);
+        assert!(c.is_autocommit());
+    }
+
+    #[test]
+    fn nested_joins_outer() {
+        let c = conn();
+        let res: Result<(), rusqlite::Error> = run_transaction(&c, |c| {
+            c.execute("INSERT INTO t VALUES (1)", [])?;
+            run_transaction(c, |c| c.execute("INSERT INTO t VALUES (2)", []).map(|_| ()))?;
+            // The inner call did not commit on its own.
+            assert!(!c.is_autocommit());
+            Err(rusqlite::Error::QueryReturnedNoRows)
+        });
+        assert!(res.is_err());
+        assert_eq!(count(&c), 0);
+    }
+}

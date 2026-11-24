@@ -46,9 +46,11 @@ fn rust_opens_node_encrypted_db() {
     let (_dir, path) = temp_copy_of_node_db();
     let conn = db::open(&path, Some(PASS)).expect("open with the right passcode");
     let (name, balance): (String, f64) = conn
-        .query_row("SELECT name, balance FROM accounts WHERE id = 'node-acc'", [], |r| {
-            Ok((r.get(0)?, r.get(1)?))
-        })
+        .query_row(
+            "SELECT name, balance FROM accounts WHERE id = 'node-acc'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
         .expect("row written by node");
     assert_eq!(name, "Written by Node ✓");
     assert_eq!(balance, 1234.5);
@@ -56,7 +58,9 @@ fn rust_opens_node_encrypted_db() {
         .query_row("PRAGMA journal_mode", [], |r| r.get(0))
         .expect("journal_mode");
     assert_eq!(mode, "wal");
-    let fk: i64 = conn.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).expect("fk");
+    let fk: i64 = conn
+        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+        .expect("fk");
     assert_eq!(fk, 1);
 }
 
@@ -72,7 +76,27 @@ fn rust_bootstrap_matches_node_schema_exactly() {
     let dir = tempfile::tempdir().expect("tempdir");
     let fresh = db::open(&dir.path().join("fresh.db"), Some(PASS)).expect("open fresh");
     db::bootstrap::bootstrap_schema(&fresh).expect("bootstrap fresh");
-    assert_eq!(schema(&fresh), node_schema, "sqlite_master differs from Node's");
+    assert_eq!(
+        schema(&fresh),
+        node_schema,
+        "sqlite_master differs from Node's"
+    );
+}
+
+#[test]
+fn server_binary_exits_13_on_wrong_passcode() {
+    let (dir, path) = temp_copy_of_node_db();
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_openfinance-server"))
+        .env("DB_PATH", &path)
+        .env("OPENFINANCE_DB_KEY", "not the passcode")
+        .env("OPENFINANCE_DESKTOP", "true")
+        .env("OPENFINANCE_NO_NETWORK", "1")
+        .env("PORT", "0")
+        .current_dir(dir.path())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .expect("run openfinance-server");
+    assert_eq!(status.code(), Some(13));
 }
 
 #[test]
@@ -87,7 +111,10 @@ fn wrong_passcode_fails_cleanly() {
     }
     // Without any key the file is unreadable too.
     let conn = db::open(&path, None);
-    assert!(conn.is_err(), "unkeyed open should fail on the encrypted file");
+    assert!(
+        conn.is_err(),
+        "unkeyed open should fail on the encrypted file"
+    );
     // The file is untouched: the right passcode still works afterwards.
     db::open(&path, Some(PASS)).expect("reopen with the right passcode");
 }
@@ -95,8 +122,14 @@ fn wrong_passcode_fails_cleanly() {
 #[test]
 fn rust_decrypts_node_ofe1() {
     let plain = read("doc.plain");
-    assert_eq!(crypto::decrypt_buffer(&read("doc.ofe1"), Some(PASS), false), plain);
-    assert_eq!(crypto::decrypt_buffer(&read("doc.ofe1"), Some(PASS), true), plain);
+    assert_eq!(
+        crypto::decrypt_buffer(&read("doc.ofe1"), Some(PASS), false),
+        plain
+    );
+    assert_eq!(
+        crypto::decrypt_buffer(&read("doc.ofe1"), Some(PASS), true),
+        plain
+    );
     // A wrong key hands back the input, exactly like Node.
     assert_eq!(
         crypto::decrypt_buffer(&read("doc.ofe1"), Some("wrong"), true),
@@ -145,11 +178,18 @@ fn write_outputs_for_node() {
     .expect("insert");
     drop(conn); // closing checkpoints the WAL
     let header = std::fs::read(out.join("rust.db")).expect("read db");
-    assert!(!header.starts_with(b"SQLite format 3\0"), "rust db is not encrypted");
+    assert!(
+        !header.starts_with(b"SQLite format 3\0"),
+        "rust db is not encrypted"
+    );
 
     let doc = read("doc.plain");
     std::fs::write(out.join("doc.plain"), &doc).expect("write");
-    std::fs::write(out.join("doc.ofe1"), crypto::encrypt_buffer(&doc, Some(PASS))).expect("write");
+    std::fs::write(
+        out.join("doc.ofe1"),
+        crypto::encrypt_buffer(&doc, Some(PASS)),
+    )
+    .expect("write");
     let memo = String::from_utf8(read("memory.plain")).expect("utf8");
     std::fs::write(out.join("memory.plain"), &memo).expect("write");
     std::fs::write(
@@ -160,5 +200,9 @@ fn write_outputs_for_node() {
     let backup = read("backup.plain");
     std::fs::write(out.join("backup.plain"), &backup).expect("write");
     let key = crypto::derive_backup_key(PASS, "desktop");
-    std::fs::write(out.join("backup.fwb1"), crypto::encrypt_backup(&backup, &key)).expect("write");
+    std::fs::write(
+        out.join("backup.fwb1"),
+        crypto::encrypt_backup(&backup, &key),
+    )
+    .expect("write");
 }

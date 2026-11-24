@@ -158,7 +158,10 @@ fn spawn_server(
 
 #[tauri::command]
 #[allow(unreachable_code)]
-fn wipe_database(state: tauri::State<Mutex<AppState>>, app: tauri::AppHandle) -> Result<(), String> {
+fn wipe_database(
+    state: tauri::State<Mutex<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let db_path = {
         let mut guard = state.lock().unwrap();
         // Stop the server first — it holds the database open.

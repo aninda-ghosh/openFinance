@@ -23,7 +23,9 @@ fn add_column_if_missing(
     if columns_of(conn, table)?.contains(column) {
         return Ok(());
     }
-    conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+    conn.execute_batch(&format!(
+        "ALTER TABLE {table} ADD COLUMN {column} {definition}"
+    ))
 }
 
 /// The `CREATE TABLE` statements, in Node's order. The leading newline and
@@ -367,9 +369,11 @@ mod tests {
             .expect("count");
         assert_eq!(tables, 19);
         let base: String = conn
-            .query_row("SELECT base_currency FROM app_settings WHERE id = 'system'", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT base_currency FROM app_settings WHERE id = 'system'",
+                [],
+                |r| r.get(0),
+            )
             .expect("settings row");
         assert_eq!(base, "USD");
     }

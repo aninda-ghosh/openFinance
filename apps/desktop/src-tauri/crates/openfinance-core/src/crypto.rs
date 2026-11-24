@@ -238,8 +238,8 @@ pub fn derive_backup_key(password: &str, username: &str) -> String {
 pub fn node_hex_decode(s: &str) -> Vec<u8> {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len() / 2);
-    for pair in bytes.chunks_exact(2) {
-        let (Some(hi), Some(lo)) = (hex_val(pair[0]), hex_val(pair[1])) else {
+    for [a, b] in bytes.as_chunks::<2>().0 {
+        let (Some(hi), Some(lo)) = (hex_val(*a), hex_val(*b)) else {
             break;
         };
         out.push((hi << 4) | lo);
@@ -382,7 +382,10 @@ mod tests {
     #[test]
     fn utf8_lossy_matches_node() {
         let bytes = [0x61, 0xff, 0x62, 0xe2, 0x82, 0x63, 0xf0, 0x9f, 0x98];
-        assert_eq!(String::from_utf8_lossy(&bytes), "a\u{fffd}b\u{fffd}c\u{fffd}");
+        assert_eq!(
+            String::from_utf8_lossy(&bytes),
+            "a\u{fffd}b\u{fffd}c\u{fffd}"
+        );
     }
 
     #[test]
@@ -399,7 +402,10 @@ mod tests {
         let key = "11".repeat(32);
         let b = encrypt_backup(b"zip", &key);
         assert!(b.starts_with(b"FWB1"));
-        assert_eq!(decrypt_backup(&b, &key).ok().flatten().as_deref(), Some(&b"zip"[..]));
+        assert_eq!(
+            decrypt_backup(&b, &key).ok().flatten().as_deref(),
+            Some(&b"zip"[..])
+        );
         assert!(decrypt_backup(&b, &"22".repeat(32)).is_err());
         assert!(matches!(decrypt_backup(b"PK..", &key), Ok(None)));
         // Unusable key: Node's createCipheriv throws and the ZIP goes out as-is.
