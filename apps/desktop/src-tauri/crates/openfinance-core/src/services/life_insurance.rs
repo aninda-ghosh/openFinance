@@ -2,7 +2,7 @@
 //! Owner: Wave 1 (policies).
 
 use std::collections::HashMap;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params_from_iter, Connection, OptionalExtension, Row};
@@ -13,6 +13,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::ids::nanoid;
 use crate::js::now_iso;
 use crate::json::{from_sql, number, to_number, truthy};
+use crate::services::document;
 use crate::services::exchange_rate::get_latest_rates;
 use crate::services::policy::dates::{js_round, now_ms, parse_date, MS_PER_DAY};
 use crate::services::policy::{bind, currency_or_inr, js_property_key, or_value, to_inr, Rates};
@@ -286,51 +287,6 @@ pub fn update_life_insurance(
     Ok(to_response(row, &rates, count))
 }
 
-/// `path.join(dir, name)`: joins and normalises `.`/`..` lexically (an
-/// absolute `name` stays under `dir`, unlike `Path::join`).
-fn node_path_join(dir: &Path, name: &str) -> PathBuf {
-    let mut out = PathBuf::new();
-    let joined = format!("{}/{name}", dir.to_string_lossy());
-    for c in Path::new(&joined).components() {
-        match c {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    out.push("..");
-                }
-            }
-            other => out.push(other.as_os_str()),
-        }
-    }
-    out
-}
-
-/// `deleteDocument(docId)` from `document.service.ts`, which this service
-/// calls. Kept private here until the data wave's `services::document` port
-/// lands (see STATUS.md, Wave 1 policies).
-fn delete_document(conn: &Connection, uploads_dir: &Path, doc_id: &Value) -> ApiResult<()> {
-    let doc_id = bind(doc_id);
-    let file_name: Option<Value> = conn
-        .query_row(
-            "SELECT id, investment_id, account_id, name, file_name, file_size, mime_type, \
-             notes, created_at, updated_at, life_insurance_id FROM investment_documents \
-             WHERE id = ? LIMIT 1",
-            [&doc_id],
-            |r| Ok(from_sql(r.get_ref(4)?)),
-        )
-        .optional()?;
-    let Some(file_name) = file_name else {
-        return Err(ApiError::service(404, "Document not found"));
-    };
-    let file_path = node_path_join(uploads_dir, &js_property_key(&file_name));
-    if file_path.exists() {
-        std::fs::remove_file(&file_path)
-            .map_err(|e| ApiError::internal(format!("unlink {}: {e}", file_path.display())))?;
-    }
-    conn.execute("DELETE FROM investment_documents WHERE id = ?", [&doc_id])?;
-    Ok(())
-}
-
 /// `deleteLifeInsurance(id)`: removes attached documents (rows and files)
 /// first, then the policy. `uploads_dir` is `UPLOADS_DIR`
 /// (`<data dir>/uploads/documents`).
@@ -344,7 +300,9 @@ pub fn delete_life_insurance(conn: &Connection, uploads_dir: &Path, id: &str) ->
         .query_map([id], |r| Ok(from_sql(r.get_ref(0)?)))?
         .collect::<Result<Vec<_>, _>>()?;
     for doc in &docs {
-        delete_document(conn, uploads_dir, doc)?;
+        // `deleteDocument(doc.id)`: `id` is `TEXT PRIMARY KEY NOT NULL`, so
+        // the value is always a string.
+        document::delete_document(conn, uploads_dir, &js_property_key(doc))?;
     }
     conn.execute("DELETE FROM life_insurance WHERE id = ?", [id])?;
     Ok(())
@@ -436,23 +394,5 @@ mod tests {
         assert!(!dir.path().join("doc.pdf").exists());
         assert!(get_life_insurance(&c, &id).is_err());
         assert!(delete_life_insurance(&c, dir.path(), &id).is_err());
-    }
-
-    #[test]
-    fn path_join_like_node() {
-        let d = Path::new("/data/uploads/documents");
-        assert_eq!(
-            node_path_join(d, "a.pdf"),
-            PathBuf::from("/data/uploads/documents/a.pdf")
-        );
-        assert_eq!(
-            node_path_join(d, "/etc/x"),
-            PathBuf::from("/data/uploads/documents/etc/x")
-        );
-        assert_eq!(node_path_join(d, "../x"), PathBuf::from("/data/uploads/x"));
-        assert_eq!(
-            node_path_join(d, ""),
-            PathBuf::from("/data/uploads/documents")
-        );
     }
 }
