@@ -21,6 +21,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { canonical, createNormaliser } from "./normalise.mjs";
+import { startFakeOllama } from "./fake-ollama.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CRATE = path.resolve(HERE, "..");
@@ -98,7 +99,7 @@ function freePort() {
   });
 }
 
-function serverEnv(dir, port) {
+function serverEnv(dir, port, ollamaUrl = OLLAMA_URL) {
   const env = { ...process.env };
   for (const k of ["ENCRYPTION_KEY", "JWT_SECRET", "HOST", "OLLAMA_MODEL", "NODE_ENV"]) delete env[k];
   return {
@@ -107,13 +108,13 @@ function serverEnv(dir, port) {
     OPENFINANCE_DB_KEY: DB_KEY,
     OPENFINANCE_DESKTOP: "true",
     OPENFINANCE_NO_NETWORK: "1",
-    OLLAMA_URL,
+    OLLAMA_URL: ollamaUrl,
     PORT: String(port),
   };
 }
 
 /** Starts a server process; resolves once GET /health answers. */
-async function startServer(kind, dir, bin) {
+async function startServer(kind, dir, bin, ollamaUrl) {
   const port = await freePort();
   const log = fs.openSync(path.join(dir, `${kind}.log`), "a");
   const [cmd, argv, cwd] =
@@ -122,7 +123,7 @@ async function startServer(kind, dir, bin) {
       : [bin, [], dir];
   const child = spawn(cmd, argv, {
     cwd,
-    env: serverEnv(dir, port),
+    env: serverEnv(dir, port, ollamaUrl),
     stdio: ["ignore", log, log],
     detached: true,
   });
@@ -244,18 +245,25 @@ async function send(server, step, vars) {
     }
     body = form;
   }
+  const controller = new AbortController();
   const res = await fetch(server.base + interpolate(step.path, vars), {
     method: step.method ?? "GET",
     headers,
     body,
+    signal: controller.signal,
   });
-  const raw = Buffer.from(await res.arrayBuffer());
   const picked = {};
   for (const h of COMPARED_HEADERS) {
     const v = res.headers.get(h);
     if (v !== null) picked[h] = v;
   }
   const type = res.headers.get("content-type") ?? "";
+  if (type.startsWith("text/event-stream")) {
+    // Added by Wave 3 (ai), see STATUS.md: compare a server-sent event stream.
+    const value = await readSse(res, controller, step.sse ?? {});
+    return { status: res.status, headers: picked, kind: "sse", value, raw: null, zip: null };
+  }
+  const raw = Buffer.from(await res.arrayBuffer());
   let kind = "empty";
   let value = null;
   if (raw.length > 0 && type.includes("json")) {
@@ -280,6 +288,70 @@ async function send(server, step, vars) {
     kind = "backup";
   }
   return { status: res.status, headers: picked, kind, value, raw, zip };
+}
+
+// ── Server-sent events (Wave 3, ai) ───────────────────────────────────────────
+// An SSE body is read incrementally and compared as
+//   { events: [{ event, data, id?, retry? }...], raw, end }
+// where `raw` is the full text received (so framing is compared byte for
+// byte too) and `end` says how reading stopped: "eof" (the server closed the
+// stream), "max" (`step.sse.maxEvents` events were read, then the client
+// disconnected) or "idle" (nothing arrived for `step.sse.idleMs`, default
+// 1500 ms, then the client disconnected). Nothing is masked or dropped.
+
+function parseSse(text) {
+  const events = [];
+  let cur = null;
+  const blocks = text.split("\n\n");
+  const complete = blocks.slice(0, -1);
+  for (const block of complete) {
+    cur = { event: "message", data: [] };
+    for (const line of block.split("\n")) {
+      const i = line.indexOf(":");
+      const field = i === -1 ? line : line.slice(0, i);
+      let v = i === -1 ? "" : line.slice(i + 1);
+      if (v.startsWith(" ")) v = v.slice(1);
+      if (field === "data") cur.data.push(v);
+      else if (field === "event" || field === "id" || field === "retry") cur[field] = v;
+    }
+    events.push({ ...cur, data: cur.data.join("\n") });
+  }
+  return events;
+}
+
+async function readSse(res, controller, opts) {
+  const idleMs = opts.idleMs ?? 1500;
+  const maxEvents = opts.maxEvents ?? Infinity;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let raw = "";
+  let end = "eof";
+  while (true) {
+    let timer;
+    const idle = new Promise((r) => (timer = setTimeout(() => r("idle"), idleMs)));
+    const next = await Promise.race([reader.read(), idle]);
+    clearTimeout(timer);
+    if (next === "idle") {
+      end = "idle";
+      break;
+    }
+    if (next.done) break;
+    raw += decoder.decode(next.value, { stream: true });
+    if (parseSse(raw).length >= maxEvents) {
+      end = "max";
+      break;
+    }
+  }
+  if (end !== "eof") {
+    controller.abort();
+    await reader.cancel().catch(() => {});
+  }
+  let events = parseSse(raw);
+  if (end === "max") {
+    events = events.slice(0, maxEvents);
+    raw = events.length ? raw.split("\n\n").slice(0, maxEvents).join("\n\n") + "\n\n" : "";
+  }
+  return { events, raw, end };
 }
 
 // ── Backup decoding (`"decode": "backup"`, Wave 1 data) ──────────────────────
@@ -357,10 +429,19 @@ async function runScenario(file, seedDir, tmp, bin, known) {
     fs.cpSync(seedDir, dir, { recursive: true, filter: (src) => !src.endsWith(".log") });
     servers[kind] = { dir };
   }
-  const [node, rust] = await Promise.all([
-    startServer("node", servers.node.dir),
-    startServer("rust", servers.rust.dir, bin),
-  ]);
+  // Wave 3 (ai): `"ollama": true` points both servers at one fake Ollama.
+  const fake = scenario.ollama ? await startFakeOllama() : null;
+  let node;
+  let rust;
+  try {
+    [node, rust] = await Promise.all([
+      startServer("node", servers.node.dir, undefined, fake?.url),
+      startServer("rust", servers.rust.dir, bin, fake?.url),
+    ]);
+  } catch (err) {
+    await fake?.close();
+    throw err;
+  }
   const ctx = {
     node: { server: node, vars: {}, norm: createNormaliser({ known, runStartedAt }) },
     rust: { server: rust, vars: {}, norm: createNormaliser({ known, runStartedAt }) },
@@ -369,10 +450,20 @@ async function runScenario(file, seedDir, tmp, bin, known) {
   try {
     for (const [index, step] of scenario.steps.entries()) {
       const label = `${name} #${index + 1} ${step.name ?? ""} ${step.method ?? "GET"} ${step.path}`;
+      if (!("path" in step)) {
+        // Wave 3 (ai) control steps; see STATUS.md.
+        const shownCtl = await controlStep(step, fake, ctx, servers).catch((err) => {
+          throw new Error(`${label}: ${err.message}`);
+        });
+        if (shownCtl && shownCtl.node !== shownCtl.rust) {
+          failures.push(`  FAIL ${label}  (- node, + rust)\n${lineDiff(shownCtl.node, shownCtl.rust)}`);
+        } else if (VERBOSE) console.log(`  ok   ${label}`);
+        continue;
+      }
       const shown = {};
       for (const kind of ["node", "rust"]) {
         const c = ctx[kind];
-        const r = await send(c.server, step, c.vars);
+        const r = step.poll ? await sendUntil(c.server, step, c.vars) : await send(c.server, step, c.vars);
         for (const [v, p] of Object.entries(step.capture ?? {})) c.vars[v] = getPath(r.value, p);
         if (step.captureBody) c.vars[step.captureBody] = r.raw;
         if (step.captureZip) c.vars[step.captureZip] = r.zip;
@@ -380,7 +471,10 @@ async function runScenario(file, seedDir, tmp, bin, known) {
           status: r.status,
           headers: r.headers,
           kind: r.kind,
-          body: r.kind === "json" || r.kind === "backup" ? c.norm.body(r.status, r.value) : r.value,
+          body:
+            r.kind === "json" || r.kind === "backup" || r.kind === "sse"
+              ? c.norm.body(r.status, r.value)
+              : r.value,
         });
       }
       if (shown.node === shown.rust) {
@@ -391,8 +485,67 @@ async function runScenario(file, seedDir, tmp, bin, known) {
     }
   } finally {
     await Promise.all([stopServer(node), stopServer(rust)]);
+    await fake?.close();
   }
   return { name, steps: scenario.steps.length, failures };
+}
+
+// ── AI control steps (Wave 3) ────────────────────────────────────────────────
+// Steps without a `path`:
+//   { "ollama": { "script": [...], "tags": {...}, "release": "gate" } }
+//       loads the same scripted replies into the fake for both servers /
+//       sets its /api/tags reply / releases a held stream (nothing compared)
+//   { "ollama": { "requests": true } }
+//       compares the requests each server sent the fake since the last check
+//       (method, path and parsed JSON body, through the normaliser)
+//   { "sleepMs": n }                    waits (e.g. past the 15 s retention)
+//   { "memoryFiles": true }             compares the file names in each
+//                                       server's chat-memories directory
+// HTTP steps may set "poll": { "until": "dotted.path", "equals": v,
+// "timeoutMs"?: 20000 } to repeat the request until the value matches; the
+// last response is compared as usual.
+
+async function controlStep(step, fake, ctx, servers) {
+  if (step.sleepMs) {
+    await new Promise((r) => setTimeout(r, step.sleepMs));
+    return null;
+  }
+  if (step.memoryFiles) {
+    const list = (kind) => {
+      const dir = path.join(servers[kind].dir, "chat-memories");
+      return fs.existsSync(dir) ? fs.readdirSync(dir).sort() : null;
+    };
+    return { node: canonical(list("node")), rust: canonical(list("rust")) };
+  }
+  const o = step.ollama;
+  if (!o || !fake) throw new Error('unknown control step (or scenario without "ollama": true)');
+  if (o.tags) fake.setTags(o.tags);
+  if (o.script) fake.script(o.script);
+  if (o.release) fake.release(o.release);
+  if (o.requests) {
+    const shown = {};
+    for (const kind of ["node", "rust"]) {
+      const list = fake.takeRequests(kind);
+      // `"count": n` guards against both sides silently sending nothing.
+      if (o.count !== undefined && list.length !== o.count) {
+        throw new Error(`${kind} sent ${list.length} Ollama requests, expected ${o.count}`);
+      }
+      shown[kind] = canonical(ctx[kind].norm.body(200, list));
+    }
+    return shown;
+  }
+  return null;
+}
+
+async function sendUntil(server, step, vars) {
+  const { until, equals, timeoutMs = 20_000 } = step.poll;
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    const r = await send(server, step, vars);
+    const v = r.kind === "json" ? getPath(r.value, until) : undefined;
+    if (JSON.stringify(v) === JSON.stringify(equals) || Date.now() > deadline) return r;
+    await new Promise((res) => setTimeout(res, 100));
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────

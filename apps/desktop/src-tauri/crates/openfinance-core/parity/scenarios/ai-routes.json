@@ -1,0 +1,505 @@
+{
+  "description": "AI settings (validation, trimming, resets, 500s on non-string values and bad JSON), status with Ollama up (fake), odd /api/tags replies and Ollama down (closed port), start-ollama only on the 'already running' and status-throws paths (never spawning), a chat while Ollama is down, conversations CRUD and validation, messages ordering and the audit trail from imported ai_tool_calls rows, chats in created and imported conversations, deletes in FK order with memory files removed.",
+  "ollama": true,
+  "steps": [
+    {
+      "name": "settings default",
+      "method": "GET",
+      "path": "/api/ai/settings"
+    },
+    {
+      "name": "url without scheme",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_url": "localhost:11434"
+      }
+    },
+    {
+      "name": "ftp url",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_url": " ftp://x "
+      }
+    },
+    {
+      "name": "url not a string",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_url": 5
+      }
+    },
+    {
+      "name": "model not a string",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_model": 5
+      }
+    },
+    {
+      "name": "invalid json",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "body": "{nope",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    {
+      "name": "model only, trimmed",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_model": "  llama3:8b  "
+      }
+    },
+    {
+      "name": "status: configured model missing",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "name": "blank model resets",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_model": "   "
+      }
+    },
+    {
+      "name": "empty object",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {}
+    },
+    {
+      "name": "settings after",
+      "method": "GET",
+      "path": "/api/ai/settings"
+    },
+    {
+      "ollama": {
+        "tags": {
+          "json": {
+            "models": [
+              {
+                "name": "gemma4:e2b"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "status up",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "name": "start-ollama: already running",
+      "method": "POST",
+      "path": "/api/ai/start-ollama"
+    },
+    {
+      "ollama": {
+        "tags": {
+          "json": {
+            "models": [
+              {
+                "name": 7
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "status: non-string model name",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "name": "start-ollama: status throws",
+      "method": "POST",
+      "path": "/api/ai/start-ollama"
+    },
+    {
+      "ollama": {
+        "tags": {
+          "json": {
+            "nope": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "status: no models key",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "ollama": {
+        "tags": {
+          "status": 500,
+          "text": "down"
+        }
+      }
+    },
+    {
+      "name": "status: tags 500",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "ollama": {
+        "tags": "destroy"
+      }
+    },
+    {
+      "name": "status: connection dropped",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "ollama": {
+        "tags": {
+          "json": {
+            "models": [
+              {
+                "name": "gemma4:e2b"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "status requests",
+      "ollama": {
+        "requests": true
+      }
+    },
+    {
+      "name": "point at a closed port, trailing slashes stripped",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_url": "  HTTP://127.0.0.1:9///  "
+      }
+    },
+    {
+      "name": "status down",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "name": "singleton chat while down",
+      "method": "GET",
+      "path": "/api/ai/chat?message=hello"
+    },
+    {
+      "name": "wait",
+      "method": "GET",
+      "path": "/api/ai/generating",
+      "poll": {
+        "until": "state.isDone",
+        "equals": true
+      }
+    },
+    {
+      "name": "replay: unavailable",
+      "method": "GET",
+      "path": "/api/ai/chat"
+    },
+    {
+      "name": "user message saved, no memory",
+      "method": "GET",
+      "path": "/api/ai/messages"
+    },
+    {
+      "name": "no memory file",
+      "memoryFiles": true
+    },
+    {
+      "name": "blank url resets to env",
+      "method": "PUT",
+      "path": "/api/ai/settings",
+      "json": {
+        "ollama_url": "",
+        "ollama_model": null
+      }
+    },
+    {
+      "name": "settings reset",
+      "method": "GET",
+      "path": "/api/ai/settings"
+    },
+    {
+      "name": "status up again",
+      "method": "GET",
+      "path": "/api/ai/status"
+    },
+    {
+      "name": "nothing sent while down",
+      "ollama": {
+        "requests": true,
+        "count": 2
+      }
+    },
+    {
+      "name": "import AI rows",
+      "method": "POST",
+      "path": "/api/backup/import",
+      "bodyBase64": "UEsDBBQAAAAIAIereF3W6B/GQQIAAJ8HAAAQAAAAYmFja3VwLWRhdGEuanNvbqVVTY+bMBD9K8jXJisg2krNpWpvveyp0qoNkTUxXnBlbOSPdKMo/71jQoEAu4sUyRfG8/HmzTNzJkdurNCKbCOSkFVE+GutjeM5BRdsaZx+XscJnp9xvG3OQxzHv4NrDg7Q50yAMe2Vs/ix24cc6silrjktjPb1xNwZnAFlgTms39kOPi+4oyC56RMazrwxQhV0LkRgXusqPkBQG8E4LYV12pymfvQI0k/uay0FEz285vtEazhpP2julZWgCk4NuN4XBGVaBTKhw3YmIg8chos1BMaccJIH04/qynL0LZiZ4TCmfBMoT8aU+zqf83wceV5W0U3xw3zx728VTxcXR8/0g+K8qt3pBsCTjipuLRTI3xiB8lKOawXbpWW5CxwQXK0hbRINJkDH3Bt9LQ7W4thBuTbCoR6C/Zf2JlLcRX+RnDISNsp8Gh++JKs4xhM/tP4vIueKNalKUZTBajGUcUv/2OtD2mXdk8jIfsmEHyfUYU/J4p685WbUznMJLjRRnfqmvk5aaNkeNdBaF8ryFvTmHtAoDCdwwg6q+g6sjV6GqA7vUnn4AFUp7udt5kX9V7TTWlIGUt5o2rF1o+lW7/RW6U2MgqqBHP6XOGPazDjc1mCg6uV4vjQNcuul64wZeUJZPIeQ7UjpGWn6RUTvDH8zGT4iThYixtzMSyRpDm0WdhCiDWspI9uMJJ+SjMz1kI5xjgaPiDZziK5ymHDYrbGFFO72b/A0HHYyGLYULwhCWY9LrJHReC3lmvl+j10u/wBQSwECFAMUAAAACACHq3hd1ugfxkECAACfBwAAEAAAAAAAAAAAAAAAgAEAAAAAYmFja3VwLWRhdGEuanNvblBLBQYAAAAAAQABAD4AAABvAgAAAAA="
+    },
+    {
+      "name": "list (ordered by updated_at)",
+      "method": "GET",
+      "path": "/api/ai/conversations"
+    },
+    {
+      "name": "messages ordered by created_at",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-a/messages"
+    },
+    {
+      "name": "audit with tool calls",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-a/audit"
+    },
+    {
+      "name": "audit conv-b",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-b/audit"
+    },
+    {
+      "name": "audit without messages",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-empty/audit"
+    },
+    {
+      "name": "audit unknown",
+      "method": "GET",
+      "path": "/api/ai/conversations/nope/audit"
+    },
+    {
+      "name": "messages unknown",
+      "method": "GET",
+      "path": "/api/ai/conversations/nope/messages"
+    },
+    {
+      "name": "generating unknown",
+      "method": "GET",
+      "path": "/api/ai/conversations/nope/generating"
+    },
+    {
+      "name": "create default title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "capture": {
+        "c1": "id"
+      }
+    },
+    {
+      "name": "create with title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "json": {
+        "title": "Budget review"
+      },
+      "capture": {
+        "c2": "id"
+      }
+    },
+    {
+      "name": "create with empty title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "json": {
+        "title": ""
+      }
+    },
+    {
+      "name": "create with null title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "json": {
+        "title": null
+      }
+    },
+    {
+      "name": "create with numeric title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "json": {
+        "title": 12
+      }
+    },
+    {
+      "name": "create with long title",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "json": {
+        "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "create with bad json",
+      "method": "POST",
+      "path": "/api/ai/conversations",
+      "body": "nope",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    {
+      "name": "list after create",
+      "method": "GET",
+      "path": "/api/ai/conversations"
+    },
+    {
+      "name": "chat in a created conversation",
+      "method": "POST",
+      "path": "/api/ai/conversations/{{c2}}/chat",
+      "json": {
+        "message": "  hello  "
+      }
+    },
+    {
+      "ollama": {
+        "script": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": ""
+            }
+          },
+          {
+            "stream": [
+              {
+                "message": {
+                  "content": "hi"
+                },
+                "done": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "chat (scripted) in the imported conversation",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-b/chat?message=more&model=x"
+    },
+    {
+      "name": "wait conv-b",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-b/generating",
+      "poll": {
+        "until": "state.isDone",
+        "equals": true
+      }
+    },
+    {
+      "name": "conv-b messages",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-b/messages"
+    },
+    {
+      "name": "conv-b chat requests (history from the import)",
+      "ollama": {
+        "requests": true
+      }
+    },
+    {
+      "name": "chat validation: empty",
+      "method": "POST",
+      "path": "/api/ai/conversations/conv-a/chat",
+      "json": {
+        "message": ""
+      }
+    },
+    {
+      "name": "chat validation: missing",
+      "method": "POST",
+      "path": "/api/ai/conversations/conv-a/chat",
+      "json": {}
+    },
+    {
+      "name": "chat validation: number",
+      "method": "POST",
+      "path": "/api/ai/conversations/conv-a/chat",
+      "json": {
+        "message": 5
+      }
+    },
+    {
+      "name": "chat validation: bad json",
+      "method": "POST",
+      "path": "/api/ai/conversations/conv-a/chat",
+      "body": "x",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    {
+      "name": "GET chat without message",
+      "method": "GET",
+      "path": "/api/ai/conversations/conv-a/chat"
+    },
+    {
+      "name": "memory files",
+      "memoryFiles": true
+    },
+    {
+      "name": "delete with tool calls",
+      "method": "DELETE",
+      "path": "/api/ai/conversations/conv-a"
+    },
+    {
+      "name": "delete conv-b (memory file removed)",
+      "method": "DELETE",
+      "path": "/api/ai/conversations/conv-b"
+    },
+    {
+      "name": "delete again",
+      "method": "DELETE",
+      "path": "/api/ai/conversations/conv-a"
+    },
+    {
+      "name": "delete empty",
+      "method": "DELETE",
+      "path": "/api/ai/conversations/conv-empty"
+    },
+    {
+      "name": "delete unknown",
+      "method": "DELETE",
+      "path": "/api/ai/conversations/nope"
+    },
+    {
+      "name": "memory after deletes",
+      "memoryFiles": true
+    },
+    {
+      "name": "list after delete",
+      "method": "GET",
+      "path": "/api/ai/conversations"
+    },
+    {
+      "name": "export keeps the rest",
+      "method": "GET",
+      "path": "/api/backup/export",
+      "decode": "backup"
+    },
+    {
+      "name": "no other requests",
+      "ollama": {
+        "requests": true
+      }
+    }
+  ]
+}

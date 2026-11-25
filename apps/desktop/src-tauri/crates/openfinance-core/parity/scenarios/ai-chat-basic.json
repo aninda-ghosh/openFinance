@@ -1,0 +1,48 @@
+{
+  "description": "Singleton chat without tools against the fake Ollama: the SSE stream that starts a generation gets no events (Node attaches the listener before the generation exists, QUIRKS Wave 3), the generation runs in the background, /generating shows the finished state, re-attaching replays the text as one token plus done, messages are saved (the user message twice in the prompt), the memory file is written, and both servers sent Ollama identical requests (system prompt, history, tools schema, options).",
+  "ollama": true,
+  "steps": [
+    { "name": "status: ollama up, model present", "method": "GET", "path": "/api/ai/status" },
+    { "ollama": { "tags": { "json": { "models": [{ "name": "gemma4:e2b" }, { "name": "llama3:8b" }] } } } },
+    { "name": "status with models", "method": "GET", "path": "/api/ai/status" },
+    { "name": "tags requests", "ollama": { "requests": true, "count": 4 } },
+    { "name": "not generating yet", "method": "GET", "path": "/api/ai/generating" },
+    { "name": "messages (creates the singleton conversation)", "method": "GET", "path": "/api/ai/messages" },
+    { "name": "conversations", "method": "GET", "path": "/api/ai/conversations" },
+    {
+      "ollama": {
+        "script": [
+          { "message": { "role": "assistant", "content": "" } },
+          { "stream": [
+            { "message": { "role": "assistant", "content": "Hel" } },
+            { "message": { "role": "assistant", "content": "lo\nworld " } },
+            { "message": { "role": "assistant", "content": "" } },
+            "not json",
+            { "message": { "role": "assistant", "content": "!" }, "done": false },
+            { "done": true },
+            { "message": { "role": "assistant", "content": "after done" } }
+          ] }
+        ]
+      }
+    },
+    { "name": "start chat (stream gets no events)", "method": "GET", "path": "/api/ai/chat?message=%20%20hi%20there%20" },
+    { "name": "wait until done", "method": "GET", "path": "/api/ai/generating", "poll": { "until": "state.isDone", "equals": true } },
+    { "name": "re-attach replays", "method": "GET", "path": "/api/ai/chat" },
+    { "name": "a new message within 15 s re-attaches instead", "method": "GET", "path": "/api/ai/chat?message=second" },
+    { "name": "messages saved", "method": "GET", "path": "/api/ai/messages" },
+    { "name": "same messages by id", "method": "GET", "path": "/api/ai/conversations/__singleton__/messages" },
+    { "name": "audit (Node never records tool calls)", "method": "GET", "path": "/api/ai/conversations/__singleton__/audit" },
+    { "name": "requests sent to ollama", "ollama": { "requests": true, "count": 2 } },
+    { "name": "memory file written", "memoryFiles": true },
+    { "name": "conversation generating", "method": "GET", "path": "/api/ai/conversations/__singleton__/generating" },
+    { "sleepMs": 15500 },
+    { "name": "generation forgotten after 15 s", "method": "GET", "path": "/api/ai/generating" },
+    { "name": "no message and not generating", "method": "GET", "path": "/api/ai/chat" },
+    { "name": "blank message", "method": "GET", "path": "/api/ai/chat?message=%20" },
+    { "name": "clear", "method": "POST", "path": "/api/ai/clear" },
+    { "name": "messages after clear", "method": "GET", "path": "/api/ai/messages" },
+    { "name": "memory file removed", "memoryFiles": true },
+    { "name": "clear again", "method": "POST", "path": "/api/ai/clear" },
+    { "name": "nothing else sent", "ollama": { "requests": true, "count": 0 } }
+  ]
+}

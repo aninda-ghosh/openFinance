@@ -1,8 +1,22 @@
-//! Port of `apps/server/src/ai/*` and `config/ai.config.ts`.
-//! Owner: Wave 3 (ai). TODO(wave 3): port the Ollama client, tools, chat
-//! harness, context builder and chat memory. Add submodules here as needed.
+//! Port of `apps/server/src/ai/*` and `config/ai.config.ts` (Wave 3).
 //!
-//! Notes from Wave 0: the Ollama URL/model come from
-//! `services::settings::{get_ollama_url, get_ollama_model, get_ai_settings,
-//! update_ai_settings}`; chat memories live in `state.config().data_dir/chat-memories`
-//! and are OFE1 strings via `state.file_crypto()`.
+//! - `config`: `AI_CONFIG`
+//! - `ollama`: `ollama.client.ts` (URL/model from `services::settings`)
+//! - `prompts`: `prompts/financial-advisor.ts` (byte-identical text)
+//! - `tools`: `tools/index.ts` + `tools/calculator.ts`
+//! - `service`: `ai.service.ts` (streaming chat with the tool-calling loop)
+//! - `harness`: `chat-harness.ts` (per-conversation generation state)
+//! - `memory`: `chat-memory.ts` (encrypted files in `DATA_DIR/chat-memories`)
+//! - `context`: `context.builder.ts` (unused by Node, ported for completeness)
+//! - `intl`, `js`: the JS / Intl semantics the above depend on
+
+pub mod config;
+pub mod context;
+pub mod harness;
+pub mod intl;
+pub mod js;
+pub mod memory;
+pub mod ollama;
+pub mod prompts;
+pub mod service;
+pub mod tools;
