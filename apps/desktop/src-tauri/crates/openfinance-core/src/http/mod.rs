@@ -4,14 +4,20 @@
 //! Middleware order matches Node: CORS → desktop origin guard → request log →
 //! routes. Unknown paths *and* known paths with the wrong method answer like
 //! Hono: `404 text/plain "404 Not Found"`.
+//!
+//! Like Hono, routing uses the `decodeURI`d path (see [`hono_route_path`]),
+//! so `/api/policies/%74imeline` reaches the timeline. Handlers that read
+//! `OriginalUri` still see the raw path.
 
 pub mod routes;
 
 use std::time::Instant;
 
+use axum::extract::OriginalUri;
 use axum::extract::{DefaultBodyLimit, Request, State};
 use axum::http::header::{self, HeaderValue};
-use axum::http::{Method, StatusCode};
+use axum::http::uri::PathAndQuery;
+use axum::http::{Method, StatusCode, Uri};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -34,7 +40,7 @@ const ALLOW_METHODS: &str = "GET,HEAD,PUT,POST,DELETE,PATCH";
 /// Builds the full application router.
 pub fn router(state: AppState) -> Router {
     let desktop = state.config().desktop;
-    Router::new()
+    let app = Router::new()
         .route("/health", get(health))
         .nest("/api/budget", routes::budget::router())
         .nest("/api/investments", routes::investments::router())
@@ -53,7 +59,146 @@ pub fn router(state: AppState) -> Router {
         .layer(middleware::from_fn(log_requests))
         .layer(middleware::from_fn_with_state(desktop, origin_guard))
         .layer(middleware::from_fn_with_state(desktop, cors))
-        .with_state(state)
+        .with_state(state);
+    // An outer router with no routes: its layer runs before `app` routes,
+    // which a layer on `app` itself would not.
+    Router::new()
+        .fallback_service(app)
+        .layer(middleware::map_request(route_on_decoded_path))
+}
+
+/// Rewrites the request path to the one Hono's router matches, keeping the
+/// raw URI in `OriginalUri` for the handlers that decode params themselves.
+async fn route_on_decoded_path(mut req: Request) -> Request {
+    if req.extensions().get::<OriginalUri>().is_none() {
+        let raw = OriginalUri(req.uri().clone());
+        req.extensions_mut().insert(raw);
+    }
+    if let Some(path) = hono_route_path(req.uri().path()) {
+        let path_and_query = match req.uri().query() {
+            Some(q) => format!("{path}?{q}"),
+            None => path,
+        };
+        if let Ok(pq) = PathAndQuery::try_from(path_and_query) {
+            let mut parts = req.uri().clone().into_parts();
+            parts.path_and_query = Some(pq);
+            if let Ok(uri) = Uri::from_parts(parts) {
+                *req.uri_mut() = uri;
+            }
+        }
+    }
+    req
+}
+
+/// Hono's `getPath`: a path holding a `%` is routed as
+/// `tryDecodeURI(path.replace(/%25/g, "%2525"))`. `None` when that is the raw
+/// path. `decodeURI` keeps `/` and the other reserved characters encoded, so
+/// the segments stay the same. Characters an `http::Uri` path can't hold
+/// (only ever produced by the decoding) are encoded again; route literals
+/// never contain them, and params are decoded again by the handlers.
+pub fn hono_route_path(raw: &str) -> Option<String> {
+    if !raw.contains('%') {
+        return None;
+    }
+    let decoded = try_decode_uri(&raw.replace("%25", "%2525"));
+    let mut out = String::with_capacity(decoded.len());
+    for c in decoded.chars() {
+        match c {
+            '\0'..=' ' | '\x7f' | '<' | '>' | '`' | '#' | '?' => {
+                out.push_str(&format!("%{:02X}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    (out != raw).then_some(out)
+}
+
+/// JS `decodeURI`: `None` on a URIError. Escapes of `;/?:@&=+$,#` stay as
+/// written.
+fn decode_uri(s: &str) -> Option<String> {
+    let b = s.as_bytes();
+    let hex = |i: usize| -> Option<u8> {
+        let h = b.get(i + 1..i + 3)?;
+        if !h.iter().all(u8::is_ascii_hexdigit) {
+            return None;
+        }
+        u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok()
+    };
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'%' {
+            out.push(b[i]);
+            i += 1;
+            continue;
+        }
+        let first = hex(i)?;
+        if first < 0x80 {
+            if b";/?:@&=+$,#".contains(&first) {
+                out.extend_from_slice(&b[i..i + 3]);
+            } else {
+                out.push(first);
+            }
+            i += 3;
+            continue;
+        }
+        let n = match first {
+            0xC0..=0xDF => 2,
+            0xE0..=0xEF => 3,
+            0xF0..=0xF7 => 4,
+            _ => return None,
+        };
+        let mut seq = vec![first];
+        for k in 1..n {
+            let at = i + 3 * k;
+            if b.get(at) != Some(&b'%') {
+                return None;
+            }
+            let byte = hex(at)?;
+            if byte & 0xC0 != 0x80 {
+                return None;
+            }
+            seq.push(byte);
+        }
+        // Rejects overlong forms, surrogates and code points past U+10FFFF,
+        // as `decodeURI` does.
+        std::str::from_utf8(&seq).ok()?;
+        out.extend_from_slice(&seq);
+        i += 3 * n;
+    }
+    String::from_utf8(out).ok()
+}
+
+/// Hono's `tryDecodeURI`: on a URIError, each run of `%XX` escapes is decoded
+/// on its own and kept as written when it still fails.
+fn try_decode_uri(s: &str) -> String {
+    if let Some(d) = decode_uri(s) {
+        return d;
+    }
+    let b = s.as_bytes();
+    let is_escape = |i: usize| {
+        b.get(i) == Some(&b'%')
+            && b.get(i + 1).is_some_and(u8::is_ascii_hexdigit)
+            && b.get(i + 2).is_some_and(u8::is_ascii_hexdigit)
+    };
+    let mut out = String::with_capacity(s.len());
+    let (mut i, mut plain) = (0, 0);
+    while i < b.len() {
+        if is_escape(i) {
+            out.push_str(&s[plain..i]);
+            let start = i;
+            while is_escape(i) {
+                i += 3;
+            }
+            let run = &s[start..i];
+            out.push_str(&decode_uri(run).unwrap_or_else(|| run.to_string()));
+            plain = i;
+        } else {
+            i += 1;
+        }
+    }
+    out.push_str(&s[plain..]);
+    out
 }
 
 /// `app.get("/health", (c) => c.json({ status: "ok" }))`.
@@ -249,6 +394,44 @@ mod tests {
             assert_eq!(b, "404 Not Found");
             assert_eq!(h[header::CONTENT_TYPE], "text/plain; charset=UTF-8");
         }
+    }
+
+    #[test]
+    fn route_path_like_hono_get_path() {
+        let cases = [
+            ("/health", None),
+            ("/%68ealth", Some("/health")),
+            ("/api/policies/%74imeline", Some("/api/policies/timeline")),
+            // Reserved characters and `%25` stay encoded.
+            ("/api/budget%2Faccounts", None),
+            ("/api/%2562udget", None),
+            ("/a/%2574", None),
+            // Undecodable runs are kept; the rest is still decoded.
+            ("/a/%E9/%62", Some("/a/%E9/b")),
+            ("/a/%C3%A9x%E9", Some("/a/éx%E9")),
+            ("/a/%6", None),
+            // Decoded characters a URI path can't hold are encoded again.
+            ("/a/%20%3C%60", None),
+            ("/a/%41%20", Some("/a/A%20")),
+        ];
+        for (raw, want) in cases {
+            assert_eq!(hono_route_path(raw).as_deref(), want, "{raw}");
+        }
+    }
+
+    #[tokio::test]
+    async fn routes_on_the_decoded_path() {
+        let (s, _, b) = send(get("/%68ealth").body(Body::empty()).expect("req")).await;
+        assert_eq!((s, b.as_str()), (StatusCode::OK, r#"{"status":"ok"}"#));
+        let (s, _, _) = send(
+            get("/api/exchange-rates/%62ase-currency?x=%61")
+                .body(Body::empty())
+                .expect("req"),
+        )
+        .await;
+        assert_eq!(s, StatusCode::OK);
+        let (s, _, _) = send(get("/api/%2562udget").body(Body::empty()).expect("req")).await;
+        assert_eq!(s, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

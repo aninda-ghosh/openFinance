@@ -49,9 +49,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 node crates/openfinance-core/parity/run.mjs        # from anywhere in the worktree
 ```
-The Tauri app crate's build script needs the sidecar files to exist. In a fresh
-worktree create git-ignored placeholders once:
-`mkdir -p binaries/server-bundle && touch binaries/server-aarch64-apple-darwin binaries/server-bundle/index.js && chmod +x binaries/server-aarch64-apple-darwin`.
+Since Wave 4 the Tauri app crate has no sidecar, so a fresh worktree needs no
+placeholder files. The parity harness and `pnpm --filter openfinance-desktop build`
+need `node_modules` (`pnpm install`, or let `run.mjs` symlink the main checkout's).
 
 **State and DB.** Handlers take `State(state): State<AppState>`.
 - `state.db(|conn| { ... Ok(value) }).await` runs a closure with the single
@@ -530,7 +530,73 @@ covers both directions:
 - Quirks: QUIRKS.md "Wave 3 — ai".
 
 ## Wave 4 — integration
-Not started.
+**Done** on `rust-port/wave4-integration` (from `8125899`). One app, one
+process: the Tauri binary opens the database and serves the core router on
+`127.0.0.1:3001` itself. Manual checklist: `ACCEPTANCE.md`.
+
+- **`src/backend.rs`** (no Tauri types, so it is testable): `Backend::start(config, addr)`
+  opens the DB with the passcode (`AppState::open`: PRAGMAs + bootstrap), builds a
+  **dedicated** multi-thread tokio runtime, binds the port (`SO_REUSEADDR`, like
+  `tokio::net::TcpListener::bind` in `openfinance-server`) and spawns
+  `openfinance_core::serve` (startup jobs, background jobs, router with CORS
+  and the origin guard), exactly what `bin/openfinance-server.rs` does.
+  `desktop_config(db_path, passcode)` is the sidecar's environment: `DB_PATH`,
+  `OPENFINANCE_DB_KEY`, `OPENFINANCE_DESKTOP=true`, `DATA_DIR` = the DB's folder,
+  everything else (`OLLAMA_URL`, `ENCRYPTION_KEY`, …) from the app's environment.
+  On any start error nothing stays open (connection dropped, runtime shut down,
+  no listener). `Backend::shutdown()` (also on drop) runs on a plain thread:
+  graceful axum shutdown (stop accepting, close idle keep-alives, wait for
+  in-flight requests up to 3 s, then abort), then `Runtime::shutdown_timeout(2 s)`,
+  which drops every remaining task (background jobs, AI generations, SSE
+  streams) and so the last `AppState`; the connection closes, which checkpoints
+  the WAL and removes `-wal`/`-shm`. Returns `Graceful | Aborted | Failed`.
+- **`src/lib.rs`**: same commands and arguments. `is_new_db` (unchanged);
+  `spawn_server(password)` is now async, stops any previous backend, starts a
+  new one off the main thread, resolves when listening and rejects with
+  `"wrong_password"` (or a message, e.g. port in use); `wipe_database` stops the
+  backend, deletes the same files as before (`openfinance.db`, `-wal`, `-shm`,
+  `-journal`, `uploads/`, `chat-memories/`) and requests a restart;
+  `ExitRequested`/`Exit` stop the backend. One mutex around the backend slot
+  serialises unlock / wipe / quit; poisoning is ignored (no `unwrap`).
+  Logs (`tracing`) go to stderr and `server.log` in the data folder, truncated
+  per launch, like the sidecar's output. The passcode is never logged.
+- **UI**: one change in `PasswordGate.tsx`: when `spawn_server` rejects with
+  `"wrong_password"` the gate goes straight to its existing `wrong_password`
+  phase (same text, same "Try again") instead of polling `/health` for 15 s.
+  Success still goes through the unchanged health poll.
+- **Removed**: the Node sidecar spawn and the `#[cfg(dev)]` `pnpm dev` branch,
+  `tauri-plugin-shell` (crate, plugin, `shell:*` permissions, `plugins.shell`
+  config; the frontend never used it), `bundle.externalBin` / `bundle.resources`,
+  `resources/server-sidecar/.gitkeep`, the Node steps of `scripts/build-mac.sh`
+  (bundle, Node download, ABI check; it now checks the `.app` holds a single
+  executable and no `binaries/`). `beforeDevCommand` is `pnpm dev` (Vite only),
+  so `pnpm tauri dev` uses the Rust backend. `dev:all` is **kept** (Vite + the
+  Node server for browser work); don't run it alongside `tauri dev`, the
+  in-app backend would find 3001 taken. Note that `tauri dev` uses the same
+  app data folder as the installed app, as before.
+- **Cleanups**: (a) `life_insurance.rs` now calls `services::document::delete_document`
+  (identical: row lookup → 404 "Document not found", `path.join`, unlink if it
+  exists, row delete; the ids are `TEXT PRIMARY KEY NOT NULL`); its private copy
+  and `node_path_join` are gone. (b) `http/mod.rs` routes on Hono's `getPath`
+  (`tryDecodeURI` with `%25` protected): an outer router's `map_request`
+  rewrites the path before the app router matches, keeping the raw URI in
+  `OriginalUri` (handlers that decode params themselves are unaffected).
+  Characters a `Uri` path can't hold (only produced by decoding) are
+  re-encoded. New scenario `http-path-decoding` (37 steps) plus unit tests.
+- **Tests**: `tests/lifecycle.rs` (5, OS-assigned ports, temp dirs): correct
+  passcode serves `/health` + CORS + origin guard + a write; shutdown is
+  graceful with an idle keep-alive open, refuses connections afterwards, leaves
+  no `-wal`/`-shm`, and the same port binds again; wrong passcode (twice) fails
+  with `WrongPasscode`, leaves no listener and no open DB, then the right one
+  unlocks; port in use fails cleanly; wipe removes exactly the listed files; a
+  request stuck mid-body is aborted after the grace period and the DB still closes.
+- Crates added to the app crate: `openfinance-core` (path), `tokio`, `tracing`,
+  `tracing-subscriber`, dev `tempfile` (all already in the lockfile).
+- **Release build** (`scripts/build-mac.sh`, aarch64): `.app` 25 MB (one
+  25.3 MB Mach-O, `otool -L` lists only system frameworks/libs, ad-hoc
+  linker signature, no Node, no `Resources/binaries`), `.dmg` 9.3 MB. The last
+  sidecar build: `.app` 133 MB (Node binary 116 MB + 2.9 MB JS bundle), `.dmg` 46 MB.
+- Parity: 33/33 scenarios, 0 diffs (the 32 from Waves 0–3 + `http-path-decoding`).
 
 ## Wave 5 — touch-id
 Not started.

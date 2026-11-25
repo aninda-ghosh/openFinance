@@ -10,7 +10,7 @@ openFinance ships as a native macOS app you install from a `.dmg` like anything 
 
 - 🛡️ **Local-First & Passcode-Protected** — Runs entirely on your own Mac. The database is unlocked with a passcode you set on first launch, and your data never leaves the machine.
 - 🔒 **Encrypted at Rest, End to End** — The entire database is SQLCipher-encrypted with your passcode, and uploaded bank statements, contract notes, and AI chat memories get their own AES-256-GCM layer on disk. Lose the passcode and the file is just noise.
-- 📦 **One-File Install** — Drag one app into Applications. The UI, the API server, its Node runtime, and the database engine are all inside the bundle; nothing else to install and nothing to keep running.
+- 📦 **One-File Install** — Drag one app into Applications. The UI, the API server, and the database engine are all inside one binary; nothing else to install and nothing to keep running.
 - 💸 **Envelope Budgeting** — Dynamic zero-based budgeting with custom rollovers (carry it forward, cap it, or reset it).
 - 🏦 **Unified Balance Sheet** — Scannable tracking across Checking, Savings, Credit Cards, Cash, Investments, and Loans.
 - 📈 **Tax-Loss & Portfolio Tracking** — Real-time performance metrics across mutual funds, stocks, bonds, high-yield deposits, real estate, and crypto.
@@ -70,12 +70,11 @@ openFinance ships as a native macOS app you install from a `.dmg` like anything 
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19 + Vite + TypeScript + TailwindCSS 4 |
-| **Backend** | Hono (Node.js / TypeScript) |
-| **Database** | SQLite (SQLCipher-encrypted, via better-sqlite3-multiple-ciphers) |
-| **ORM** | Drizzle ORM |
+| **Backend** | Rust (axum + tokio), running inside the app process; `apps/server` (Hono / Node.js) is kept as the reference implementation |
+| **Database** | SQLite (SQLCipher-encrypted, via rusqlite) |
 | **AI LLM Client** | Ollama (local instance) |
 | **App Shell** | Tauri 2 (Rust + WebKit) |
-| **Packaging** | macOS `.dmg` with a bundled Node sidecar |
+| **Packaging** | macOS `.dmg`, a single Tauri binary (no Node runtime) |
 
 ---
 
@@ -102,7 +101,7 @@ To **build the installer** or **modify the codebase**:
 ./scripts/build-mac.sh
 ```
 
-That is the whole thing. The script installs dependencies, bundles the API server into a single JavaScript file, downloads the Node runtime that will run it inside the app, and hands the lot to Tauri to package. The finished installer lands in `apps/desktop/src-tauri/target/release/bundle/dmg/`.
+That is the whole thing. The script installs the UI's dependencies and hands over to Tauri, which builds the UI with Vite and compiles the app together with its Rust API server and SQLCipher. Node is only needed at build time; the app does not ship it. The finished installer lands in `apps/desktop/src-tauri/target/release/bundle/dmg/`.
 
 Open the `.dmg` and drag **openFinance** into Applications.
 
@@ -157,9 +156,9 @@ pnpm install
 pnpm --filter openfinance-desktop tauri dev
 ```
 
-The Tauri window opens on the passcode screen and starts the API server itself, against a database in the app's data directory.
+The Tauri window opens on the passcode screen and, on unlock, starts the Rust API server inside the app process, against a database in the app's data directory. `tauri dev` only starts Vite; it does not start the Node server.
 
-To work on the UI or API in a browser instead:
+To work on the UI in a browser against the Node reference server (`apps/server`) instead:
 
 ```bash
 pnpm --filter openfinance-desktop dev:all
@@ -190,7 +189,7 @@ openFinance/
 │   │   └── scripts/          # Server esbuild bundler
 │   │
 │   └── desktop/              # React frontend client (Vite, TailwindCSS)
-│       └── src-tauri/        # Rust app shell: passcode gate, server sidecar
+│       └── src-tauri/        # Rust app shell (passcode gate) + crates/openfinance-core, the API server
 │
 ├── packages/
 │   └── shared/               # Monorepo shared contract & validator types

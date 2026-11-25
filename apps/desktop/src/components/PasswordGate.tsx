@@ -69,7 +69,13 @@ export function PasswordGate({ onUnlocked }: Props) {
     try {
       await invoke("spawn_server", { password });
       setPhase("starting");
-    } catch {
+    } catch (err) {
+      // The backend runs in-process, so a wrong passcode is reported right
+      // away instead of through the health-poll timeout.
+      if (err === "wrong_password") {
+        setPhase("wrong_password");
+        return;
+      }
       setError("Failed to start the server. Please try again.");
     }
   };
