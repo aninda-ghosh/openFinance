@@ -281,3 +281,43 @@ fn a_stuck_request_is_aborted_and_the_database_still_closes() {
         "database not closed cleanly"
     );
 }
+
+#[test]
+fn verify_passcode_checks_without_disturbing_the_running_backend() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let path = db_path(dir.path());
+
+    // No database yet: an error, and nothing is created.
+    assert!(backend::verify_passcode(&path, PASSCODE).is_err());
+    assert!(!path.exists());
+
+    let backend = Backend::start(config(dir.path(), PASSCODE), any_port()).expect("start");
+    let addr = backend.addr();
+    let account = |name: &str| {
+        request(
+            addr,
+            "POST",
+            "/api/budget/accounts",
+            &[("Content-Type", "application/json")],
+            &format!(r#"{{"name":"{name}","type":"checking"}}"#),
+        )
+    };
+    let created = account("Verify");
+    assert_eq!(created.status, 201, "{}", created.body);
+
+    assert_eq!(backend::verify_passcode(&path, PASSCODE), Ok(true));
+    assert_eq!(
+        backend::verify_passcode(&path, "not the passcode"),
+        Ok(false)
+    );
+
+    // The running backend still serves reads and writes.
+    assert_eq!(get(addr, "/health").status, 200);
+    let again = account("Verify 2");
+    assert_eq!(again.status, 201, "{}", again.body);
+    assert!(get(addr, "/api/budget/accounts").body.contains("Verify 2"));
+
+    assert_eq!(backend.shutdown(), Shutdown::Graceful);
+    // Still verifiable once closed.
+    assert_eq!(backend::verify_passcode(&path, PASSCODE), Ok(true));
+}
