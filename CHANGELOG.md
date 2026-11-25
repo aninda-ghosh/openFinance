@@ -5,7 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [5.0.0] — 2026-11-25
+
+### Added
+
+- **Bulk Add.** Transactions → Bulk add takes pasted rows (tab-separated text from a statement or spreadsheet) for one account, shows a preview to review and fix, then saves them in one go. Rows already saved before are skipped.
+- **Keyboard shortcuts.** Jump between pages with G then a letter or ⌘1…9, quick-add a transaction with N, and press ? for the full cheat sheet.
+- **New app icon.**
 
 ### Changed
 

@@ -44,6 +44,35 @@ const CHANGELOG: {
   sections: { label: string; items: string[] }[];
 }[] = [
   {
+    version: "5.0.0",
+    date: "2026-11-25",
+    sections: [
+      {
+        label: "Added",
+        items: [
+          "Bulk Add: paste rows from a statement or spreadsheet, review them, and save them all at once. Rows already saved are skipped.",
+          "Keyboard shortcuts: G then a letter or ⌘1…9 to switch pages, N to quick-add a transaction, ? for the full list.",
+          "New app icon.",
+        ],
+      },
+      {
+        label: "Changed",
+        items: [
+          "The app now runs as a single program. Its engine was rewritten in Rust and runs inside the app, replacing the bundled Node.js server.",
+          "Much smaller download: about 9 MB instead of 46 MB.",
+          "A wrong passcode is reported immediately instead of after a 15-second wait.",
+          "Your existing data, documents, chat history and backups open as before, with no migration.",
+        ],
+      },
+      {
+        label: "Removed",
+        items: [
+          "Browser and self-hosted mode. openFinance is now a Mac app only.",
+        ],
+      },
+    ],
+  },
+  {
     version: "4.1.6",
     date: "2026-07-11",
     sections: [
