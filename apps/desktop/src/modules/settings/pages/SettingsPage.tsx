@@ -1783,8 +1783,8 @@ export default function SettingsPage() {
             <ChangelogDialog />
           </div>
           <p>
-            Personal finance manager. Your data is stored in PostgreSQL and
-            stays within your own infrastructure.
+            Personal finance manager. Your data is stored in an encrypted
+            database on this Mac and never leaves it.
           </p>
           <p>
             AI powered by{" "}

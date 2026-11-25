@@ -20,11 +20,11 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         q: "What is openFinance and what does it do?",
-        a: "openFinance is a self-hosted personal finance app. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running within your own infrastructure.",
+        a: "openFinance is a personal finance app for your Mac. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running on your own computer.",
       },
       {
         q: "Where is my data stored?",
-        a: "All data is stored in a PostgreSQL database that runs as part of your local openFinance setup. Nothing is sent to any external cloud service — your data stays entirely within your own infrastructure.",
+        a: "All data is stored in an encrypted SQLite database on your Mac, locked with your passcode. Nothing is sent to any external cloud service — your data stays on your computer.",
       },
       {
         q: "What currencies are supported?",
