@@ -95,10 +95,10 @@ struct Running {
 
 impl Backend {
     /// Opens the database with `config.db_key`, runs the schema bootstrap, and
-    /// serves the API on `addr` (port 0 picks a free port). Startup jobs run
-    /// exactly as in `openfinance-server`: `openfinance_core::serve` loads the
-    /// AI settings and migrates plaintext documents before accepting
-    /// requests, then starts the recurring / exchange-rate background tasks.
+    /// serves the API on `addr` (port 0 picks a free port).
+    /// `openfinance_core::serve` loads the AI settings and migrates plaintext
+    /// documents before accepting requests, then starts the recurring /
+    /// exchange-rate background tasks.
     ///
     /// Blocking (key derivation, bootstrap): call it off the async runtime.
     /// On error nothing stays open: no connection, no listener, no runtime.
@@ -241,7 +241,7 @@ impl Running {
     }
 }
 
-/// Like `tokio::net::TcpListener::bind` (which `openfinance-server` uses):
+/// Like `tokio::net::TcpListener::bind`:
 /// `SO_REUSEADDR`, so a restart is not blocked by connections from the
 /// previous run still in TIME_WAIT.
 fn bind(addr: SocketAddr) -> io::Result<TcpListener> {

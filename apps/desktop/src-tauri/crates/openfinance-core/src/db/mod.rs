@@ -15,9 +15,6 @@ use rusqlite::Connection;
 
 pub use rusqlite;
 
-/// Exit code Node uses when the passcode does not open the database.
-pub const WRONG_KEY_EXIT_CODE: i32 = 13;
-
 #[derive(Debug, thiserror::Error)]
 pub enum OpenError {
     /// The passcode does not decrypt the file (SQLITE_NOTADB on first read).

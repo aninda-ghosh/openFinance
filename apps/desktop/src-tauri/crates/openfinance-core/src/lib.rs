@@ -1,5 +1,6 @@
-//! openFinance backend: a Rust port of `apps/server` (Node/Hono/Drizzle).
-//! Module list owned by Wave 0; see docs/rust-port/PLAN.md and STATUS.md.
+//! openFinance backend: the API server the desktop app runs in-process. A
+//! port of the former Node server (Hono/Drizzle, `apps/server` up to
+//! `1502e08`); see this crate's README.md.
 
 pub mod ai;
 pub mod crypto;
@@ -18,8 +19,8 @@ pub use error::{ApiError, ApiResult};
 pub use state::{AppState, Config};
 
 /// Runs startup jobs, starts the background tasks and serves the API on
-/// `listener` until `shutdown` resolves. Used by the standalone binary and,
-/// from Wave 4, by the Tauri app in-process.
+/// `listener` until `shutdown` resolves. Used by the Tauri app in-process
+/// (`src/backend.rs`).
 pub async fn serve(
     state: AppState,
     listener: tokio::net::TcpListener,
