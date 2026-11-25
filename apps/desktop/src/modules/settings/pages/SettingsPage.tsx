@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiFetch, BASE_URL } from "@/lib/api";
 import { chatApi } from "@/modules/chat/api";
+import { TouchIdSetting } from "@/modules/settings/components/TouchIdSetting";
 import { useAppStore } from "@/stores/app.store";
 
 const CHANGELOG: {
@@ -1794,6 +1795,7 @@ export default function SettingsPage() {
               Active (5m)
             </Badge>
           </div>
+          <TouchIdSetting />
         </CardContent>
       </Card>
 

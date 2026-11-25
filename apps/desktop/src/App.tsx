@@ -8,6 +8,7 @@ import { PasswordGate } from "@/components/PasswordGate";
 import QuickAddTransactionDrawer from "@/components/QuickAddTransactionDrawer";
 import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { Sidebar } from "@/components/Sidebar";
+import { offerTouchId } from "@/components/TouchIdOffer";
 import { Toaster } from "@/components/ui/sonner";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
@@ -201,7 +202,12 @@ export default function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <ThemeSync />
-        <PasswordGate onUnlocked={() => setUnlocked(true)} />
+        <PasswordGate
+          onUnlocked={(method) => {
+            setUnlocked(true);
+            if (method === "password") offerTouchId();
+          }}
+        />
         <Toaster richColors position="top-right" />
       </QueryClientProvider>
     );

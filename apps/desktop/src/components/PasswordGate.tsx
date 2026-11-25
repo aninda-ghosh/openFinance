@@ -1,9 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { Fingerprint } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BASE_URL } from "@/lib/api";
+import { touchId, touchIdUnlockMessage } from "@/lib/touchId";
+
+export type UnlockMethod = "password" | "touch_id";
 
 interface Props {
-  onUnlocked: () => void;
+  onUnlocked: (method: UnlockMethod) => void;
 }
 
 type Phase = "input" | "starting" | "wrong_password";
@@ -15,10 +19,60 @@ export function PasswordGate({ onUnlocked }: Props) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [confirmWipe, setConfirmWipe] = useState(false);
+  const [touchIdEnabled, setTouchIdEnabled] = useState(false);
+  const [touchIdBusy, setTouchIdBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const method = useRef<UnlockMethod>("password");
+  const autoTried = useRef(false);
 
   useEffect(() => {
     invoke<boolean>("is_new_db").then(setIsNew);
   }, []);
+
+  // Unlock with Touch ID: the Rust side checks the fingerprint, reads the
+  // passcode from the keychain and starts the server. The passcode never
+  // comes back here.
+  const unlockWithTouchId = useCallback(async () => {
+    setTouchIdBusy(true);
+    setNotice("");
+    setError("");
+    try {
+      await touchId.unlock();
+      method.current = "touch_id";
+      setPhase("starting");
+    } catch (err) {
+      const message = touchIdUnlockMessage(err);
+      if (message) setNotice(message);
+      // The stored passcode may have been deleted; re-read the state.
+      touchId
+        .status()
+        .then((s) => setTouchIdEnabled(s.enabled))
+        .catch(() => setTouchIdEnabled(false));
+    } finally {
+      setTouchIdBusy(false);
+    }
+  }, []);
+
+  // Offer Touch ID (and try it once, automatically) when this screen appears:
+  // at launch and after every lock.
+  useEffect(() => {
+    if (isNew !== false) return;
+    let cancelled = false;
+    touchId
+      .status()
+      .then((s) => {
+        if (cancelled || !s.enabled) return;
+        setTouchIdEnabled(true);
+        if (!autoTried.current) {
+          autoTried.current = true;
+          unlockWithTouchId();
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isNew, unlockWithTouchId]);
 
   // After spawning the server, poll health until it responds or we time out.
   useEffect(() => {
@@ -38,7 +92,7 @@ export function PasswordGate({ onUnlocked }: Props) {
             signal: AbortSignal.timeout(1000),
           });
           if (res.ok) {
-            if (!cancelled) onUnlocked();
+            if (!cancelled) onUnlocked(method.current);
             return;
           }
         } catch {
@@ -56,6 +110,7 @@ export function PasswordGate({ onUnlocked }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setNotice("");
 
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
@@ -68,6 +123,9 @@ export function PasswordGate({ onUnlocked }: Props) {
 
     try {
       await invoke("spawn_server", { password });
+      method.current = "password";
+      setPassword("");
+      setConfirm("");
       setPhase("starting");
     } catch (err) {
       // The backend runs in-process, so a wrong passcode is reported right
@@ -97,6 +155,8 @@ export function PasswordGate({ onUnlocked }: Props) {
     try {
       await invoke("wipe_database");
       setConfirmWipe(false);
+      setTouchIdEnabled(false);
+      setNotice("");
       setIsNew(true);
       setPassword("");
       setConfirm("");
@@ -218,6 +278,24 @@ export function PasswordGate({ onUnlocked }: Props) {
               className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
             >
               {isNew ? "Create password" : "Unlock"}
+            </button>
+          )}
+
+          {notice && phase === "input" && !error && (
+            <p className="text-muted-foreground text-xs text-center leading-relaxed">
+              {notice}
+            </p>
+          )}
+
+          {!isNew && touchIdEnabled && phase === "input" && (
+            <button
+              type="button"
+              onClick={unlockWithTouchId}
+              disabled={touchIdBusy}
+              className="w-full py-2 flex items-center justify-center gap-2 border border-border hover:bg-muted rounded-md text-sm font-medium text-foreground transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-default"
+            >
+              <Fingerprint className="w-4 h-4" />
+              Unlock with Touch ID
             </button>
           )}
         </form>
