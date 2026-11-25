@@ -17,9 +17,3 @@ export type MonthlySummaryResponse = {
     available: number;
   }[];
 };
-
-export type TrendResponse = {
-  month: string;
-  budgeted: number;
-  spent: number;
-};

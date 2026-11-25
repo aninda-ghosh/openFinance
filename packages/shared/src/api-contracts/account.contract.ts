@@ -30,12 +30,3 @@ export type AccountResponse = {
 };
 
 export type AccountListResponse = { accounts: AccountResponse[] };
-
-export type ExchangeRateResponse = {
-  from_currency: "USD" | "SGD" | "NTD";
-  rate_to_base: number;
-  source: string;
-  fetched_at: string;
-};
-
-export type ExchangeRatesResponse = { rates: ExchangeRateResponse[] };

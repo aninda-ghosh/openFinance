@@ -2,14 +2,12 @@ import type { z } from "zod";
 import type {
   CreatePayoutSchema,
   CreatePolicySchema,
-  UpdatePayoutSchema,
   UpdatePolicySchema,
 } from "../schemas/policy.schema";
 
 export type CreatePolicyRequest = z.infer<typeof CreatePolicySchema>;
 export type UpdatePolicyRequest = z.infer<typeof UpdatePolicySchema>;
 export type CreatePayoutRequest = z.infer<typeof CreatePayoutSchema>;
-export type UpdatePayoutRequest = z.infer<typeof UpdatePayoutSchema>;
 
 export type PayoutResponse = {
   id: string;

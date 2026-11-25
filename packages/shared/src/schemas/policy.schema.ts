@@ -45,9 +45,3 @@ export const CreatePayoutSchema = z.object({
   label: z.string().min(1),
   is_received: z.boolean().default(false),
 });
-
-export const UpdatePayoutSchema = z.object({
-  is_received: z.boolean().optional(),
-  amount: z.number().positive().optional(),
-  label: z.string().min(1).optional(),
-});

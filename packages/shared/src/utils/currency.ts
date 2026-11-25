@@ -41,11 +41,6 @@ export function formatCurrency(amount: number, currency: Currency): string {
   return new Intl.NumberFormat(locale, opts).format(amount);
 }
 
-// Always format a value that is already in INR (for totals / net worth)
-export function formatINR(amount: number): string {
-  return formatCurrency(amount, "INR");
-}
-
 // Convert a native-currency amount to the active base currency using the latest rates map
 export function convertToINR(
   amount: number,
