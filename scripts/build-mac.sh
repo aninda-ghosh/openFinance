@@ -4,9 +4,12 @@
 #
 #   ./scripts/build-mac.sh
 #
-# The result is a self-contained app: a Tauri (WebKit) shell around the existing
-# React UI, with the Hono API server running inside it as a bundled Node sidecar
-# and an encrypted SQLite file for storage. No Docker, no Postgres, no network.
+# The result is a self-contained app: a Tauri (WebKit) shell around the React
+# UI, with the API server (Rust, axum) running inside the same process and an
+# encrypted SQLite (SQLCipher) file for storage. No Node runtime is shipped, no
+# sidecar, no Docker, no Postgres, no network.
+#
+# Node.js and pnpm are still needed at build time, to build the UI with Vite.
 #
 set -euo pipefail
 
@@ -27,7 +30,7 @@ command -v cargo >/dev/null || die "Rust is not installed. Install it with:
   source \"\$HOME/.cargo/env\"
 
 then run this script again."
-command -v node  >/dev/null || die "Node.js 22+ is not installed."
+command -v node  >/dev/null || die "Node.js 22+ is not installed (it is needed to build the UI; the app itself does not ship Node)."
 xcode-select -p  >/dev/null 2>&1 || die "Xcode command line tools are missing. Run: xcode-select --install"
 
 # Scratch space, cleaned up on exit.
@@ -67,105 +70,45 @@ fi
 
 TRIPLE="$(rustc -vV | awk '/^host:/ {print $2}')"
 case "$TRIPLE" in
-  aarch64-apple-darwin) NODE_ARCH="darwin-arm64" ;;
-  x86_64-apple-darwin)  NODE_ARCH="darwin-x64"   ;;
+  aarch64-apple-darwin|x86_64-apple-darwin) ;;
   *) die "Unexpected host target '$TRIPLE' — expected an Apple target." ;;
 esac
 
-# The Node runtime shipped inside the .app.
-#
-# This CANNOT be pinned independently of the local Node. better-sqlite3 is a
-# native addon, and pnpm fetches the prebuilt binary matching the ABI
-# (NODE_MODULE_VERSION) of whatever Node ran the install. Ship a different Node
-# major and the app dies on launch with ERR_DLOPEN_FAILED. Shipping the same
-# version that installed the addon keeps the two in lockstep by construction.
-NODE_VERSION="${OPENFINANCE_NODE_VERSION:-$(node -v)}"
-
-BIN_DIR="$ROOT/apps/desktop/src-tauri/binaries"
-SIDECAR="$BIN_DIR/server-$TRIPLE"
-
-echo "${DIM}target      $TRIPLE"
-echo "node runtime $NODE_VERSION ($NODE_ARCH)${OFF}"
+echo "${DIM}target      $TRIPLE${OFF}"
 echo
 
 # ── 1. Dependencies ───────────────────────────────────────────────────────────
 
-step "Installing workspace dependencies"
+step "Installing workspace dependencies (for the UI build)"
 pnpm install --no-frozen-lockfile
 
-# ── 2. Bundle the API server ──────────────────────────────────────────────────
-
-step "Bundling the API server into a single file"
-pnpm --filter @openfinance/server bundle
-
-# ── 3. Stage the bundle as a Tauri resource ───────────────────────────────────
-
-step "Staging the server bundle into the app resources"
-rm -rf "$BIN_DIR/server-bundle"
-mkdir -p "$BIN_DIR"
-cp -R "$ROOT/apps/server/dist/sidecar" "$BIN_DIR/server-bundle"
-
-# ── 4. Fetch the Node runtime that will run the bundle ────────────────────────
-
-if [[ -x "$SIDECAR" ]] && [[ "$("$SIDECAR" -v 2>/dev/null)" == "$NODE_VERSION" ]]; then
-  step "Node $NODE_VERSION sidecar already staged"
-else
-  [[ -e "$SIDECAR" ]] && rm -f "$SIDECAR"
-  step "Downloading the Node $NODE_VERSION runtime"
-  TMP="$SCRATCH/node"
-  mkdir -p "$TMP"
-  TARBALL="node-$NODE_VERSION-$NODE_ARCH.tar.gz"
-  curl -fL --progress-bar \
-    "https://nodejs.org/dist/$NODE_VERSION/$TARBALL" -o "$TMP/$TARBALL" \
-    || die "Could not download the Node runtime. Check your network connection."
-  tar -xzf "$TMP/$TARBALL" -C "$TMP"
-  cp "$TMP/node-$NODE_VERSION-$NODE_ARCH/bin/node" "$SIDECAR"
-  chmod +x "$SIDECAR"
-fi
-
-# ── 5. Prove the shipped runtime can drive the shipped database engine ───────
-# A native-addon ABI mismatch is invisible until first launch, where it shows up
-# only as "server took too long to start". Catch it here instead.
-
-step "Verifying the bundled server can open an encrypted database"
-cat > "$SCRATCH/verify.js" <<'JS'
-// argv: [node, this script, <addon package dir>, <scratch db path>]
-const Database = require(process.argv[2]);
-const db = new Database(process.argv[3]);
-db.pragma("cipher='sqlcipher'");
-db.pragma("legacy = 4");
-db.pragma("key='build-check'");
-db.exec("CREATE TABLE t (a INTEGER)");
-db.prepare("INSERT INTO t VALUES (?)").run(1);
-const row = db.prepare("SELECT a FROM t").get();
-db.close();
-if (!row || row.a !== 1) throw new Error("wrote a row but could not read it back");
-JS
-"$SIDECAR" "$SCRATCH/verify.js" \
-  "$BIN_DIR/server-bundle/node_modules/better-sqlite3" \
-  "$SCRATCH/verify.db" \
-  || die "The bundled SQLite engine could not be loaded by the bundled Node $NODE_VERSION.
-
-  This is a native-addon ABI mismatch: the better-sqlite3 binary in node_modules
-  was built for a different Node than the one being shipped.
-
-  Local node is $(node -v), shipping $NODE_VERSION.
-  ${OPENFINANCE_NODE_VERSION:+You set OPENFINANCE_NODE_VERSION — unset it to ship the local Node instead.}
-
-  Otherwise force a fresh addon download:
-    rm -rf node_modules apps/*/node_modules packages/*/node_modules
-    ./scripts/build-mac.sh"
-
-# ── 6. Build the app and package the DMG ──────────────────────────────────────
+# ── 2. Build the app and package the DMG ──────────────────────────────────────
+# Tauri runs "pnpm build" (tsc + vite) for the UI, then compiles the Rust app,
+# which includes the API server and SQLCipher.
 
 step "Building the app (this takes a few minutes the first time)"
 pnpm --filter openfinance-desktop tauri build
 
-DMG="$(find "$ROOT/apps/desktop/src-tauri/target/release/bundle/dmg" -name '*.dmg' -maxdepth 1 2>/dev/null | head -1)"
+BUNDLE="$ROOT/apps/desktop/src-tauri/target/release/bundle"
+APP="$BUNDLE/macos/openFinance.app"
+DMG="$(find "$BUNDLE/dmg" -name '*.dmg' -maxdepth 1 2>/dev/null | head -1)"
+
+# ── 3. Check the bundle is a single binary ────────────────────────────────────
+# The app must not carry a Node runtime or a sidecar from an older build.
+
+step "Checking the app bundle"
+[[ -d "$APP" ]] || die "The build finished but $APP is missing — check the output above."
+EXECUTABLES="$(find "$APP/Contents/MacOS" -type f)"
+[[ "$(echo "$EXECUTABLES" | wc -l | tr -d ' ')" == "1" ]] \
+  || die "Expected exactly one executable in the app bundle, found:
+$EXECUTABLES"
+[[ ! -e "$APP/Contents/Resources/binaries" ]] \
+  || die "The app bundle still contains the old server sidecar resources."
 
 echo
 if [[ -n "$DMG" ]]; then
   echo "${GREEN}Done.${OFF} Installer: $DMG"
+  echo "${DIM}app $(du -sh "$APP" | cut -f1), dmg $(du -sh "$DMG" | cut -f1)${OFF}"
   echo
   echo "Install it by opening the .dmg and dragging openFinance to Applications."
   echo "${DIM}The build is unsigned, so the first launch needs one of:"
