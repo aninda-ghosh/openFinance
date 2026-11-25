@@ -450,7 +450,84 @@ covers both directions:
 - Quirks: QUIRKS.md "Wave 2 — dashboard".
 
 ## Wave 3 — ai
-Not started.
+**Done** on `rust-port/wave3-ai` (from `dd44fbb`).
+
+- Ported (`src/ai/`): `config/ai.config.ts` → `config.rs`;
+  `ai/ollama.client.ts` → `ollama.rs` (reqwest; `chat`, `chat_with_tools`,
+  `stream` reading `Response::chunk()` and splitting each chunk on `\n` like
+  Node, `list_models`/`ping` with the 3 s timeout); `ai/chat-memory.ts` →
+  `memory.rs` (same `DATA_DIR/chat-memories/<id>.md` path via
+  `nodepath::join`, same `encryptString` payload; contents never logged);
+  `ai/chat-harness.ts` → `harness.rs` (process-wide registry, background tokio
+  task per generation, removal 15 s after it ends, replay on attach);
+  `ai/ai.service.ts` → `service.rs` (tool loop, DB writes in Node's order);
+  `ai/context.builder.ts` → `context.rs` (dead code in Node, ported anyway);
+  `prompts/financial-advisor.ts` → `prompts.rs` (generated from the TS
+  template, byte-identical; unit tests pin it); `tools/index.ts` →
+  `tools/mod.rs` + `tools/definitions.json` (the 11 `AI_TOOLS` extracted
+  verbatim) + `tools/filters.rs` (the zod transaction filter, issue JSON
+  identical to zod 4.3's `String(ZodError)`); `tools/calculator.ts` →
+  `tools/calculator.rs` (recursive-descent `safe_evaluate`, no eval; the
+  whole `calculator.test.ts` ported plus edge cases checked against Node).
+- Support modules: `js.rs` (JS semantics the tools rely on: `String(e)`,
+  property access with V8's TypeError texts, `JSON.stringify` with JS number
+  formatting, truthiness, `Object.prototype` member lookups) and `intl.rs`
+  (`Intl.NumberFormat` currency formatting for the locales the tools use,
+  `toFixed`), tested against 6,824 V8-generated vectors in `intl_v8.jsonl`.
+- Routes (`http/routes/ai.rs` + `ai/sse.rs`), `/api/ai`, all 16:
+  `GET|PUT /settings`, `GET /status`, `GET /generating`,
+  `GET /conversations/:id/generating`, `POST /start-ollama`, `GET /messages`,
+  `POST /clear`, `GET /chat`, `GET|POST /conversations`,
+  `DELETE /conversations/:id`, `GET /conversations/:id/messages`,
+  `GET /conversations/:id/audit`, `GET|POST /conversations/:id/chat`. SSE uses
+  Hono's `writeSSE` framing (`event: x\ndata: line\n…\n\n`, one `data:` line
+  per `\n`/`\r` split) with `content-type: text/event-stream`,
+  `cache-control: no-cache`, `connection: keep-alive`. `start-ollama` spawns
+  only `ollama serve` (PATH prefixed like Node, own process group, stdio null,
+  reaped by a thread), polls status every 600 ms for 8 s.
+- Crates: `futures-util` (0.3, `std` only; already in the lockfile) for the
+  SSE body stream. No other new dependencies.
+- Unit tests: 32 in `ai::` (calculator port, filters, prompts, intl, js,
+  ollama line splitting, memory paths, SSE framing).
+  `tests/compat_ai.rs` + `tests/compat/node/ai.ts` (real Node modules via the
+  server's tsx; `OPENFINANCE_SKIP_NODE_COMPAT=1` skips): a memory file written
+  by Node reads identically in Rust and the reverse (incl. Rust appending to a
+  Node file, delete, and ENOENT for ids with `/`), and `buildSystemContext`
+  equals Rust's on the same database for 7 currencies (unknown codes throw in
+  both).
+- Parity: `ai-routes` (74 steps: settings validation / trimming / resets /
+  500s, status up / odd tag replies / down, start-ollama "already running"
+  and "status throws" only, a chat while down, conversations CRUD and
+  validation, messages, audit from imported `ai_tool_calls`, deletes),
+  `ai-chat-basic` (27: no-tool singleton chat, replay, 15 s retention, clear,
+  memory files), `ai-chat-tools` (15: every tool and its error paths over
+  five tool turns, model override, `currency=toString`), `ai-chat-errors`
+  (80: connection drop, model missing, Ollama 500 / 404 on either turn,
+  stream cut, malformed replies, non-string tokens, CR/LF tokens),
+  `ai-chat-during` (21: a stream held at a gate — generating flags and
+  partial text, attach/disconnect, POST attaching, release, slow stream).
+  Every chat step also compares the requests both servers sent Ollama.
+- **Harness additions** (the two allowed ones):
+  1. `parity/fake-ollama.mjs`: one fake Ollama on 127.0.0.1 per scenario
+     with `"ollama": true` (`run.mjs` passes its URL as `OLLAMA_URL` to both
+     servers; other scenarios keep `http://127.0.0.1:9`). It keeps a separate
+     script queue per server (Node is recognised by its `User-Agent: node`),
+     replies with scripted JSON / text / status / NDJSON streams (one write
+     per line, gates released by a step, delays) or drops the connection, and
+     records every request. Control steps (no `path`):
+     `{"ollama": {"script": [...]}}` (same script for both),
+     `{"ollama": {"tags": …}}`, `{"ollama": {"release": "gate"}}`,
+     `{"ollama": {"requests": true, "count"?: n}}` (compares both servers'
+     recorded requests — method, path, parsed body — through each side's
+     normaliser), `{"sleepMs": n}`, `{"memoryFiles": true}` (compares the
+     `chat-memories` file names). HTTP steps may add
+     `"poll": {"until", "equals", "timeoutMs"}`.
+  2. SSE in `run.mjs`: a `text/event-stream` response is read incrementally
+     and compared as `{ events: [{event, data, id?, retry?}], raw, end }`;
+     `end` is `eof`, `max` (`"sse": {"maxEvents": n}`, then disconnect) or
+     `idle` (`"sse": {"idleMs": n}`, default 1500 ms, then disconnect).
+     Nothing is masked; the normaliser runs on it like on JSON bodies.
+- Quirks: QUIRKS.md "Wave 3 — ai".
 
 ## Wave 4 — integration
 Not started.

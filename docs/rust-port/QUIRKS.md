@@ -357,3 +357,71 @@ keys of `incomeByPayee` / `groupMap` / `byType`. Node would read the inherited
 member and turn totals into strings (or drop `__proto__`); Rust treats them as
 ordinary keys. Array-index keys ("10", "2024") *are* ordered like JS.
 
+## Wave 3 — ai
+
+Line numbers are for `apps/server/src` at `dd44fbb`. Items 1–10 are exercised
+by `ai*` parity scenarios.
+
+1. **The request that starts a chat never receives an event.**
+   `routes/ai.ts:205,375`: `handleChatStream` calls `addListener` *before*
+   `getOrCreateGeneration`, and `ai/chat-harness.ts:47-71` only attaches to an
+   existing generation, so the stream that starts the generation stays open
+   with no events until the client gives up; the answer runs in the
+   background. Clients see it only by re-attaching (`GET /chat` or the
+   conversation `GET /chat` while generating). Suggested fix: create the
+   generation first, then attach.
+2. **A finished answer is replayed for 15 s, even to a new question.**
+   `chat-harness.ts:140-142` keeps a finished generation for 15 s, and the
+   routes treat "generating" as "has a generation", so `GET /chat?message=new`
+   inside that window replays the *previous* answer (text as one token event,
+   tool events, done) and the new message is silently dropped.
+3. **The user message is sent to Ollama twice.** `ai/ai.service.ts:101-111`
+   saves the user message, loads history (which now contains it), then
+   appends it again: `[system, …history, user, user]`.
+4. **`ai_tool_calls` is never written.** Tool calls are only streamed and kept
+   in memory; the audit route can only show rows from an imported backup, and
+   deletes clean them up in FK order.
+5. **The conversation `GET /chat` attach needs a non-blank message.**
+   `routes/ai.ts:362-367`: while generating, `message` missing or blank is
+   validated as `content: ""` against `min(1)` → 400 `Validation failed`;
+   `?message=%20` (a space) attaches. The POST form requires a non-blank
+   message even to attach (`:421-423`), and a non-string `message`
+   (`{"message": 5}`) throws on `.trim()` → Hono's plain-text 500.
+6. **The model-missing error names the configured model.**
+   `ai/ollama.client.ts:186-192`: the override passed with `?model=` is not
+   forwarded to `throwIfModelMissing`, so the 404 text names the settings
+   model.
+7. **`GET /status` 500s when a model name is not a string** (`/api/tags`
+   returning `{"models":[{"name":7}]}`): `m.startsWith` on a number throws
+   (`ai.service.ts:225-227`), and
+   `start-ollama` then answers 500 "Could not start Ollama".
+8. **Conversation ids are used as file paths.** `ai/chat-memory.ts:17`:
+   `path.join(MEMORIES_DIR, `${id}.md`)`, so `../x` escapes the directory and
+   `a/b` fails with ENOENT (the chat ignores it). Rust uses Node's lexical
+   `path.join` and behaves the same. Suggested fix: validate ids.
+9. **Deletes are not transactional.** `DELETE /conversations/:id` deletes
+   tool calls, messages and the conversation in separate statements
+   (`routes/ai.ts:283-306`); `POST /clear` (`ai.service.ts:192-210`) deletes
+   tool calls and messages but keeps the singleton conversation row.
+10. **Prototype-key currencies.** `currency=toString` (or another
+    `Object.prototype` member) makes the prompt and tools read the inherited
+    member (`CURRENCY_SYMBOLS[cur]` is a function); Rust reproduces the
+    resulting text via `js::inherited_member_string`.
+11. **Dead code**: `buildSystemContext` (`ai/context.builder.ts`) and
+    `readMemory` are never called by the routes; both are ported and checked
+    against Node in `tests/compat_ai.rs`, not via parity.
+
+Approximations (not observable in the scenarios):
+
+- Ollama replies that are not valid JSON: Node's `SyntaxError` message comes
+  from V8's JSON parser (`Unexpected token … at position n`); Rust produces
+  the same shape for the common cases but not every V8 wording.
+- Calculator recursion depth: V8 overflows at roughly 2,900–3,650 nested
+  parentheses / 11,650 unary minuses depending on stack state; Rust allows
+  11,000 parser frames on a 256 MB thread and then reports the same
+  `Maximum call stack size exceeded` message.
+- JSON numbers outside f64's exact range in tool arguments are formatted
+  with JS rules but may differ in the last digit from V8's parse in rare
+  cases.
+- `start-ollama` detaches `ollama serve` with `process_group(0)` rather than
+  Node's `setsid` (`detached: true`); the child still outlives the request.
