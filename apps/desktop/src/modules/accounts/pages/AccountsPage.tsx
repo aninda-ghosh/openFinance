@@ -1,26 +1,18 @@
+import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
+import { Car, Coins, Landmark, Shield, TrendingUp, Wallet } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import {
-  Car,
-  Coins,
-  Landmark,
-  Shield,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ZeroBalanceToggle } from "@/components/ZeroBalanceAccounts";
 import { useExchangeRates } from "@/modules/budget/hooks/useBudget";
 import { useNetWorth } from "@/modules/dashboard/hooks/useDashboard";
+import DebtPage from "@/modules/debt/pages/DebtPage";
+import InvestmentsPage from "@/modules/investments/pages/InvestmentsPage";
+import PhysicalAssetsPage from "@/modules/investments/pages/PhysicalAssetsPage";
+import PoliciesPage from "@/modules/policies/pages/PoliciesPage";
 import { useAppStore } from "@/stores/app.store";
-import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
-
 // Sub-pages in embed mode
 import SavingsCheckingPage from "./SavingsCheckingPage";
-import InvestmentsPage from "@/modules/investments/pages/InvestmentsPage";
-import PoliciesPage from "@/modules/policies/pages/PoliciesPage";
-import DebtPage from "@/modules/debt/pages/DebtPage";
-import PhysicalAssetsPage from "@/modules/investments/pages/PhysicalAssetsPage";
-import { ZeroBalanceToggle } from "@/components/ZeroBalanceAccounts";
 
 const TABS = [
   { id: "cash", label: "Cash & Checking", icon: Landmark },
@@ -32,7 +24,8 @@ const TABS = [
 
 export default function AccountsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as typeof TABS[number]["id"]) || "cash";
+  const activeTab =
+    (searchParams.get("tab") as (typeof TABS)[number]["id"]) || "cash";
 
   const { data: nwData, isLoading: nwLoading } = useNetWorth();
   const { data: rates = {} } = useExchangeRates();
@@ -77,7 +70,7 @@ export default function AccountsPage() {
   // Identical to the server's `total_inr`, by construction.
   const netPositionInr = totalAssetsInr + debtInr;
 
-  const handleTabChange = (tabId: typeof TABS[number]["id"]) => {
+  const handleTabChange = (tabId: (typeof TABS)[number]["id"]) => {
     setSearchParams({ tab: tabId });
   };
 
@@ -87,9 +80,12 @@ export default function AccountsPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-7xl mx-auto">
       {/* Page Header */}
       <div>
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Accounts & Balance Sheet</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          Accounts & Balance Sheet
+        </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          A consolidated view of all your checking, savings, investments, policies, and debts.
+          A consolidated view of all your checking, savings, investments,
+          policies, and debts.
         </p>
       </div>
 
@@ -114,7 +110,8 @@ export default function AccountsPage() {
               </p>
             )}
             <p className="text-[10px] text-muted-foreground mt-0.5 hidden md:block">
-              Cash + Investments + Policies{physicalInr > 0 ? " + Physical" : ""}
+              Cash + Investments + Policies
+              {physicalInr > 0 ? " + Physical" : ""}
             </p>
           </CardContent>
         </Card>
@@ -189,7 +186,9 @@ export default function AccountsPage() {
             );
           })}
         </div>
-        {activeTab !== "physical" && activeTab !== "policies" && <ZeroBalanceToggle />}
+        {activeTab !== "physical" && activeTab !== "policies" && (
+          <ZeroBalanceToggle />
+        )}
       </div>
 
       {/* Active Tab Subpage Component */}

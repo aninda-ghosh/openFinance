@@ -2,7 +2,14 @@ import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
 import { isPhysicalAsset } from "@openfinance/shared/constants";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
-import { Car, Pencil, PlusCircle, RefreshCcw, Trash2, TrendingDown } from "lucide-react";
+import {
+  Car,
+  Pencil,
+  PlusCircle,
+  RefreshCcw,
+  Trash2,
+  TrendingDown,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,11 +51,14 @@ const today = () => {
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString(
+    undefined,
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }
+  );
 }
 
 type FormState = {
@@ -81,12 +91,15 @@ function VehicleFormDialog({
     // Editing shows today's derived value; leaving it untouched keeps the curve.
     current_value: vehicle ? String(vehicle.current_value) : "",
     depreciation_rate:
-      vehicle?.depreciation_rate != null ? String(vehicle.depreciation_rate) : "15",
+      vehicle?.depreciation_rate != null
+        ? String(vehicle.depreciation_rate)
+        : "15",
     notes: vehicle?.notes ?? "",
   });
   const [form, setForm] = useState<FormState>(initial);
   const set =
-    (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (k: keyof FormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = () => {
@@ -114,7 +127,9 @@ function VehicleFormDialog({
     };
     const done = {
       onSuccess: () => {
-        toast.success(vehicle ? "Vehicle updated" : "Vehicle added to your net worth");
+        toast.success(
+          vehicle ? "Vehicle updated" : "Vehicle added to your net worth"
+        );
         setOpen(false);
       },
       onError: (e: Error) => toast.error(e.message),
@@ -197,11 +212,14 @@ function VehicleFormDialog({
             />
             <p className="text-[11px] text-muted-foreground">
               A private-party estimate (e.g. Kelley Blue Book or Edmunds).
-              {vehicle && " Change it to record a new quote; leave it to keep the current curve."}
+              {vehicle &&
+                " Change it to record a new quote; leave it to keep the current curve."}
             </p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="veh-rate">Automatic depreciation (% per year)</Label>
+            <Label htmlFor="veh-rate">
+              Automatic depreciation (% per year)
+            </Label>
             <Input
               id="veh-rate"
               type="number"
@@ -214,8 +232,8 @@ function VehicleFormDialog({
               onChange={set("depreciation_rate")}
             />
             <p className="text-[11px] text-muted-foreground">
-              The value drifts down daily at this rate from your last quote. Cars
-              typically lose 10–20% a year.
+              The value drifts down daily at this rate from your last quote.
+              Cars typically lose 10–20% a year.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -247,7 +265,11 @@ function NewQuoteDialog({ vehicle }: { vehicle: InvestmentResponse }) {
     update(
       {
         id: vehicle.id,
-        data: { current_value: v, current_value_at: today(), current_value_source: "manual quote" },
+        data: {
+          current_value: v,
+          current_value_at: today(),
+          current_value_source: "manual quote",
+        },
       },
       {
         onSuccess: () => {
@@ -268,18 +290,27 @@ function NewQuoteDialog({ vehicle }: { vehicle: InvestmentResponse }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7" title="Record a new value">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          title="Record a new value"
+        >
           <RefreshCcw className="w-3.5 h-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-sm">New value for {vehicle.name}</DialogTitle>
+          <DialogTitle className="text-sm">
+            New value for {vehicle.name}
+          </DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Currently {formatCurrency(vehicle.current_value, vehicle.currency)}. A new
-          quote replaces the estimate
-          {vehicle.depreciation_rate ? " and depreciation continues from it." : "."}
+          Currently {formatCurrency(vehicle.current_value, vehicle.currency)}. A
+          new quote replaces the estimate
+          {vehicle.depreciation_rate
+            ? " and depreciation continues from it."
+            : "."}
         </p>
         <Input
           type="number"
@@ -321,7 +352,9 @@ function DeleteVehicleButton({ vehicle }: { vehicle: InvestmentResponse }) {
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-sm">Remove "{vehicle.name}"?</DialogTitle>
+          <DialogTitle className="text-sm">
+            Remove "{vehicle.name}"?
+          </DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
           Use this when you sell it or it's written off. Its value and history
@@ -357,9 +390,14 @@ export default function PhysicalAssetsPage() {
   const { data: rates = {} } = useExchangeRates();
   const defaultCurrency = useAppStore((s) => s.defaultCurrency);
   const fmt = (inr: number) =>
-    formatCurrency(convertFromINR(inr, defaultCurrency as any, rates), defaultCurrency as any);
+    formatCurrency(
+      convertFromINR(inr, defaultCurrency as any, rates),
+      defaultCurrency as any
+    );
 
-  const vehicles = (data?.investments ?? []).filter((i) => isPhysicalAsset(i.asset_type));
+  const vehicles = (data?.investments ?? []).filter((i) =>
+    isPhysicalAsset(i.asset_type)
+  );
   const totalInr = vehicles.reduce((s, v) => s + v.current_value_inr, 0);
 
   return (
@@ -389,8 +427,8 @@ export default function PhysicalAssetsPage() {
           <Car className="w-10 h-10 mx-auto opacity-25" />
           <p>No vehicles yet.</p>
           <p className="text-xs">
-            Paid off a car loan? Add the car here so its value counts toward your
-            net worth.
+            Paid off a car loan? Add the car here so its value counts toward
+            your net worth.
           </p>
         </div>
       ) : (
@@ -407,7 +445,9 @@ export default function PhysicalAssetsPage() {
                           <Car className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-sm truncate">{v.name}</p>
+                          <p className="font-semibold text-sm truncate">
+                            {v.name}
+                          </p>
                           <p className="text-[11px] text-muted-foreground">
                             Bought {fmtDate(v.purchase_date)} for{" "}
                             {formatCurrency(v.purchase_value, v.currency)}
@@ -419,7 +459,12 @@ export default function PhysicalAssetsPage() {
                         <VehicleFormDialog
                           vehicle={v}
                           trigger={
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Edit"
+                            >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
                           }
@@ -444,7 +489,8 @@ export default function PhysicalAssetsPage() {
                       {lostSincePurchase > 0 && (
                         <p className="text-[11px] text-muted-foreground flex items-center gap-1">
                           <TrendingDown className="w-3 h-3" />
-                          {formatCurrency(lostSincePurchase, v.currency)} since purchase
+                          {formatCurrency(lostSincePurchase, v.currency)} since
+                          purchase
                         </p>
                       )}
                     </div>
@@ -459,7 +505,10 @@ export default function PhysicalAssetsPage() {
             })}
           </div>
           <p className="text-xs text-muted-foreground text-right">
-            Total physical assets: <span className="font-semibold text-foreground">{fmt(totalInr)}</span>
+            Total physical assets:{" "}
+            <span className="font-semibold text-foreground">
+              {fmt(totalInr)}
+            </span>
           </p>
         </>
       )}

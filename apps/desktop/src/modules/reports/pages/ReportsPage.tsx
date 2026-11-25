@@ -1,36 +1,45 @@
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
-import { ChevronLeft, ChevronRight, GitMerge, Layers, ChevronDown, ChevronUp, TrendingUp, Info } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useExchangeRates } from "@/modules/budget/hooks/useBudget";
-import { useCashFlow } from "@/modules/dashboard/hooks/useDashboard";
-import { useAppStore } from "@/stores/app.store";
-import { dashboardApi } from "@/modules/dashboard/api";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ResponsiveContainer,
-  AreaChart,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  GitMerge,
+  Info,
+  Layers,
+  TrendingUp,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
   Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  BarChart,
-  Bar,
-  Legend,
 } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useExchangeRates } from "@/modules/budget/hooks/useBudget";
+import { dashboardApi } from "@/modules/dashboard/api";
+import { useCashFlow } from "@/modules/dashboard/hooks/useDashboard";
+import { useAppStore } from "@/stores/app.store";
 
 const GROUP_COLORS = [
-  "var(--chart-2)",  // Muted Savings Green (uses Sage green var)
-  "var(--chart-1)",  // Indigo
-  "var(--chart-7)",  // Amber/Sand
-  "var(--chart-4)",  // Coral/Red/Lime
-  "var(--chart-8)",  // Violet
-  "var(--chart-3)",  // Cyan
-  "var(--chart-9)",  // Orange/Grey
+  "var(--chart-2)", // Muted Savings Green (uses Sage green var)
+  "var(--chart-1)", // Indigo
+  "var(--chart-7)", // Amber/Sand
+  "var(--chart-4)", // Coral/Red/Lime
+  "var(--chart-8)", // Violet
+  "var(--chart-3)", // Cyan
+  "var(--chart-9)", // Orange/Grey
   "var(--chart-10)", // Mint
-  "var(--chart-6)",  // Pale Sage
-  "var(--chart-5)",  // Forest Sage
+  "var(--chart-6)", // Pale Sage
+  "var(--chart-5)", // Forest Sage
 ];
 
 interface CustomTooltipProps {
@@ -51,7 +60,9 @@ function CustomChartTooltip({
   if (!active || !payload || !payload.length) return null;
   return (
     <div className="bg-popover/90 backdrop-blur-md border border-border/80 rounded-2xl p-4 shadow-xl space-y-2 text-xs min-w-[180px] select-none">
-      <p className="font-extrabold text-muted-foreground uppercase tracking-widest text-[9px]">{label}</p>
+      <p className="font-extrabold text-muted-foreground uppercase tracking-widest text-[9px]">
+        {label}
+      </p>
       <div className="space-y-2">
         {payload.map((entry: any, i: number) => {
           const val = Number(entry.value);
@@ -61,10 +72,21 @@ function CustomChartTooltip({
           return (
             <div key={i} className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-                <span className="text-muted-foreground font-semibold">{entry.name === "income" ? "Income" : entry.name === "expenses" ? "Expenses" : entry.name}</span>
+                <span
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: entry.color || entry.fill }}
+                />
+                <span className="text-muted-foreground font-semibold">
+                  {entry.name === "income"
+                    ? "Income"
+                    : entry.name === "expenses"
+                      ? "Expenses"
+                      : entry.name}
+                </span>
               </div>
-              <span className="font-extrabold text-foreground tabular-nums">{valueStr}</span>
+              <span className="font-extrabold text-foreground tabular-nums">
+                {valueStr}
+              </span>
             </div>
           );
         })}
@@ -175,7 +197,8 @@ function CashFlowSankey({
   const simIncome = data.total_income + (simValInr > 0 ? simValInr : 0);
 
   // Simulated total expenses / sinks
-  const simExpenses = data.total_expenses + (simValInr < 0 ? Math.abs(simValInr) : 0);
+  const simExpenses =
+    data.total_expenses + (simValInr < 0 ? Math.abs(simValInr) : 0);
 
   // Simulated net savings remaining
   const simSavings = Math.max(0, simIncome - simExpenses);
@@ -193,19 +216,29 @@ function CashFlowSankey({
 
   // If expenses exceed income, calculate the deficit and add it as a virtual
   // "Past Savings / Deficit" source node on the left to perfectly balance the Income node.
-  const deficit = simExpenses > simIncome
-    ? simExpenses - simIncome
-    : 0;
+  const deficit = simExpenses > simIncome ? simExpenses - simIncome : 0;
 
   const incomeSources = [
     ...data.income_sources,
-    ...(simValInr > 0 ? [{ payee: "Prior Month Leftover", amount: simValInr }] : []),
-    ...(deficit > 0 ? [{ payee: "Past Savings / Deficit", amount: deficit }] : [])
+    ...(simValInr > 0
+      ? [{ payee: "Prior Month Leftover", amount: simValInr }]
+      : []),
+    ...(deficit > 0
+      ? [{ payee: "Past Savings / Deficit", amount: deficit }]
+      : []),
   ];
 
   const expenseGroups = [
     ...data.expense_groups,
-    ...(simValInr < 0 ? [{ group_name: "Prior Month Overspent", total: Math.abs(simValInr), envelopes: [] }] : [])
+    ...(simValInr < 0
+      ? [
+          {
+            group_name: "Prior Month Overspent",
+            total: Math.abs(simValInr),
+            envelopes: [],
+          },
+        ]
+      : []),
   ];
 
   const totalEnvelopes = expenseGroups.reduce(
@@ -215,7 +248,7 @@ function CashFlowSankey({
   const hasEnvelopes = totalEnvelopes > 0;
 
   // Column x positions (left edge of node rect)
-  const COL0 = 15;  // income sources
+  const COL0 = 15; // income sources
   const COL1 = hasEnvelopes ? (isMobile ? 220 : 300) : 440; // income total node
   const COL2 = hasEnvelopes ? (isMobile ? 470 : 585) : 865; // savings + expense groups
   const COL3 = 865; // envelopes
@@ -300,7 +333,7 @@ function CashFlowSankey({
     const totalEnvPad = Math.max(0, numEnvs - 1) * 2;
     const usableEnvH = Math.max(2 * numEnvs, gn.h - totalEnvPad);
     let envCursor = gn.y;
-    
+
     return gn.group.envelopes.map((e, idx) => {
       const h = (e.amount / gn.group.total) * usableEnvH;
       const en: EnvNode = {
@@ -316,15 +349,10 @@ function CashFlowSankey({
 
   // Label helpers
   const pct = (v: number) =>
-    simIncome > 0
-      ? `(${((v / simIncome) * 100).toFixed(1)}%)`
-      : "";
+    simIncome > 0 ? `(${((v / simIncome) * 100).toFixed(1)}%)` : "";
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full h-auto"
-    >
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
       {/* ── Paths: income sources → income node ── */}
       {srcNodes.map((src, i) => (
         <path
@@ -337,7 +365,13 @@ function CashFlowSankey({
             incLeftSlices[i].y,
             incLeftSlices[i].h
           )}
-          fill={src.id === "Past Savings / Deficit" ? "#cc747d" : src.id === "Prior Month Leftover" ? "var(--chart-2)" : "#709ec6"}
+          fill={
+            src.id === "Past Savings / Deficit"
+              ? "#cc747d"
+              : src.id === "Prior Month Leftover"
+                ? "var(--chart-2)"
+                : "#709ec6"
+          }
           opacity={src.id === "Past Savings / Deficit" ? 0.22 : 0.18}
         >
           <title>{`${src.id} → Income: ${fmt(src.amount)} ${pct(src.amount)}`}</title>
@@ -374,7 +408,11 @@ function CashFlowSankey({
             gn.y,
             gn.h
           )}
-          fill={gn.id === "Prior Month Overspent" ? "var(--destructive)" : GROUP_COLORS[gn.colorIdx % GROUP_COLORS.length]}
+          fill={
+            gn.id === "Prior Month Overspent"
+              ? "var(--destructive)"
+              : GROUP_COLORS[gn.colorIdx % GROUP_COLORS.length]
+          }
           opacity={gn.id === "Prior Month Overspent" ? 0.25 : 0.18}
         >
           <title>{`Income → ${gn.id}: ${fmt(gn.group.total)} ${pct(gn.group.total)}`}</title>
@@ -418,7 +456,13 @@ function CashFlowSankey({
             width={nodeW}
             height={src.h}
             rx={3}
-            fill={src.id === "Past Savings / Deficit" ? "#cc747d" : src.id === "Prior Month Leftover" ? "var(--chart-2)" : "#709ec6"}
+            fill={
+              src.id === "Past Savings / Deficit"
+                ? "#cc747d"
+                : src.id === "Prior Month Leftover"
+                  ? "var(--chart-2)"
+                  : "#709ec6"
+            }
           />
           {src.h > (isMobile ? 14 : 12) ? (
             <>
@@ -536,7 +580,11 @@ function CashFlowSankey({
             width={nodeW}
             height={gn.h}
             rx={3}
-            fill={gn.id === "Prior Month Overspent" ? "var(--destructive)" : GROUP_COLORS[gn.colorIdx % GROUP_COLORS.length]}
+            fill={
+              gn.id === "Prior Month Overspent"
+                ? "var(--destructive)"
+                : GROUP_COLORS[gn.colorIdx % GROUP_COLORS.length]
+            }
           />
           <text
             x={hasEnvelopes ? COL2 + nodeW + 6 : COL2 - 6}
@@ -557,8 +605,7 @@ function CashFlowSankey({
             fontSize={isMobile ? 11 : 10}
             fill="#6b7280"
           >
-            {fmt(gn.group.total)}{" "}
-            {gn.h > 10 ? pct(gn.group.total) : ""}
+            {fmt(gn.group.total)} {gn.h > 10 ? pct(gn.group.total) : ""}
           </text>
         </g>
       ))}
@@ -611,19 +658,32 @@ function CashFlowCompact({
 
   const simValInr = data.simValInr ?? 0;
   const simIncome = data.total_income + (simValInr > 0 ? simValInr : 0);
-  const simExpenses = data.total_expenses + (simValInr < 0 ? Math.abs(simValInr) : 0);
+  const simExpenses =
+    data.total_expenses + (simValInr < 0 ? Math.abs(simValInr) : 0);
   const simSavings = Math.max(0, simIncome - simExpenses);
   const deficit = simExpenses > simIncome ? simExpenses - simIncome : 0;
 
   const incomeSources = [
     ...data.income_sources,
-    ...(simValInr > 0 ? [{ payee: "Prior Month Leftover", amount: simValInr }] : []),
-    ...(deficit > 0 ? [{ payee: "Past Savings / Deficit", amount: deficit }] : [])
+    ...(simValInr > 0
+      ? [{ payee: "Prior Month Leftover", amount: simValInr }]
+      : []),
+    ...(deficit > 0
+      ? [{ payee: "Past Savings / Deficit", amount: deficit }]
+      : []),
   ];
 
   const expenseGroups = [
     ...data.expense_groups,
-    ...(simValInr < 0 ? [{ group_name: "Prior Month Overspent", total: Math.abs(simValInr), envelopes: [] }] : [])
+    ...(simValInr < 0
+      ? [
+          {
+            group_name: "Prior Month Overspent",
+            total: Math.abs(simValInr),
+            envelopes: [],
+          },
+        ]
+      : []),
   ];
 
   const pct = (v: number) =>
@@ -635,7 +695,9 @@ function CashFlowCompact({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider select-none px-1">
           <span>Inflow Sources</span>
-          <span className="text-foreground tabular-nums font-extrabold">{fmt(simIncome)}</span>
+          <span className="text-foreground tabular-nums font-extrabold">
+            {fmt(simIncome)}
+          </span>
         </div>
         <div className="w-full h-5 rounded-xl bg-muted/65 overflow-hidden flex shadow-inner border border-border/40 select-none">
           {incomeSources.map((src, i) => {
@@ -646,7 +708,7 @@ function CashFlowCompact({
               "bg-[#3b82f6]/95",
               "bg-[#60a5fa]/95",
               "bg-[#93c5fd]/95",
-              "bg-[#bfdbfe]/95"
+              "bg-[#bfdbfe]/95",
             ];
             const colorClass = colors[i % colors.length];
             return (
@@ -672,13 +734,17 @@ function CashFlowCompact({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider select-none px-1">
           <span>Outflow Allocations</span>
-          <span className="text-foreground tabular-nums font-extrabold">{fmt(simIncome)}</span>
+          <span className="text-foreground tabular-nums font-extrabold">
+            {fmt(simIncome)}
+          </span>
         </div>
         <div className="w-full h-5 rounded-xl bg-muted/65 overflow-hidden flex shadow-inner border border-border/40 select-none">
           {/* Unused Funds (Savings leftover) */}
           {simSavings > 0 && (
             <div
-              onClick={() => setExpandedGroup(expandedGroup === "unused" ? null : "unused")}
+              onClick={() =>
+                setExpandedGroup(expandedGroup === "unused" ? null : "unused")
+              }
               className="bg-emerald-500/90 h-full transition-all duration-300 relative group cursor-pointer border-r border-background/20 last:border-r-0"
               style={{ width: `${pct(simSavings)}%` }}
             >
@@ -691,22 +757,32 @@ function CashFlowCompact({
           {expenseGroups.map((g, i) => {
             const groupPct = parseFloat(pct(g.total));
             if (groupPct <= 0) return null;
-            const groupColor = g.group_name === "Prior Month Overspent"
-              ? "var(--destructive)"
-              : GROUP_COLORS[(i + 1) % GROUP_COLORS.length];
+            const groupColor =
+              g.group_name === "Prior Month Overspent"
+                ? "var(--destructive)"
+                : GROUP_COLORS[(i + 1) % GROUP_COLORS.length];
 
             return (
               <div
                 key={`outflow-seg-${i}`}
-                onClick={() => setExpandedGroup(expandedGroup === g.group_name ? null : g.group_name)}
+                onClick={() =>
+                  setExpandedGroup(
+                    expandedGroup === g.group_name ? null : g.group_name
+                  )
+                }
                 className="h-full transition-all duration-300 relative group cursor-pointer border-r border-background/20 last:border-r-0"
                 style={{
                   width: `${groupPct}%`,
-                  backgroundColor: groupColor.startsWith("var") ? undefined : groupColor,
+                  backgroundColor: groupColor.startsWith("var")
+                    ? undefined
+                    : groupColor,
                 }}
               >
                 {groupColor.startsWith("var") && (
-                  <div className="absolute inset-0" style={{ backgroundColor: groupColor }} />
+                  <div
+                    className="absolute inset-0"
+                    style={{ backgroundColor: groupColor }}
+                  />
                 )}
                 <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <title>{`${g.group_name}: ${fmt(g.total)} (${groupPct.toFixed(1)}%)`}</title>
@@ -727,16 +803,24 @@ function CashFlowCompact({
           {simSavings > 0 && (
             <div className="bg-card/45 border border-border/40 rounded-xl overflow-hidden transition-all duration-350 hover:border-emerald-500/20">
               <button
-                onClick={() => setExpandedGroup(expandedGroup === "unused" ? null : "unused")}
+                onClick={() =>
+                  setExpandedGroup(expandedGroup === "unused" ? null : "unused")
+                }
                 className="w-full flex items-center justify-between p-2.5 text-xs font-bold hover:bg-muted/30 transition-colors"
               >
                 <div className="flex items-center gap-2 truncate">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                  <span className="text-foreground font-semibold">Unused Funds</span>
+                  <span className="text-foreground font-semibold">
+                    Unused Funds
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="tabular-nums text-foreground font-bold">{fmt(simSavings)}</span>
-                  <span className="text-[10px] text-muted-foreground font-normal">({pct(simSavings)}%)</span>
+                  <span className="tabular-nums text-foreground font-bold">
+                    {fmt(simSavings)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    ({pct(simSavings)}%)
+                  </span>
                   {expandedGroup === "unused" ? (
                     <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/80" />
                   ) : (
@@ -746,7 +830,8 @@ function CashFlowCompact({
               </button>
               {expandedGroup === "unused" && (
                 <div className="px-3 pb-3 pt-1 text-[11px] text-muted-foreground font-semibold leading-relaxed bg-muted/10">
-                  Unallocated surplus reserves kept inside cash or generic bank accounts.
+                  Unallocated surplus reserves kept inside cash or generic bank
+                  accounts.
                 </div>
               )}
             </div>
@@ -757,9 +842,10 @@ function CashFlowCompact({
             const groupPct = parseFloat(pct(g.total));
             if (groupPct <= 0) return null;
             const isExpanded = expandedGroup === g.group_name;
-            const groupColor = g.group_name === "Prior Month Overspent"
-              ? "var(--destructive)"
-              : GROUP_COLORS[(i + 1) % GROUP_COLORS.length];
+            const groupColor =
+              g.group_name === "Prior Month Overspent"
+                ? "var(--destructive)"
+                : GROUP_COLORS[(i + 1) % GROUP_COLORS.length];
 
             return (
               <div
@@ -767,23 +853,38 @@ function CashFlowCompact({
                 className="bg-card/45 border border-border/40 rounded-xl overflow-hidden transition-all duration-350 hover:border-primary/20"
               >
                 <button
-                  onClick={() => setExpandedGroup(isExpanded ? null : g.group_name)}
+                  onClick={() =>
+                    setExpandedGroup(isExpanded ? null : g.group_name)
+                  }
                   className="w-full flex items-center justify-between p-2.5 text-xs font-bold hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span
                       className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: groupColor.startsWith("var") ? undefined : groupColor }}
+                      style={{
+                        backgroundColor: groupColor.startsWith("var")
+                          ? undefined
+                          : groupColor,
+                      }}
                     >
                       {groupColor.startsWith("var") && (
-                        <span className="w-full h-full rounded-full block" style={{ backgroundColor: groupColor }} />
+                        <span
+                          className="w-full h-full rounded-full block"
+                          style={{ backgroundColor: groupColor }}
+                        />
                       )}
                     </span>
-                    <span className="text-foreground font-semibold truncate">{g.group_name}</span>
+                    <span className="text-foreground font-semibold truncate">
+                      {g.group_name}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="tabular-nums text-foreground font-bold">{fmt(g.total)}</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">({groupPct.toFixed(1)}%)</span>
+                    <span className="tabular-nums text-foreground font-bold">
+                      {fmt(g.total)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-normal">
+                      ({groupPct.toFixed(1)}%)
+                    </span>
                     {isExpanded ? (
                       <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/80" />
                     ) : (
@@ -800,7 +901,9 @@ function CashFlowCompact({
                         return (
                           <div key={e.name} className="flex flex-col gap-1">
                             <div className="flex justify-between items-center text-[10px] font-bold text-muted-foreground">
-                              <span className="truncate max-w-[150px]">{e.name}</span>
+                              <span className="truncate max-w-[150px]">
+                                {e.name}
+                              </span>
                               <span className="tabular-nums text-foreground font-extrabold">
                                 {fmt(e.amount)} ({envPct.toFixed(1)}%)
                               </span>
@@ -809,12 +912,17 @@ function CashFlowCompact({
                               <div
                                 className="h-full rounded-full opacity-80"
                                 style={{
-                                  backgroundColor: groupColor.startsWith("var") ? undefined : groupColor,
+                                  backgroundColor: groupColor.startsWith("var")
+                                    ? undefined
+                                    : groupColor,
                                   width: `${Math.min(100, (e.amount / g.total) * 100)}%`,
                                 }}
                               >
                                 {groupColor.startsWith("var") && (
-                                  <div className="w-full h-full" style={{ backgroundColor: groupColor }} />
+                                  <div
+                                    className="w-full h-full"
+                                    style={{ backgroundColor: groupColor }}
+                                  />
                                 )}
                               </div>
                             </div>
@@ -822,7 +930,9 @@ function CashFlowCompact({
                         );
                       })
                     ) : (
-                      <p className="text-[10px] text-muted-foreground font-bold italic">No sub-envelopes</p>
+                      <p className="text-[10px] text-muted-foreground font-bold italic">
+                        No sub-envelopes
+                      </p>
                     )}
                   </div>
                 )}
@@ -888,7 +998,9 @@ export default function ReportsPage() {
     if (Math.abs(val) >= 1000) {
       const kVal = val / 1000;
       const formattedNum = kVal % 1 === 0 ? kVal.toFixed(0) : kVal.toFixed(1);
-      return formatCurrency(parseFloat(formattedNum), defaultCurrency as any) + "k";
+      return (
+        formatCurrency(parseFloat(formattedNum), defaultCurrency as any) + "k"
+      );
     }
     return formatCurrency(Math.round(val), defaultCurrency as any);
   };
@@ -900,7 +1012,7 @@ export default function ReportsPage() {
   );
   const savingsGroupTotal = savingsGroup ? savingsGroup.total : 0;
   const livingExpenses = data ? data.total_expenses - savingsGroupTotal : 0;
-  
+
   // Actual savings this month (net surplus + savings envelopes)
   const actualSavings = data ? data.total_income - livingExpenses : 0;
   const displaySavingsRate =
@@ -912,8 +1024,12 @@ export default function ReportsPage() {
   const netSurplus = data ? data.total_income - livingExpenses : 0;
 
   // Adjusted values for live carryover
-  const displayIncome = data ? data.total_income + (carryoverInr > 0 ? carryoverInr : 0) : 0;
-  const displayExpenses = data ? livingExpenses + (carryoverInr < 0 ? Math.abs(carryoverInr) : 0) : 0;
+  const displayIncome = data
+    ? data.total_income + (carryoverInr > 0 ? carryoverInr : 0)
+    : 0;
+  const displayExpenses = data
+    ? livingExpenses + (carryoverInr < 0 ? Math.abs(carryoverInr) : 0)
+    : 0;
   const displayNet = netSurplus + carryoverInr;
 
   const [year, mon] = month.split("-").map(Number);
@@ -954,11 +1070,26 @@ export default function ReportsPage() {
 
       // Extract month name (e.g. "2026-01" -> "Jan")
       const dateParts = d.month.split("-").map(Number);
-      const monthName = new Date(dateParts[0], dateParts[1] - 1).toLocaleDateString("en-US", { month: "short" });
+      const monthName = new Date(
+        dateParts[0],
+        dateParts[1] - 1
+      ).toLocaleDateString("en-US", { month: "short" });
 
-      const convertedIncome = convertFromINR(d.total_income, defaultCurrency as any, rates);
-      const convertedExpenses = convertFromINR(d.total_expenses, defaultCurrency as any, rates);
-      const convertedSavings = convertFromINR(actSav, defaultCurrency as any, rates);
+      const convertedIncome = convertFromINR(
+        d.total_income,
+        defaultCurrency as any,
+        rates
+      );
+      const convertedExpenses = convertFromINR(
+        d.total_expenses,
+        defaultCurrency as any,
+        rates
+      );
+      const convertedSavings = convertFromINR(
+        actSav,
+        defaultCurrency as any,
+        rates
+      );
 
       return {
         month: monthName,
@@ -986,7 +1117,10 @@ export default function ReportsPage() {
     // 2. Map month data
     const data = historyData.map((d: any) => {
       const dateParts = d.month.split("-").map(Number);
-      const monthName = new Date(dateParts[0], dateParts[1] - 1).toLocaleDateString("en-US", { month: "short" });
+      const monthName = new Date(
+        dateParts[0],
+        dateParts[1] - 1
+      ).toLocaleDateString("en-US", { month: "short" });
 
       const row: any = {
         month: monthName,
@@ -1011,21 +1145,25 @@ export default function ReportsPage() {
   }, [historyData, defaultCurrency, rates]);
 
   const ytdMetrics = useMemo(() => {
-    if (!trendData || trendData.length === 0) return { avgRate: "0.0", totalIncome: 0, totalSavings: 0 };
+    if (!trendData || trendData.length === 0)
+      return { avgRate: "0.0", totalIncome: 0, totalSavings: 0 };
     let totalIncome = 0;
     let totalSavings = 0;
     for (const d of trendData) {
       totalIncome += d.income;
       totalSavings += d.savings;
     }
-    const avgRate = totalIncome > 0 ? ((totalSavings / totalIncome) * 100).toFixed(1) : "0.0";
+    const avgRate =
+      totalIncome > 0 ? ((totalSavings / totalIncome) * 100).toFixed(1) : "0.0";
     return { avgRate, totalIncome, totalSavings };
   }, [trendData]);
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Cash Flow</h1>
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+          Cash Flow
+        </h1>
         <MonthPicker value={month} onChange={setMonth} />
       </div>
 
@@ -1033,19 +1171,26 @@ export default function ReportsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {[
           {
-            label: carryoverInr > 0 ? "Total Income + Carryover" : "Total Income",
+            label:
+              carryoverInr > 0 ? "Total Income + Carryover" : "Total Income",
             value: data ? fmt(displayIncome) : "—",
             color: "text-positive",
           },
           {
-            label: carryoverInr < 0 ? "Expenses + Prior Deficit" : "Total Expenses",
+            label:
+              carryoverInr < 0 ? "Expenses + Prior Deficit" : "Total Expenses",
             value: data ? fmt(displayExpenses) : "—",
             color: "text-negative",
           },
           {
             label: carryoverInr !== 0 ? "Adjusted Net" : "Net Surplus",
             value: data ? fmt(displayNet) : "—",
-            color: displayNet < 0 ? "text-negative" : displayNet > 0 ? "text-positive" : "text-foreground",
+            color:
+              displayNet < 0
+                ? "text-negative"
+                : displayNet > 0
+                  ? "text-positive"
+                  : "text-foreground",
           },
           {
             label: "Savings Rate",
@@ -1060,7 +1205,11 @@ export default function ReportsPage() {
             <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide truncate">
               {card.label}
             </p>
-            <p className={`text-xl md:text-2xl font-extrabold tabular-nums tracking-tight ${card.color}`}>{card.value}</p>
+            <p
+              className={`text-xl md:text-2xl font-extrabold tabular-nums tracking-tight ${card.color}`}
+            >
+              {card.value}
+            </p>
           </div>
         ))}
       </div>
@@ -1113,16 +1262,49 @@ export default function ReportsPage() {
                   margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
                 >
                   <defs>
-                    <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.08} />
-                      <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.0} />
+                    <linearGradient
+                      id="colorIncome"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0.08}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-1)"
+                        stopOpacity={0.0}
+                      />
                     </linearGradient>
-                    <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.08} />
-                      <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0.0} />
+                    <linearGradient
+                      id="colorExpenses"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-4)"
+                        stopOpacity={0.08}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-4)"
+                        stopOpacity={0.0}
+                      />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                    opacity={0.15}
+                  />
                   <XAxis
                     dataKey="month"
                     stroke="var(--muted-foreground)"
@@ -1191,12 +1373,31 @@ export default function ReportsPage() {
                   margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
                 >
                   <defs>
-                    <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0.0} />
+                    <linearGradient
+                      id="colorSavings"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="5%"
+                        stopColor="var(--chart-2)"
+                        stopOpacity={0.15}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor="var(--chart-2)"
+                        stopOpacity={0.0}
+                      />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                    opacity={0.15}
+                  />
                   <XAxis
                     dataKey="month"
                     stroke="var(--muted-foreground)"
@@ -1255,7 +1456,12 @@ export default function ReportsPage() {
                   data={categoryTrendData.data}
                   margin={{ top: 15, right: 15, left: 15, bottom: 10 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.15} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    stroke="var(--border)"
+                    opacity={0.15}
+                  />
                   <XAxis
                     dataKey="month"
                     stroke="var(--muted-foreground)"
@@ -1345,9 +1551,15 @@ export default function ReportsPage() {
         ) : (
           <div className="w-full pb-2">
             {viewMode === "cascade" ? (
-              <CashFlowCompact data={{ ...data!, simValInr: carryoverInr }} fmt={fmt} />
+              <CashFlowCompact
+                data={{ ...data!, simValInr: carryoverInr }}
+                fmt={fmt}
+              />
             ) : (
-              <CashFlowSankey data={{ ...data!, simValInr: carryoverInr }} fmt={fmt} />
+              <CashFlowSankey
+                data={{ ...data!, simValInr: carryoverInr }}
+                fmt={fmt}
+              />
             )}
           </div>
         )}
@@ -1394,7 +1606,7 @@ export default function ReportsPage() {
                     <td className="px-4 py-2">
                       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                         <div
-                           className="h-full rounded-full"
+                          className="h-full rounded-full"
                           style={{
                             width: `${Math.min(100, (g.total / data.total_income) * 100)}%`,
                             background:

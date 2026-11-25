@@ -1,5 +1,9 @@
-import { convertFromINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
+import {
+  convertFromINR,
+  formatCurrency,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import {
   AlertTriangle,
   CalendarRange,
@@ -8,10 +12,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -241,7 +245,9 @@ function AddPolicyDialog() {
           <div>
             <Label>
               Premium Amount{" "}
-              <span className="text-muted-foreground text-xs">({form.currency})</span>
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -279,7 +285,9 @@ function AddPolicyDialog() {
           <div>
             <Label>
               Sum Assured{" "}
-              <span className="text-muted-foreground text-xs">({form.currency})</span>
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -293,7 +301,9 @@ function AddPolicyDialog() {
           <div>
             <Label>
               Maturity Value{" "}
-              <span className="text-muted-foreground text-xs">({form.currency})</span>
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -647,7 +657,9 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           sum_assured,
           maturity_value,
           currency: form.currency as any,
-          ...(surrender_value !== undefined ? { surrender_value } : { surrender_value: null }),
+          ...(surrender_value !== undefined
+            ? { surrender_value }
+            : { surrender_value: null }),
           notes: form.notes.trim() || undefined,
         },
       },
@@ -690,11 +702,7 @@ function EditPolicyDialog({ policy }: { policy: any }) {
         <div className="grid grid-cols-2 gap-3 pt-2">
           <div className="col-span-2">
             <Label>Policy Name</Label>
-            <Input
-              value={form.name}
-              onChange={set("name")}
-              className="mt-1"
-            />
+            <Input value={form.name} onChange={set("name")} className="mt-1" />
           </div>
           <div>
             <Label>Provider</Label>
@@ -763,7 +771,10 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           </div>
           <div>
             <Label>
-              Premium Amount <span className="text-muted-foreground text-xs">({form.currency})</span>
+              Premium Amount{" "}
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -795,7 +806,10 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           </div>
           <div>
             <Label>
-              Sum Assured <span className="text-muted-foreground text-xs">({form.currency})</span>
+              Sum Assured{" "}
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -807,7 +821,10 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           </div>
           <div>
             <Label>
-              Maturity Value <span className="text-muted-foreground text-xs">({form.currency})</span>
+              Maturity Value{" "}
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>
             </Label>
             <Input
               type="number"
@@ -819,7 +836,10 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           </div>
           <div>
             <Label>
-              Surrender Value <span className="text-muted-foreground text-xs">({form.currency})</span>{" "}
+              Surrender Value{" "}
+              <span className="text-muted-foreground text-xs">
+                ({form.currency})
+              </span>{" "}
               <span className="text-muted-foreground text-xs">(optional)</span>
             </Label>
             <Input
@@ -833,7 +853,8 @@ function EditPolicyDialog({ policy }: { policy: any }) {
           </div>
           <div className="col-span-2">
             <Label>
-              Notes <span className="text-muted-foreground text-xs">(optional)</span>
+              Notes{" "}
+              <span className="text-muted-foreground text-xs">(optional)</span>
             </Label>
             <Input
               value={form.notes}
@@ -842,7 +863,11 @@ function EditPolicyDialog({ policy }: { policy: any }) {
             />
           </div>
           {err && <p className="col-span-2 text-sm text-destructive">{err}</p>}
-          <Button onClick={submit} disabled={isPending} className="col-span-2 mt-2">
+          <Button
+            onClick={submit}
+            disabled={isPending}
+            className="col-span-2 mt-2"
+          >
             Save Changes
           </Button>
         </div>
@@ -863,7 +888,12 @@ export default function PoliciesPage({ embed }: { embed?: boolean }) {
       defaultCurrency as any
     );
 
-  const formatCell = (native: number, inr: number, currency: string, className?: string) => {
+  const formatCell = (
+    native: number,
+    inr: number,
+    currency: string,
+    className?: string
+  ) => {
     const isDefault = currency === defaultCurrency;
     return (
       <div className={`text-right ${className ?? ""}`}>
@@ -905,7 +935,10 @@ export default function PoliciesPage({ embed }: { embed?: boolean }) {
 
   const totalInvestedInr = useMemo(() => {
     if (!data?.policies) return 0;
-    return data.policies.reduce((sum, p) => sum + (p.total_invested_inr ?? 0), 0);
+    return data.policies.reduce(
+      (sum, p) => sum + (p.total_invested_inr ?? 0),
+      0
+    );
   }, [data?.policies]);
 
   return (
@@ -935,91 +968,110 @@ export default function PoliciesPage({ embed }: { embed?: boolean }) {
       )}
 
       {/* Policies breakdown */}
-      {!isLoading && data?.policies && data.policies.length > 0 && donutData.length > 0 && (
-        <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm animate-in fade-in-50 duration-300">
-          <CardHeader className="pt-5 pb-1 px-6">
-            <CardTitle className="text-sm font-semibold tracking-tight">Policy Premium Allocation</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-6">
-            {/* Centered Donut Chart */}
-            <div className="relative w-[180px] h-[180px] flex-shrink-0 flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
-                    paddingAngle={3}
-                    cornerRadius={5}
-                    onMouseEnter={(_, index) => setActiveDonutIndex(index)}
-                    onMouseLeave={() => setActiveDonutIndex(null)}
-                  >
-                    {donutData.map((_, i) => {
-                      const isHovered = activeDonutIndex === i;
-                      return (
-                        <Cell 
-                          key={i} 
-                          fill={COLORS[i % COLORS.length]} 
-                          stroke="none"
-                          strokeWidth={0}
-                          style={{
-                            outline: "none",
-                            filter: isHovered ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))" : "none",
-                            transition: "all 0.2s ease-in-out",
-                          }}
-                        />
-                      );
-                    })}
-                  </Pie>
-                  <Tooltip formatter={(v) => fmt(Number(v))} content={<></>} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-2">
-                <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground/80 truncate max-w-[110px] leading-tight">
-                  {activeDonutIndex !== null && donutData[activeDonutIndex] ? donutData[activeDonutIndex].name : "Total Invested"}
-                </span>
-                <span className="text-sm font-extrabold tracking-tight mt-0.5 tabular-nums text-foreground truncate max-w-[110px]">
-                  {fmt(activeDonutIndex !== null && donutData[activeDonutIndex] ? donutData[activeDonutIndex].value : totalInvestedInr)}
-                </span>
+      {!isLoading &&
+        data?.policies &&
+        data.policies.length > 0 &&
+        donutData.length > 0 && (
+          <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm animate-in fade-in-50 duration-300">
+            <CardHeader className="pt-5 pb-1 px-6">
+              <CardTitle className="text-sm font-semibold tracking-tight">
+                Policy Premium Allocation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-6">
+              {/* Centered Donut Chart */}
+              <div className="relative w-[180px] h-[180px] flex-shrink-0 flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={donutData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={75}
+                      paddingAngle={3}
+                      cornerRadius={5}
+                      onMouseEnter={(_, index) => setActiveDonutIndex(index)}
+                      onMouseLeave={() => setActiveDonutIndex(null)}
+                    >
+                      {donutData.map((_, i) => {
+                        const isHovered = activeDonutIndex === i;
+                        return (
+                          <Cell
+                            key={i}
+                            fill={COLORS[i % COLORS.length]}
+                            stroke="none"
+                            strokeWidth={0}
+                            style={{
+                              outline: "none",
+                              filter: isHovered
+                                ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))"
+                                : "none",
+                              transition: "all 0.2s ease-in-out",
+                            }}
+                          />
+                        );
+                      })}
+                    </Pie>
+                    <Tooltip
+                      formatter={(v) => fmt(Number(v))}
+                      content={<></>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-2">
+                  <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground/80 truncate max-w-[110px] leading-tight">
+                    {activeDonutIndex !== null && donutData[activeDonutIndex]
+                      ? donutData[activeDonutIndex].name
+                      : "Total Invested"}
+                  </span>
+                  <span className="text-sm font-extrabold tracking-tight mt-0.5 tabular-nums text-foreground truncate max-w-[110px]">
+                    {fmt(
+                      activeDonutIndex !== null && donutData[activeDonutIndex]
+                        ? donutData[activeDonutIndex].value
+                        : totalInvestedInr
+                    )}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* Premium Legend Grid */}
-            <div className="flex flex-col gap-1.5 w-full flex-1">
-              {donutData.map((d, i) => {
-                const pct = totalInvestedInr > 0 ? (d.value / totalInvestedInr) * 100 : 0;
-                return (
-                  <div
-                    key={d.name}
-                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-border/30"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-black/10"
-                        style={{ background: COLORS[i % COLORS.length] }}
-                      />
-                      <span className="font-semibold text-xs md:text-sm text-muted-foreground hover:text-foreground transition-colors truncate max-w-40 sm:max-w-xs">
-                        {d.name}
-                      </span>
+              {/* Premium Legend Grid */}
+              <div className="flex flex-col gap-1.5 w-full flex-1">
+                {donutData.map((d, i) => {
+                  const pct =
+                    totalInvestedInr > 0
+                      ? (d.value / totalInvestedInr) * 100
+                      : 0;
+                  return (
+                    <div
+                      key={d.name}
+                      className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-border/30"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-black/10"
+                          style={{ background: COLORS[i % COLORS.length] }}
+                        />
+                        <span className="font-semibold text-xs md:text-sm text-muted-foreground hover:text-foreground transition-colors truncate max-w-40 sm:max-w-xs">
+                          {d.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-xs md:text-sm tabular-nums text-foreground">
+                          {fmt(d.value)}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground w-14 text-center">
+                          {pct.toFixed(1)}%
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-xs md:text-sm tabular-nums text-foreground">
-                        {fmt(d.value)}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground w-14 text-center">
-                        {pct.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       {error && (
         <Alert variant="destructive">
@@ -1074,13 +1126,22 @@ export default function PoliciesPage({ embed }: { embed?: boolean }) {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCell(p.total_invested, p.total_invested_inr, p.currency)}
+                    {formatCell(
+                      p.total_invested,
+                      p.total_invested_inr,
+                      p.currency
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {formatCell(p.sum_assured, p.sum_assured_inr, p.currency)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCell(p.maturity_value ?? 0, p.maturity_value_inr ?? 0, p.currency, "text-positive font-medium")}
+                    {formatCell(
+                      p.maturity_value ?? 0,
+                      p.maturity_value_inr ?? 0,
+                      p.currency,
+                      "text-positive font-medium"
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{p.maturity_date}</Badge>

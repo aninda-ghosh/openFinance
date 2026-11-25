@@ -3,6 +3,7 @@ import {
   BarChart2,
   ChevronLeft,
   ChevronRight,
+  FileText,
   HelpCircle,
   Landmark,
   LayoutDashboard,
@@ -10,7 +11,6 @@ import {
   MessageSquare,
   Settings,
   Wallet,
-  FileText,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,9 @@ export function Sidebar() {
           className="w-7 h-7 rounded-md object-contain flex-shrink-0"
         />
         {!sidebarCollapsed && (
-          <span className="font-semibold text-sidebar-foreground">openFinance</span>
+          <span className="font-semibold text-sidebar-foreground">
+            openFinance
+          </span>
         )}
       </div>
 

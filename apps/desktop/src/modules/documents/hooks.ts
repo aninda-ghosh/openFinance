@@ -39,7 +39,8 @@ export function useUploadDocumentMutation() {
 export function useDeleteDocumentMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ docId }: { docId: string }) => documentsApi.deleteDocument(docId),
+    mutationFn: ({ docId }: { docId: string }) =>
+      documentsApi.deleteDocument(docId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["documents"] });
     },

@@ -1,10 +1,15 @@
 import {
-  TRANSFER_IN,
-  TRANSFER_OUT,
   isTransferIn,
   isTransferOut,
+  TRANSFER_IN,
+  TRANSFER_OUT,
 } from "@openfinance/shared/constants";
-import { convertFromINR, convertToINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
+import {
+  convertFromINR,
+  convertToINR,
+  formatCurrency,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import {
   CalendarClock,
   ChevronDown,
@@ -19,9 +24,9 @@ import {
   Trash2,
   TrendingUp,
 } from "lucide-react";
-import { Fragment, useState, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { Fragment, useEffect, useState } from "react";
 import { toast } from "sonner";
+import TransactionForm from "@/components/TransactionForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -49,12 +54,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores/app.store";
-import TransactionForm from "@/components/TransactionForm";
 import {
   useAccounts,
-  useCopyPreviousMonthBudget,
   useClearMonthBudget,
+  useCopyPreviousMonthBudget,
   useCreateEnvelope,
   useCreateEnvelopeGroup,
   useCreateRecurring,
@@ -479,7 +484,9 @@ function EnvelopeTransactionsSheet({
           ) : (
             <div className="flex gap-4 text-sm mt-2">
               <div>
-                <p className="text-xs text-muted-foreground">Total Uncategorised</p>
+                <p className="text-xs text-muted-foreground">
+                  Total Uncategorised
+                </p>
                 <p className="font-semibold text-negative">
                   {fmtBudget(envelope?.spent ?? 0)}
                 </p>
@@ -541,7 +548,10 @@ function EnvelopeTransactionsSheet({
                         )}
                       </div>
                       {t.type === "expense" && (
-                        <div className="mt-2 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="mt-2 flex items-center gap-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
                             Envelope:
                           </span>
@@ -549,28 +559,36 @@ function EnvelopeTransactionsSheet({
                             value={t.envelope_id ?? ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              updateTxn({
-                                id: t.id,
-                                data: { envelope_id: val || null }
-                              }, {
-                                onSuccess: () =>
-                                  toast.success(
-                                    val ? "Transaction categorised" : "Envelope cleared"
-                                  ),
-                                onError: (err) => {
-                                  // `apiFetch` puts the server's `error` string
-                                  // on `message`, so a 400 from the
-                                  // on-budget-expense rule already explains
-                                  // itself — do not bury it under a generic
-                                  // "check your connection".
-                                  toast.error("Could not change the envelope", {
-                                    description:
-                                      err?.message ||
-                                      "The server rejected the change and gave no reason.",
-                                    duration: 6000,
-                                  });
+                              updateTxn(
+                                {
+                                  id: t.id,
+                                  data: { envelope_id: val || null },
+                                },
+                                {
+                                  onSuccess: () =>
+                                    toast.success(
+                                      val
+                                        ? "Transaction categorised"
+                                        : "Envelope cleared"
+                                    ),
+                                  onError: (err) => {
+                                    // `apiFetch` puts the server's `error` string
+                                    // on `message`, so a 400 from the
+                                    // on-budget-expense rule already explains
+                                    // itself — do not bury it under a generic
+                                    // "check your connection".
+                                    toast.error(
+                                      "Could not change the envelope",
+                                      {
+                                        description:
+                                          err?.message ||
+                                          "The server rejected the change and gave no reason.",
+                                        duration: 6000,
+                                      }
+                                    );
+                                  },
                                 }
-                              });
+                              );
                             }}
                             className="text-[11px] border border-border rounded px-1.5 py-0.5 bg-background truncate max-w-[180px] focus:outline-none focus:ring-1 focus:ring-primary/50 text-foreground cursor-pointer hover:border-muted-foreground/30 transition-colors"
                           >
@@ -582,7 +600,10 @@ function EnvelopeTransactionsSheet({
                               shows its real state instead of silently
                               displaying the first envelope in the list.
                             */}
-                            <option value="" disabled={acct?.off_budget === false}>
+                            <option
+                              value=""
+                              disabled={acct?.off_budget === false}
+                            >
                               📁 Uncategorised
                               {acct?.off_budget === false
                                 ? " (not allowed on-budget)"
@@ -744,7 +765,8 @@ function BudgetTable({
                         {group.name}
                       </span>
                       <span className="text-[9.5px] text-muted-foreground mt-0.5 block font-semibold">
-                        Spent {fmtBudget(totalSpent)} of {fmtBudget(totalBudgeted)}
+                        Spent {fmtBudget(totalSpent)} of{" "}
+                        {fmtBudget(totalBudgeted)}
                       </span>
                     </div>
                   </div>
@@ -752,7 +774,10 @@ function BudgetTable({
                   {/* Right: Actions and Balance aligned to columns */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {/* Actions: w-[72px] matching items below */}
-                    <div className="w-[72px] flex justify-end items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div
+                      className="w-[72px] flex justify-end items-center gap-1 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <EnvelopeFormDialog
                         title="Add Envelope"
                         trigger={
@@ -790,13 +815,21 @@ function BudgetTable({
 
                     {/* Balance: w-[76px] matching items below */}
                     <div className="w-[76px] flex justify-end items-baseline gap-0.5 flex-shrink-0">
-                      <span className={cn(
-                        "text-xs font-bold tabular-nums",
-                        totalBalance < 0 ? "text-negative" : totalBalance > 0 ? "text-positive" : "text-muted-foreground"
-                      )}>
+                      <span
+                        className={cn(
+                          "text-xs font-bold tabular-nums",
+                          totalBalance < 0
+                            ? "text-negative"
+                            : totalBalance > 0
+                              ? "text-positive"
+                              : "text-muted-foreground"
+                        )}
+                      >
                         {fmtBudget(totalBalance)}
                       </span>
-                      <span className="text-[9px] text-muted-foreground font-semibold">left</span>
+                      <span className="text-[9px] text-muted-foreground font-semibold">
+                        left
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -807,7 +840,9 @@ function BudgetTable({
                     <div
                       className={cn(
                         "h-full transition-all duration-300",
-                        totalSpent > totalBudgeted ? "bg-negative" : "bg-primary"
+                        totalSpent > totalBudgeted
+                          ? "bg-negative"
+                          : "bg-primary"
                       )}
                       style={{ width: `${spentPercent}%` }}
                     />
@@ -822,10 +857,14 @@ function BudgetTable({
                     const budgetedInr = env.budgeted_inr ?? 0;
                     const balance = env.available;
                     const isEditing = editingBudget?.envId === env.id;
-                    const hasForeignCurrency = env.budget_currency && env.budget_currency !== "INR";
+                    const hasForeignCurrency =
+                      env.budget_currency && env.budget_currency !== "INR";
                     const envSpentPercent =
                       budgetedInr > 0
-                        ? Math.max(0, Math.min(100, (env.spent / budgetedInr) * 100))
+                        ? Math.max(
+                            0,
+                            Math.min(100, (env.spent / budgetedInr) * 100)
+                          )
                         : 0;
 
                     return (
@@ -850,7 +889,8 @@ function BudgetTable({
                               {env.name}
                             </span>
                             <span className="text-[9.5px] text-muted-foreground mt-0.5 block font-semibold">
-                              Spent {fmtBudget(env.spent)} of {fmtBudget(budgetedInr)}
+                              Spent {fmtBudget(env.spent)} of{" "}
+                              {fmtBudget(budgetedInr)}
                             </span>
                           </div>
 
@@ -859,7 +899,9 @@ function BudgetTable({
                               <div
                                 className={cn(
                                   "h-full rounded-full transition-all duration-300",
-                                  env.spent > budgetedInr ? "bg-negative" : "bg-primary"
+                                  env.spent > budgetedInr
+                                    ? "bg-negative"
+                                    : "bg-primary"
                                 )}
                                 style={{ width: `${envSpentPercent}%` }}
                               />
@@ -972,11 +1014,17 @@ function BudgetTable({
                                     })
                                   }
                                   onBlur={() =>
-                                    saveBudget(env.id, editingBudget?.value ?? "")
+                                    saveBudget(
+                                      env.id,
+                                      editingBudget?.value ?? ""
+                                    )
                                   }
                                   onKeyDown={(e) => {
                                     if (e.key === "Enter")
-                                      saveBudget(env.id, editingBudget?.value ?? "");
+                                      saveBudget(
+                                        env.id,
+                                        editingBudget?.value ?? ""
+                                      );
                                     if (e.key === "Escape")
                                       setEditingBudget(null);
                                   }}
@@ -994,14 +1042,16 @@ function BudgetTable({
                                   })
                                 }
                               >
-                                <span className={cn(
-                                  "px-2 py-0.5 rounded-full text-[10px] font-bold tabular-nums flex-shrink-0 text-center min-w-[58px]",
-                                  balance < 0
-                                    ? "bg-negative/10 text-negative border border-negative/25"
-                                    : balance === 0
-                                      ? "bg-muted text-muted-foreground border border-transparent"
-                                      : "bg-positive/10 text-positive border border-positive/25"
-                                )}>
+                                <span
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold tabular-nums flex-shrink-0 text-center min-w-[58px]",
+                                    balance < 0
+                                      ? "bg-negative/10 text-negative border border-negative/25"
+                                      : balance === 0
+                                        ? "bg-muted text-muted-foreground border border-transparent"
+                                        : "bg-positive/10 text-positive border border-positive/25"
+                                  )}
+                                >
                                   {fmtBudget(balance)}
                                 </span>
                               </div>
@@ -1025,7 +1075,10 @@ function BudgetTable({
           </p>
           {INCOME_GROUPS.map(({ key, label }) => {
             const byPayee = incomeByGroup[key];
-            const groupTotal = Object.values(byPayee).reduce((s, v) => s + v, 0);
+            const groupTotal = Object.values(byPayee).reduce(
+              (s, v) => s + v,
+              0
+            );
             const hasEntries = Object.keys(byPayee).length > 0;
             const isGroupCollapsed = collapsed.has(`__income_${key}`);
 
@@ -1062,7 +1115,10 @@ function BudgetTable({
                     {Object.entries(byPayee)
                       .sort(([, a], [, b]) => b - a)
                       .map(([payee, amount]) => (
-                        <div key={payee} className="p-3.5 flex items-center justify-between">
+                        <div
+                          key={payee}
+                          className="p-3.5 flex items-center justify-between"
+                        >
                           <span className="text-xs text-muted-foreground font-semibold">
                             {payee}
                           </span>
@@ -1224,11 +1280,14 @@ function BudgetTable({
                                   })
                                 }
                                 onBlur={() =>
-                                   saveBudget(env.id, editingBudget?.value ?? "")
-                                  }
+                                  saveBudget(env.id, editingBudget?.value ?? "")
+                                }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter")
-                                    saveBudget(env.id, editingBudget?.value ?? "");
+                                    saveBudget(
+                                      env.id,
+                                      editingBudget?.value ?? ""
+                                    );
                                   if (e.key === "Escape")
                                     setEditingBudget(null);
                                 }}
@@ -1397,8 +1456,8 @@ function BudgetTable({
                       )}
                       {idx === 0 && <TrendingUp className="w-3.5 h-3.5" />}
                       <span>{label}</span>
-                      <span 
-                        className="text-[10px] text-muted-foreground/80 font-normal ml-2 flex items-center gap-0.5 select-none" 
+                      <span
+                        className="text-[10px] text-muted-foreground/80 font-normal ml-2 flex items-center gap-0.5 select-none"
                         title="Income totals are compiled dynamically from your real transactions. To edit, go to the Transactions page."
                       >
                         <Info className="w-3 h-3 text-muted-foreground/50" />
@@ -1444,7 +1503,6 @@ function BudgetTable({
           })}
         </tbody>
       </table>
-
     </div>
   );
 }
@@ -1455,10 +1513,7 @@ function AddTransactionDialog() {
   const [open, setOpen] = useState(false);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={setOpen}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm">
           <PlusCircle className="w-4 h-4 mr-1" />
@@ -1472,10 +1527,7 @@ function AddTransactionDialog() {
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col max-h-[80vh] min-h-0">
-          <TransactionForm
-            mode="create"
-            onSuccess={() => setOpen(false)}
-          />
+          <TransactionForm mode="create" onSuccess={() => setOpen(false)} />
         </div>
       </DialogContent>
     </Dialog>
@@ -1507,9 +1559,7 @@ function AddRecurringDialog({
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [envelopeId, setEnvelopeId] = useState("");
   const [frequency, setFrequency] = useState("monthly");
-  const [nextDate, setNextDate] = useState(
-    localIsoDate()
-  );
+  const [nextDate, setNextDate] = useState(localIsoDate());
   const [endDate, setEndDate] = useState("");
   const [notes, setNotes] = useState("");
   const sel = "w-full border rounded-md px-3 py-2 text-sm mt-1 bg-background";
@@ -1789,7 +1839,9 @@ function CopyBudgetButton({ selectedMonth }: { selectedMonth: string }) {
   const handleCopy = () => {
     copyBudget(selectedMonth, {
       onSuccess: (res: any) => {
-        toast.success(`Copied and updated ${res.count} envelope budgets successfully!`);
+        toast.success(
+          `Copied and updated ${res.count} envelope budgets successfully!`
+        );
       },
       onError: (e) => toast.error(e.message),
     });
@@ -1842,7 +1894,9 @@ function ClearBudgetButton({ selectedMonth }: { selectedMonth: string }) {
           className="gap-1.5 h-9 text-xs text-negative hover:bg-negative/10 border-negative/30 hover:border-negative/50"
           disabled={isPending}
         >
-          <Trash2 className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`} />
+          <Trash2
+            className={`w-3.5 h-3.5 ${isPending ? "animate-pulse" : ""}`}
+          />
           {isPending ? "Clearing..." : "Clear Budget"}
         </Button>
       }
@@ -1865,7 +1919,9 @@ export default function BudgetPage() {
   const { mutate: createGroup, isPending: creatingGroup } =
     useCreateEnvelopeGroup();
 
-  const [drillEnvelope, setDrillEnvelope] = useState<DrillEnvelope | null>(null);
+  const [drillEnvelope, setDrillEnvelope] = useState<DrillEnvelope | null>(
+    null
+  );
 
   // Converts an INR amount to the user's global default currency and formats it
   const fmtBudget = (amountInr: number) =>
@@ -1930,7 +1986,9 @@ export default function BudgetPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Budget</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+            Budget
+          </h1>
           {summary && (
             <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
               <span>Income: </span>

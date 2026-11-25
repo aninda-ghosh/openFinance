@@ -269,8 +269,8 @@ const FAQ_SECTIONS: FAQSection[] = [
           <span>
             Check the Ollama server URL under{" "}
             <strong>Settings → AI Assistant</strong> and use{" "}
-            <strong>Save &amp; Test</strong> to verify the connection. Make
-            sure Ollama is running on that machine (
+            <strong>Save &amp; Test</strong> to verify the connection. Make sure
+            Ollama is running on that machine (
             <code className="bg-muted px-1 rounded text-xs">ollama.com</code>)
             and that you have pulled at least one model (e.g.{" "}
             <code className="bg-muted px-1 rounded text-xs">

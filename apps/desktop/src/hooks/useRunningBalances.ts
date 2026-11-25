@@ -1,4 +1,8 @@
-import { balanceDelta, bearsHoldings, isPhysicalAsset } from "@openfinance/shared/constants";
+import {
+  balanceDelta,
+  bearsHoldings,
+  isPhysicalAsset,
+} from "@openfinance/shared/constants";
 import { convertFromINR, convertToINR } from "@openfinance/shared/utils";
 import { useMemo } from "react";
 

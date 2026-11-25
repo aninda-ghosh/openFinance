@@ -104,13 +104,8 @@ export function useSetEntryContribution() {
 export function useBulkContributions() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      mode,
-    }: {
-      id: string;
-      mode: "match_delta" | "clear";
-    }) => investmentsApi.bulkContributions(id, mode),
+    mutationFn: ({ id, mode }: { id: string; mode: "match_delta" | "clear" }) =>
+      investmentsApi.bulkContributions(id, mode),
     onSuccess: (_, { id }) => invalidateBasis(qc, id),
   });
 }

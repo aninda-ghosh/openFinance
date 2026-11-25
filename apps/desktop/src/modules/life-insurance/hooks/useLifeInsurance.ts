@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UpdateLifeInsuranceRequest } from "@openfinance/shared/api-contracts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lifeInsuranceApi } from "../api";
 
 export function useLifeInsurance() {

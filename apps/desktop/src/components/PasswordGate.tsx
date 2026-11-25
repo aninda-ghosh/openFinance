@@ -103,7 +103,9 @@ export function PasswordGate({ onUnlocked }: Props) {
       setError("");
       setPhase("input");
     } catch {
-      setError("Failed to reset database. Please try deleting the database files manually.");
+      setError(
+        "Failed to reset database. Please try deleting the database files manually."
+      );
       setConfirmWipe(false);
     }
   };
@@ -115,9 +117,12 @@ export function PasswordGate({ onUnlocked }: Props) {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="w-full max-w-xs space-y-6 p-8 border border-red-500/20 rounded-2xl bg-card shadow-lg">
           <div>
-            <h2 className="text-lg font-semibold text-red-500">Wipe Database?</h2>
+            <h2 className="text-lg font-semibold text-red-500">
+              Wipe Database?
+            </h2>
             <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-              This will permanently delete all your local transactions, accounts, and financial records. This action cannot be undone.
+              This will permanently delete all your local transactions,
+              accounts, and financial records. This action cannot be undone.
             </p>
           </div>
           <div className="space-y-2">
