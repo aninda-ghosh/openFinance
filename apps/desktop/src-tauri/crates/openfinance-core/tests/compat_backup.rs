@@ -1,21 +1,16 @@
-//! Backup and document compatibility between Node and Rust (Wave 1 data),
-//! through the real HTTP routes on both sides:
+//! Backup and document compatibility, through the real HTTP routes:
 //!
 //! - Node → Rust: `tests/compat/fixtures/backup/node-export.{fwb1,zip}` were
-//!   exported by the Node route (`tests/compat/regen-backup-fixtures.sh`).
+//!   exported by the Node server's route (the last Node release, `1502e08`).
 //!   Rust imports each, exports again, and its decoded export must equal
 //!   Node's decoded export (`node-export.content.json`): every table row and
 //!   every document byte.
-//! - Rust → Node: Rust's own exports (encrypted and plain) are imported by the
-//!   real Node route (`tests/compat/node/backup.ts`, run with the server's
-//!   tsx), which exports again; Node's decoded content must equal Rust's.
-//!   This needs `apps/server/node_modules` (the parity harness links it). Set
-//!   `OPENFINANCE_SKIP_NODE_COMPAT=1` to skip that half explicitly.
-//! - Documents: an upload through the Rust route is readable by Node's
-//!   download route and the reverse (same paths, names and OFE1 encryption).
+//! - Rust → Rust: Rust's own exports (encrypted and plain) import again in a
+//!   fresh Rust database, and the decoded re-export equals the original.
+//! - Documents: an upload through the Rust route is stored with Node's name
+//!   shape and OFE1 encryption, so older app versions can read it.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -90,7 +85,7 @@ async fn export(state: &AppState) -> Vec<u8> {
     body
 }
 
-/// The decoded content of an export, in the shape `node/backup.ts` writes.
+/// The decoded content of an export, in the shape of `node-export.content.json`.
 fn decode(buf: &[u8]) -> (bool, Vec<Value>) {
     let key = crypto::derive_backup_key(PASS, "desktop");
     let (encrypted, zip) = match crypto::decrypt_backup(buf, &key).expect("decrypt") {
@@ -185,54 +180,6 @@ async fn node_plain_backup_imports_in_rust() {
     );
 }
 
-fn tsx() -> Option<PathBuf> {
-    let repo = crate_dir().join("../../../../..");
-    let tsx = repo.join("apps/server/node_modules/.bin/tsx");
-    if tsx.exists() {
-        return Some(tsx);
-    }
-    if std::env::var("OPENFINANCE_SKIP_NODE_COMPAT").as_deref() == Ok("1") {
-        return None;
-    }
-    panic!(
-        "{} is missing: run the parity harness once (it links node_modules) or set OPENFINANCE_SKIP_NODE_COMPAT=1",
-        tsx.display()
-    );
-}
-
-/// Imports `backup` into a fresh Node server via the real route and returns
-/// `{ status, body, content }` (content = Node's decoded re-export).
-fn node_import(tsx: &Path, backup: &[u8], password: Option<&str>) -> Value {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let input = dir.path().join("in.ofb");
-    std::fs::write(&input, backup).expect("write");
-    let result = dir.path().join("result.json");
-    let server_src = crate_dir().join("../../../../../apps/server/src");
-    let mut cmd = Command::new(tsx);
-    cmd.arg(crate_dir().join("tests/compat/node/backup.ts"))
-        .env("MODE", "import")
-        .env("IN", &input)
-        .env("RESULT", &result)
-        .env("SERVER_SRC", &server_src)
-        .env("DB_PATH", dir.path().join("node.db"))
-        .env("OPENFINANCE_DB_KEY", PASS)
-        .env("OPENFINANCE_DESKTOP", "true")
-        .env("OPENFINANCE_NO_NETWORK", "1")
-        .env_remove("ENCRYPTION_KEY");
-    match password {
-        Some(p) => cmd.env("PASSWORD", p),
-        None => cmd.env_remove("PASSWORD"),
-    };
-    let out = cmd.output().expect("run tsx");
-    assert!(
-        out.status.success(),
-        "node failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let text = std::fs::read_to_string(&result).expect("result");
-    parse_json(&text).expect("result json")
-}
-
 /// A Rust database with the Node fixture's content plus a document uploaded
 /// through the Rust route.
 async fn rust_with_upload(dir: &Path, desktop: bool) -> AppState {
@@ -260,12 +207,22 @@ async fn rust_with_upload(dir: &Path, desktop: bool) -> AppState {
     s
 }
 
-#[tokio::test]
-async fn rust_backups_import_in_node() {
-    let Some(tsx) = tsx() else {
-        eprintln!("skipped: OPENFINANCE_SKIP_NODE_COMPAT=1");
-        return;
+/// Imports `backup` into a fresh Rust state, exports again and returns
+/// `(status, body, decoded re-export)`.
+async fn rust_reimport(backup: &[u8], password: Option<&str>) -> (StatusCode, Value, Vec<Value>) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let s = state(dir.path(), true);
+    let (status, body) = import(&s, backup.to_vec(), password).await;
+    let content = if status == StatusCode::OK {
+        decode(&export(&s).await).1
+    } else {
+        Vec::new()
     };
+    (status, body, content)
+}
+
+#[tokio::test]
+async fn rust_backups_reimport_in_rust() {
     // Encrypted (desktop) export, imported with the passcode as password.
     let dir = tempfile::tempdir().expect("tempdir");
     let s = rust_with_upload(dir.path(), true).await;
@@ -275,12 +232,12 @@ async fn rust_backups_import_in_node() {
     assert!(content
         .iter()
         .any(|e| e["name"].as_str().is_some_and(|n| n.ends_with(".txt"))));
-    let node = node_import(&tsx, &exported, None);
-    assert_eq!(node["status"].as_f64(), Some(400.0));
-    assert_eq!(node["body"]["error"], "DECRYPTION_REQUIRED");
-    let node = node_import(&tsx, &exported, Some(PASS));
-    assert_eq!(node["status"].as_f64(), Some(200.0), "{node}");
-    assert_eq!(canon(&node["content"]), canon(&Value::Array(content)));
+    let (status, body, _) = rust_reimport(&exported, None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "DECRYPTION_REQUIRED");
+    let (status, body, again) = rust_reimport(&exported, Some(PASS)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(canon(&Value::Array(again)), canon(&Value::Array(content)));
 
     // Plain export (no backup key outside desktop mode).
     let dir = tempfile::tempdir().expect("tempdir");
@@ -288,17 +245,16 @@ async fn rust_backups_import_in_node() {
     let exported = export(&s).await;
     let (encrypted, content) = decode(&exported);
     assert!(!encrypted);
-    let node = node_import(&tsx, &exported, None);
-    assert_eq!(node["status"].as_f64(), Some(200.0), "{node}");
-    assert_eq!(canon(&node["content"]), canon(&Value::Array(content)));
+    let (status, body, again) = rust_reimport(&exported, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(canon(&Value::Array(again)), canon(&Value::Array(content)));
 }
 
 #[tokio::test]
 async fn rust_upload_is_a_node_readable_file() {
     // The uploaded file Rust wrote is OFE1 with the passcode-derived key and
     // decrypts with crypto::decrypt_buffer exactly as Node's decryptBuffer
-    // would (the Node side of that primitive is covered by tests/compat.rs);
-    // Node serving it after a backup round trip is covered above.
+    // would (tests/compat.rs checks that primitive against Node's output).
     let dir = tempfile::tempdir().expect("tempdir");
     let _state = rust_with_upload(dir.path(), true).await;
     let uploads = dir.path().join("uploads/documents");

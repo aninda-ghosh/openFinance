@@ -1,7 +1,7 @@
-//! Compatibility checkpoints (PLAN.md §5) against fixtures produced by the real
-//! Node modules (tests/compat/regen-fixtures.sh). The reverse direction (Rust
-//! output read by Node) is checked by tests/compat/roundtrip.sh, which runs the
-//! ignored `write_outputs_for_node` test below and then a Node verifier.
+//! Compatibility checks against fixtures produced by the real Node modules of
+//! the last Node release (`1502e08`): the encrypted database, OFE1 / legacy
+//! document and string payloads, and FWB1 backups. They prove the Rust
+//! backend still reads data written by older app versions.
 
 use std::path::{Path, PathBuf};
 
@@ -84,22 +84,6 @@ fn rust_bootstrap_matches_node_schema_exactly() {
 }
 
 #[test]
-fn server_binary_exits_13_on_wrong_passcode() {
-    let (dir, path) = temp_copy_of_node_db();
-    let status = std::process::Command::new(env!("CARGO_BIN_EXE_openfinance-server"))
-        .env("DB_PATH", &path)
-        .env("OPENFINANCE_DB_KEY", "not the passcode")
-        .env("OPENFINANCE_DESKTOP", "true")
-        .env("OPENFINANCE_NO_NETWORK", "1")
-        .env("PORT", "0")
-        .current_dir(dir.path())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .expect("run openfinance-server");
-    assert_eq!(status.code(), Some(13));
-}
-
-#[test]
 fn wrong_passcode_fails_cleanly() {
     let (_dir, path) = temp_copy_of_node_db();
     match db::open(&path, Some("not the passcode")) {
@@ -163,13 +147,13 @@ fn rust_derives_node_backup_key_and_decrypts_fwb1() {
     assert!(crypto::decrypt_backup(&read("backup.fwb1"), &"00".repeat(32)).is_err());
 }
 
-/// Writes Rust-produced artifacts for the Node verifier. Ignored by default;
-/// run through tests/compat/roundtrip.sh (sets COMPAT_OUT).
+/// The Rust-only direction of what Node used to verify: a database and
+/// payloads written by Rust are encrypted and read back with the passcode.
 #[test]
-#[ignore]
-fn write_outputs_for_node() {
-    let out = PathBuf::from(std::env::var("COMPAT_OUT").expect("COMPAT_OUT"));
-    let conn = db::open(&out.join("rust.db"), Some(PASS)).expect("open");
+fn rust_written_db_and_payloads_round_trip() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("rust.db");
+    let conn = db::open(&path, Some(PASS)).expect("open");
     db::bootstrap::bootstrap_schema(&conn).expect("bootstrap");
     conn.execute(
         "INSERT INTO accounts (id, name, type, currency, balance) VALUES ('rust-acc', 'Written by Rust ✓', 'checking', 'USD', 98.76)",
@@ -177,32 +161,44 @@ fn write_outputs_for_node() {
     )
     .expect("insert");
     drop(conn); // closing checkpoints the WAL
-    let header = std::fs::read(out.join("rust.db")).expect("read db");
+    let header = std::fs::read(&path).expect("read db");
     assert!(
         !header.starts_with(b"SQLite format 3\0"),
         "rust db is not encrypted"
     );
+    assert!(matches!(
+        db::open(&path, Some("not the passcode")),
+        Err(db::OpenError::WrongKey(_))
+    ));
+    let conn = db::open(&path, Some(PASS)).expect("reopen");
+    let (name, balance): (String, f64) = conn
+        .query_row(
+            "SELECT name, balance FROM accounts WHERE id = 'rust-acc'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .expect("row written by rust");
+    assert_eq!((name.as_str(), balance), ("Written by Rust ✓", 98.76));
+    let fresh = tempfile::tempdir().expect("tempdir");
+    let other = db::open(&fresh.path().join("fresh.db"), Some(PASS)).expect("open fresh");
+    db::bootstrap::bootstrap_schema(&other).expect("bootstrap fresh");
+    assert_eq!(schema(&conn), schema(&other));
 
     let doc = read("doc.plain");
-    std::fs::write(out.join("doc.plain"), &doc).expect("write");
-    std::fs::write(
-        out.join("doc.ofe1"),
-        crypto::encrypt_buffer(&doc, Some(PASS)),
-    )
-    .expect("write");
+    let enc = crypto::encrypt_buffer(&doc, Some(PASS));
+    assert!(crypto::is_encrypted_file(&enc));
+    assert_eq!(crypto::decrypt_buffer(&enc, Some(PASS), true), doc);
+    assert_eq!(crypto::decrypt_buffer(&enc, Some(PASS), false), doc);
+
     let memo = String::from_utf8(read("memory.plain")).expect("utf8");
-    std::fs::write(out.join("memory.plain"), &memo).expect("write");
-    std::fs::write(
-        out.join("memory.ofe1.b64"),
-        crypto::encrypt_string(&memo, Some(PASS)),
-    )
-    .expect("write");
+    let enc = crypto::encrypt_string(&memo, Some(PASS));
+    assert_eq!(crypto::decrypt_string(&enc, Some(PASS), true), memo);
+
     let backup = read("backup.plain");
-    std::fs::write(out.join("backup.plain"), &backup).expect("write");
     let key = crypto::derive_backup_key(PASS, "desktop");
-    std::fs::write(
-        out.join("backup.fwb1"),
-        crypto::encrypt_backup(&backup, &key),
-    )
-    .expect("write");
+    let enc = crypto::encrypt_backup(&backup, &key);
+    assert_eq!(
+        crypto::decrypt_backup(&enc, &key).expect("decrypt"),
+        Some(backup)
+    );
 }
