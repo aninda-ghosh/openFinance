@@ -781,7 +781,10 @@ function BudgetTable({
                       <EnvelopeFormDialog
                         title="Add Envelope"
                         trigger={
-                          <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                          <button
+                            type="button"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                          >
                             <PlusCircle className="w-3.5 h-3.5" />
                           </button>
                         }
@@ -798,7 +801,10 @@ function BudgetTable({
                       />
                       <ConfirmDialog
                         trigger={
-                          <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative">
+                          <button
+                            type="button"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative"
+                          >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         }
@@ -916,6 +922,7 @@ function BudgetTable({
                               <ConfirmDialog
                                 trigger={
                                   <button
+                                    type="button"
                                     title="Return leftover budget to global pool"
                                     className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-positive transition-colors"
                                   >
@@ -940,7 +947,10 @@ function BudgetTable({
                             <EnvelopeFormDialog
                               title="Edit Envelope"
                               trigger={
-                                <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <button
+                                  type="button"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                >
                                   <Pencil className="w-3 h-3" />
                                 </button>
                               }
@@ -979,7 +989,10 @@ function BudgetTable({
                             />
                             <ConfirmDialog
                               trigger={
-                                <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors">
+                                <button
+                                  type="button"
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors"
+                                >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               }
@@ -1201,7 +1214,10 @@ function BudgetTable({
                       <EnvelopeFormDialog
                         title="Add Envelope"
                         trigger={
-                          <button className="p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground">
+                          <button
+                            type="button"
+                            className="p-1 rounded hover:bg-background text-muted-foreground hover:text-foreground"
+                          >
                             <PlusCircle className="w-3.5 h-3.5" />
                           </button>
                         }
@@ -1218,7 +1234,10 @@ function BudgetTable({
                       />
                       <ConfirmDialog
                         trigger={
-                          <button className="p-1 rounded hover:bg-background text-muted-foreground hover:text-negative">
+                          <button
+                            type="button"
+                            className="p-1 rounded hover:bg-background text-muted-foreground hover:text-negative"
+                          >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         }
@@ -1342,6 +1361,7 @@ function BudgetTable({
                               <ConfirmDialog
                                 trigger={
                                   <button
+                                    type="button"
                                     title="Return leftover budget to global pool"
                                     className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-positive"
                                   >
@@ -1366,7 +1386,10 @@ function BudgetTable({
                             <EnvelopeFormDialog
                               title="Edit Envelope"
                               trigger={
-                                <button className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                                <button
+                                  type="button"
+                                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                >
                                   <Pencil className="w-3 h-3" />
                                 </button>
                               }
@@ -1405,7 +1428,10 @@ function BudgetTable({
                             />
                             <ConfirmDialog
                               trigger={
-                                <button className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-negative">
+                                <button
+                                  type="button"
+                                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-negative"
+                                >
                                   <Trash2 className="w-3 h-3" />
                                 </button>
                               }
@@ -2015,6 +2041,7 @@ export default function BudgetPage() {
                 <>
                   <span>·</span>
                   <button
+                    type="button"
                     onClick={() =>
                       setDrillEnvelope({
                         id: "_uncategorised_",

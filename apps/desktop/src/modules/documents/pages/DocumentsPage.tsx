@@ -488,6 +488,7 @@ export default function DocumentsPage() {
             <div className="flex items-center rounded-lg border border-border/50 bg-background/50 p-0.5 text-xs">
               {(["all", "pdf", "sheet", "image", "other"] as const).map((t) => (
                 <button
+                  type="button"
                   key={t}
                   onClick={() => setSelectedType(t)}
                   className={`px-3 py-1.5 rounded-md capitalize font-semibold transition-colors ${

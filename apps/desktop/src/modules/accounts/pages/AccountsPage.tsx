@@ -172,6 +172,7 @@ export default function AccountsPage() {
             const isActive = activeTab === id;
             return (
               <button
+                type="button"
                 key={id}
                 onClick={() => handleTabChange(id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap ${

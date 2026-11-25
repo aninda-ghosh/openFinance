@@ -329,6 +329,7 @@ function FAQEntry({ item }: { item: FAQItem }) {
   return (
     <div className="border-b last:border-0">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-4 py-3.5 px-4 text-left hover:bg-muted/40 transition-colors"
       >
@@ -364,6 +365,7 @@ export default function FAQPage() {
       {/* Section pills */}
       <div className="flex flex-wrap gap-2">
         <button
+          type="button"
           onClick={() => setActiveSection(null)}
           className={cn(
             "text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
@@ -376,6 +378,7 @@ export default function FAQPage() {
         </button>
         {FAQ_SECTIONS.map((s) => (
           <button
+            type="button"
             key={s.title}
             onClick={() =>
               setActiveSection(activeSection === s.title ? null : s.title)

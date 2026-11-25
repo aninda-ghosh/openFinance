@@ -195,6 +195,7 @@ export default function NetWorthPage() {
         <div className="flex rounded-lg border overflow-hidden text-sm">
           {PERIOD_OPTIONS.map((opt) => (
             <button
+              type="button"
               key={opt.label}
               onClick={() => setPeriodMonths(opt.months)}
               className={`px-3 py-1.5 font-medium transition-colors ${periodMonths === opt.months ? "bg-foreground text-background" : "hover:bg-muted text-muted-foreground"}`}

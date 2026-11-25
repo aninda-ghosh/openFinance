@@ -127,12 +127,14 @@ export function PasswordGate({ onUnlocked }: Props) {
           </div>
           <div className="space-y-2">
             <button
+              type="button"
               onClick={executeWipe}
               className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
             >
               Yes, delete all data
             </button>
             <button
+              type="button"
               onClick={() => setConfirmWipe(false)}
               className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-border rounded-md text-sm font-medium transition-colors cursor-pointer"
             >

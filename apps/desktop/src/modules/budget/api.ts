@@ -102,9 +102,9 @@ export const budgetApi = {
 
   getTransactions: (filters: Partial<TransactionFilters>) => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(
-      ([k, v]) => v != null && params.set(k, String(v))
-    );
+    for (const [k, v] of Object.entries(filters)) {
+      if (v != null) params.set(k, String(v));
+    }
     return apiFetch<PaginatedTransactionsResponse>(
       `${BASE}/transactions?${params}`
     );

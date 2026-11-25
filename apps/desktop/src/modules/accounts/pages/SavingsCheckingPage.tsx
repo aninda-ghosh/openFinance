@@ -209,6 +209,7 @@ function AccountDetailSheet({
 
         <div className="flex border-b px-6 bg-muted/10 flex-shrink-0">
           <button
+            type="button"
             onClick={() => setActiveTab("transactions")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "transactions"
@@ -220,6 +221,7 @@ function AccountDetailSheet({
             Transactions
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("documents")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "documents"
@@ -330,6 +332,7 @@ function AccountDetailSheet({
                           {/* Float Edit/Delete Buttons */}
                           <div className="flex items-center gap-1 opacity-0 group-hover/txn:opacity-100 transition-opacity absolute right-4 top-1/2 -translate-y-1/2 bg-background/95 backdrop-blur shadow border rounded px-1 z-10">
                             <button
+                              type="button"
                               className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
                               onClick={() => setEditingTxn(t)}
                               title="Edit transaction"
@@ -338,7 +341,10 @@ function AccountDetailSheet({
                             </button>
                             <ConfirmDialog
                               trigger={
-                                <button className="p-1 text-muted-foreground hover:text-negative hover:bg-muted rounded transition-colors">
+                                <button
+                                  type="button"
+                                  className="p-1 text-muted-foreground hover:text-negative hover:bg-muted rounded transition-colors"
+                                >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               }

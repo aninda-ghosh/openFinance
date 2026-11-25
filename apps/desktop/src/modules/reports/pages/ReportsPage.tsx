@@ -352,7 +352,12 @@ function CashFlowSankey({
     simIncome > 0 ? `(${((v / simIncome) * 100).toFixed(1)}%)` : "";
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full h-auto"
+      role="img"
+      aria-label="Cash flow from income sources to envelopes"
+    >
       {/* ── Paths: income sources → income node ── */}
       {srcNodes.map((src, i) => (
         <path
@@ -803,6 +808,7 @@ function CashFlowCompact({
           {simSavings > 0 && (
             <div className="bg-card/45 border border-border/40 rounded-xl overflow-hidden transition-all duration-350 hover:border-emerald-500/20">
               <button
+                type="button"
                 onClick={() =>
                   setExpandedGroup(expandedGroup === "unused" ? null : "unused")
                 }
@@ -853,6 +859,7 @@ function CashFlowCompact({
                 className="bg-card/45 border border-border/40 rounded-xl overflow-hidden transition-all duration-350 hover:border-primary/20"
               >
                 <button
+                  type="button"
                   onClick={() =>
                     setExpandedGroup(isExpanded ? null : g.group_name)
                   }
@@ -967,11 +974,19 @@ function MonthPicker({
   };
   return (
     <div className="flex items-center gap-2">
-      <button onClick={prev} className="p-1 rounded hover:bg-muted">
+      <button
+        type="button"
+        onClick={prev}
+        className="p-1 rounded hover:bg-muted"
+      >
         <ChevronLeft className="w-4 h-4" />
       </button>
       <span className="text-sm font-medium w-36 text-center">{label}</span>
-      <button onClick={next} className="p-1 rounded hover:bg-muted">
+      <button
+        type="button"
+        onClick={next}
+        className="p-1 rounded hover:bg-muted"
+      >
         <ChevronRight className="w-4 h-4" />
       </button>
     </div>
@@ -1521,6 +1536,7 @@ export default function ReportsPage() {
           </p>
           <div className="flex bg-muted/65 p-0.5 rounded-xl border border-border/40 backdrop-blur-sm select-none">
             <button
+              type="button"
               onClick={() => setViewMode("sankey")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all duration-300 ${
                 viewMode === "sankey"
@@ -1532,6 +1548,7 @@ export default function ReportsPage() {
               <span>Diagram</span>
             </button>
             <button
+              type="button"
               onClick={() => setViewMode("cascade")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all duration-300 ${
                 viewMode === "cascade"

@@ -423,6 +423,7 @@ function LinkedAccountSheet({
                         {/* Action buttons (float on hover) */}
                         <div className="opacity-0 group-hover/txn:opacity-100 flex items-center gap-1 bg-background/90 backdrop-blur rounded-lg p-0.5 border border-border/40 shadow-md transition-opacity duration-150 absolute right-4 top-1/2 -translate-y-1/2 z-20">
                           <button
+                            type="button"
                             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-negative transition-colors duration-150"
                             onClick={() => {
                               const confirmMsg =
@@ -1233,6 +1234,7 @@ function InvestmentHistorySheet({
 
         <div className="flex border-b px-6 bg-muted/10 flex-shrink-0">
           <button
+            type="button"
             onClick={() => setActiveTab("history")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "history"
@@ -1244,6 +1246,7 @@ function InvestmentHistorySheet({
             Value History
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("documents")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "documents"
@@ -1936,6 +1939,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
 
               <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border/30 backdrop-blur-sm shadow-sm select-none">
                 <button
+                  type="button"
                   onClick={() => setGroupByType(true)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
                     groupByType
@@ -1947,6 +1951,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                   Group by Type
                 </button>
                 <button
+                  type="button"
                   onClick={() => setGroupByType(false)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
                     !groupByType

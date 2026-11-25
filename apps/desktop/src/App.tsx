@@ -125,6 +125,7 @@ function AppContent({ onLock }: { onLock: () => void }) {
 
       {/* Floating Action Button (FAB) for Quick Add - Desktop, Tablet, & Mobile */}
       <button
+        type="button"
         onClick={() => setQuickAddOpen(!quickAddOpen)}
         className={cn(
           "fixed bottom-[calc(76px+env(safe-area-inset-bottom))] md:bottom-6 right-6 z-40 flex items-center justify-center h-12 w-12 rounded-full bg-gradient-to-tr from-primary to-primary/85 text-primary-foreground shadow-[0_4px_20px_rgba(20,184,166,0.35)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.5)] active:scale-95 hover:scale-105 transition-all duration-300 border border-primary/20",
@@ -174,7 +175,7 @@ export default function App() {
 
     // Add activity listeners
     const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
-    events.forEach((evt) => document.addEventListener(evt, handleActivity));
+    for (const evt of events) document.addEventListener(evt, handleActivity);
 
     // Periodic check (every 5 seconds) to catch tab sleep / lock screen wakes
     const interval = setInterval(checkTimeout, 5000);
@@ -188,9 +189,9 @@ export default function App() {
     document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      events.forEach((evt) =>
-        document.removeEventListener(evt, handleActivity)
-      );
+      for (const evt of events) {
+        document.removeEventListener(evt, handleActivity);
+      }
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibility);
     };

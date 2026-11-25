@@ -648,6 +648,7 @@ export default function TransactionsPage() {
                     >
                       <div className="flex gap-2 justify-end opacity-70 group-hover:opacity-100 transition-opacity">
                         <button
+                          type="button"
                           onClick={() => setEditingTxn(txn)}
                           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           title="Edit Transaction"
@@ -670,6 +671,7 @@ export default function TransactionsPage() {
                           }}
                           trigger={
                             <button
+                              type="button"
                               className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors"
                               title="Delete Transaction"
                             >

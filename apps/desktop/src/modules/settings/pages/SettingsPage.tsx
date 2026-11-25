@@ -1656,6 +1656,7 @@ export default function SettingsPage() {
           <div className="flex gap-3">
             {(["light", "dark", "system"] as const).map((t) => (
               <button
+                type="button"
                 key={t}
                 onClick={() => setTheme(t)}
                 className={`flex-1 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${theme === t ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "border-border hover:bg-muted"}`}
@@ -1680,6 +1681,7 @@ export default function SettingsPage() {
           <div className="flex flex-wrap gap-2">
             {SUPPORTED_CURRENCIES.map((c) => (
               <button
+                type="button"
                 key={c}
                 disabled={updatingCurrency}
                 onClick={async () => {

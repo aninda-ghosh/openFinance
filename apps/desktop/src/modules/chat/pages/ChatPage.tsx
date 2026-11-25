@@ -508,6 +508,7 @@ export default function ChatPage() {
                 "When is my next premium due?",
               ].map((q) => (
                 <button
+                  type="button"
                   key={q}
                   disabled={isUnavailable}
                   onClick={() => {
