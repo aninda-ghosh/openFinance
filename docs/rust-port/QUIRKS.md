@@ -1,5 +1,7 @@
 # Node behaviours ported as-is
 
+> The Node file:line references below point to `apps/server` as it was on `main` / commit `1502e08` (the Node server has since been removed from this branch); the parity scenarios mentioned were removed with it.
+
 Behaviour that looks like a bug but was kept so Rust matches Node exactly.
 Each entry: Node file:line, what it does, suggested fix. Decide on fixes after the port ships.
 

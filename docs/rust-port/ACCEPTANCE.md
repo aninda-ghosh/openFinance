@@ -1,6 +1,6 @@
 # Manual acceptance: the Rust backend build (Wave 4)
 
-This is the checklist from PLAN.md §6, step by step. The new build runs the API
+This is the manual acceptance checklist for the Rust backend, step by step. The new build runs the API
 server inside the app (no Node sidecar). It reads and writes the same database,
 uploads and chat memories as the current app, without any migration. Even so,
 **back everything up first**: these steps use your real data.
@@ -149,9 +149,11 @@ wrote. Roll back like this:
    ditto ~/openFinance-node-sidecar.app /Applications/openFinance.app
    xattr -cr /Applications/openFinance.app
    ```
-   No saved copy? Rebuild it from the last sidecar release: in a separate
-   clone or worktree, `git checkout main` (or `v4.3.0`, `1502e08`) and run
-   `./scripts/build-mac.sh` there; it needs Node 22+ and downloads the Node runtime.
+   No saved copy? Rebuild it from the last sidecar release. The Node server
+   (`apps/server`) no longer exists on this branch, but `main` (or `v4.3.0`,
+   commit `1502e08`) still has it and still builds: in a separate clone or
+   worktree, `git checkout 1502e08` and run `./scripts/build-mac.sh` there; it
+   needs Node 22+ and downloads the Node runtime.
 3. If the data itself looks wrong, restore the folder copy from step 0 (the app
    must be closed):
    ```bash
