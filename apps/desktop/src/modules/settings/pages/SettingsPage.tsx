@@ -9,7 +9,6 @@ import {
   Lock,
   RefreshCw,
   ScrollText,
-  Server,
   Upload,
   XCircle,
   ShieldCheck,
@@ -35,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, BASE_URL, getToken } from "@/lib/api";
+import { apiFetch, BASE_URL } from "@/lib/api";
 import { chatApi } from "@/modules/chat/api";
 import { useAppStore } from "@/stores/app.store";
 
@@ -958,54 +957,6 @@ function AiAssistantCard() {
   );
 }
 
-function ServerStatus() {
-  const [status, setStatus] = useState<"checking" | "online" | "offline">(
-    "checking"
-  );
-
-  useEffect(() => {
-    fetch("/api/auth/status")
-      .then((r) => setStatus(r.ok ? "online" : "offline"))
-      .catch(() => setStatus("offline"));
-  }, []);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Server className="w-4 h-4" /> API Server
-        </CardTitle>
-        <CardDescription>Hono API — PostgreSQL backend</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2">
-          {status === "checking" && (
-            <span className="text-xs text-muted-foreground animate-pulse">
-              Checking…
-            </span>
-          )}
-          {status === "online" && (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-                Online
-              </span>
-            </>
-          )}
-          {status === "offline" && (
-            <>
-              <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                Offline
-              </span>
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ExchangeRatesCard() {
   const queryClient = useQueryClient();
   const defaultCurrency = useAppStore((s) => s.defaultCurrency);
@@ -1122,10 +1073,7 @@ function DataBackupCard() {
   const exportBackup = async () => {
     setExporting(true);
     try {
-      const token = getToken();
-      const res = await fetch(`${BASE_URL}/api/backup/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(`${BASE_URL}/api/backup/export`);
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -1160,11 +1108,9 @@ function DataBackupCard() {
     if (!pendingBackupFile) return;
     setImporting(true);
     try {
-      const token = getToken();
       const arrayBuffer = await pendingBackupFile.arrayBuffer();
       const headers: Record<string, string> = {
         "Content-Type": "application/octet-stream",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(password ? { "x-backup-password": password } : {}),
         ...(username ? { "x-backup-username": username } : {}),
       };
@@ -1761,9 +1707,6 @@ export default function SettingsPage() {
 
       {/* AI assistant */}
       <AiAssistantCard />
-
-      {/* Server status */}
-      <ServerStatus />
 
       {/* Backup & restore */}
       <DataBackupCard />

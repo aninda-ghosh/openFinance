@@ -1,4 +1,4 @@
-import { apiFetch, BASE_URL, getToken } from "@/lib/api";
+import { apiFetch, BASE_URL } from "@/lib/api";
 
 export type StreamChatCallbacks = {
   onToken: (token: string) => void;
@@ -24,9 +24,7 @@ export const chatApi = {
     if (currency) params.set("currency", currency);
 
     const controller = new AbortController();
-    const token = getToken();
     const headers: Record<string, string> = { Accept: "text/event-stream" };
-    if (token) headers.Authorization = `Bearer ${token}`;
 
     (async () => {
       try {

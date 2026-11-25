@@ -2,7 +2,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { BottomNav } from "@/components/BottomNav";
-import { LoginGate } from "@/components/LoginGate";
 import QuickAddTransactionDrawer from "@/components/QuickAddTransactionDrawer";
 import { ShortcutsDialog } from "@/components/ShortcutsDialog";
 import { Sidebar } from "@/components/Sidebar";
@@ -10,12 +9,11 @@ import { Toaster } from "@/components/ui/sonner";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useResolvedTheme } from "@/hooks/useResolvedTheme";
 import { MOD } from "@/lib/shortcuts";
-import { getToken, clearToken } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 import { useAppStore } from "@/stores/app.store";
 import { Plus } from "lucide-react";
 import { PasswordGate } from "@/components/PasswordGate";
-import { cn, isTauri } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import "./App.css";
 
@@ -141,10 +139,7 @@ function AppContent({ onLock }: { onLock: () => void }) {
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(() => {
-    if (isTauri()) return false;
-    return !!getToken();
-  });
+  const [unlocked, setUnlocked] = useState(false);
 
   useEffect(() => {
     if (!unlocked) return;
@@ -162,7 +157,6 @@ export default function App() {
       const stored = localStorage.getItem("openfinance_last_activity");
       const last = stored ? parseInt(stored, 10) : lastActivity;
       if (Date.now() - last > INACTIVITY_TIMEOUT) {
-        clearToken();
         setUnlocked(false);
         toast.info("Logged out due to inactivity", {
           description: "For session security, you have been logged out after 5 minutes of idle time.",
@@ -196,11 +190,7 @@ export default function App() {
     return (
       <QueryClientProvider client={queryClient}>
         <ThemeSync />
-        {isTauri() ? (
-          <PasswordGate onUnlocked={() => setUnlocked(true)} />
-        ) : (
-          <LoginGate onUnlocked={() => setUnlocked(true)} />
-        )}
+        <PasswordGate onUnlocked={() => setUnlocked(true)} />
         <Toaster richColors position="top-right" />
       </QueryClientProvider>
     );
@@ -212,7 +202,6 @@ export default function App() {
       <BrowserRouter>
         <AppContent
           onLock={() => {
-            clearToken();
             setUnlocked(false);
           }}
         />

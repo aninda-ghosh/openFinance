@@ -29,9 +29,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BASE_URL, getToken } from "@/lib/api";
+import { BASE_URL } from "@/lib/api";
 import { formatCurrency } from "@openfinance/shared/utils";
-import { isTauri } from "@/lib/utils";
 
 interface InvestmentDocumentsProps {
   investmentId: string;
@@ -75,17 +74,13 @@ export function InvestmentDocuments({
   const { mutate: deleteDoc, isPending: deleting } = useDeleteDocumentMutation();
 
   const handleOpenFile = async (docId: string) => {
-    const url = `${BASE_URL}/api/documents/${docId}?token=${encodeURIComponent(getToken() || "")}`;
-    if (isTauri()) {
-      try {
-        const { openUrl } = await import("@tauri-apps/plugin-opener");
-        await openUrl(url);
-      } catch (err) {
-        console.error("Failed to open file via Tauri opener:", err);
-        toast.error("Failed to open file. Make sure your system has a default app for this file type.");
-      }
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
+    const url = `${BASE_URL}/api/documents/${docId}`;
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+    } catch (err) {
+      console.error("Failed to open file via Tauri opener:", err);
+      toast.error("Failed to open file. Make sure your system has a default app for this file type.");
     }
   };
 
