@@ -1,6 +1,5 @@
-//! Port of `apps/server/src/ai/prompts/financial-advisor.ts`. The text must
-//! stay byte-identical to the Node prompt (the parity harness compares the
-//! system message Ollama receives). Generated from the TS template literal.
+//! Port of `apps/server/src/ai/prompts/financial-advisor.ts`. The text is
+//! byte-identical to the Node prompt it replaced. Generated from the TS template literal.
 
 use crate::ai::js::inherited_member_string;
 use crate::services::policy::dates::local_iso_today;

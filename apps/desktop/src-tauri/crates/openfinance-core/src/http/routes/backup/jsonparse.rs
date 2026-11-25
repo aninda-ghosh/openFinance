@@ -7,7 +7,7 @@
 //! would reject the input: no nesting limit beyond [`MAX_DEPTH`], and escaped
 //! lone surrogates are accepted (stored as U+FFFD, which is what
 //! better-sqlite3 writes for them). Numbers beyond the double range
-//! (`1e400`, Infinity in JS) become `null`; see STATUS.md.
+//! (`1e400`, Infinity in JS) become `null`; a known, accepted difference from Node.
 
 use serde_json::{Map, Number, Value};
 

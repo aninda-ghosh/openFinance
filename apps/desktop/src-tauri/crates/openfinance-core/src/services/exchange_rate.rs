@@ -178,7 +178,7 @@ fn fetch_failed() -> ApiError {
 /// Fetches `url` and returns `data.rates` when `data.result === "success"`.
 async fn fetch_rates(state: &AppState, url: &str) -> Result<Value, String> {
     if state.config().no_network {
-        // Test-only (parity harness): behave as if the network were down.
+        // Test-only (OPENFINANCE_NO_NETWORK): behave as if the network were down.
         return Err("TypeError: fetch failed".into());
     }
     let res = state

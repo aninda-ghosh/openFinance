@@ -6,7 +6,7 @@
 //! String parsing covers the ES ISO format (as V8 accepts it) and the common
 //! numeric forms of V8's legacy parser (`2020/1/5`, `2020-1-5 10:00`,
 //! `1/5/2020`, surrounding whitespace). Other legacy forms (month names,
-//! two-digit years, …) parse to NaN here; see STATUS.md.
+//! two-digit years, …) parse to NaN here; a known, accepted difference from Node.
 
 use chrono::{Local, LocalResult, NaiveDateTime, Offset, TimeZone};
 
@@ -362,8 +362,7 @@ fn parse_legacy(s: &str) -> f64 {
 mod tests {
     use super::*;
 
-    /// Offset-independent checks (the local ones are exercised by the parity
-    /// scenarios, which run Node and Rust in the same time zone).
+    /// Offset-independent checks (the local ones depend on the machine's time zone).
     #[test]
     fn iso_utc_forms() {
         assert_eq!(parse("2021-02-31"), 1614729600000.0);

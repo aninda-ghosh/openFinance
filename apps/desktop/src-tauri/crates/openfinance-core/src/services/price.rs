@@ -278,7 +278,7 @@ pub async fn fetch_with_timeout(
     ms: u64,
 ) -> Result<reqwest::Response, String> {
     if state.config().no_network {
-        // Test-only (parity harness): behave as if the network were down.
+        // Test-only (OPENFINANCE_NO_NETWORK): behave as if the network were down.
         return Err("TypeError: fetch failed".into());
     }
     let send = state.http().get(url).send();

@@ -348,9 +348,8 @@ mod tests {
         assert_eq!(param("%E2%zz"), "%E2%zz");
     }
 
-    // A successful upload is not compared by the parity harness (its disk name
-    // is random), so the upload → list → download → delete round trip through
-    // these routes is checked here.
+    // A successful upload has a random disk name, so the upload → list →
+    // download → delete round trip through these routes is checked here.
 
     use axum::body::Body;
     use axum::http::Request;
