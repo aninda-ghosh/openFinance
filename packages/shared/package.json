@@ -9,7 +9,7 @@
     "./utils": "./src/utils/index.ts"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "typescript": "^6.0.2"
