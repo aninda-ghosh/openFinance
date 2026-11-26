@@ -9,8 +9,9 @@ process; the React UI talks to it over HTTP.
 The crate is a port of the former Node server (Hono + Drizzle + better-sqlite3,
 `apps/server` up to `main` / `1502e08`). It keeps that server's API, status
 codes, response bodies, database schema and file formats exactly, including the
-known bugs listed in [`docs/rust-port/QUIRKS.md`](../../../../../docs/rust-port/QUIRKS.md).
-Comments that name `apps/server/...` files refer to that commit.
+its known bugs. Those were listed in `docs/rust-port/QUIRKS.md`, which was
+removed after the port; read it from git history (e.g. `git show 489705d:docs/rust-port/QUIRKS.md`).
+Comments that name `apps/server/...` files or `QUIRKS.md` refer to that commit.
 
 ## Layout
 

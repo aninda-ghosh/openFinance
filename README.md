@@ -1,201 +1,192 @@
-# 🦉 openFinance (v5.0.0) — Your Money. Your Rules. 💸
+<div align="center">
 
-A local-first personal finance powerhouse built for developers, privacy purists, and builders who want **absolute control** over their financial destiny. No cloud trackers, no data brokers sniffing your transaction history, and no subscription fees. Just gorgeous Obsidian dashboards and secure offline AI chat, running 100% on your own hardware.
+<img src="apps/desktop/src-tauri/icons/128x128@2x.png" width="128" alt="openFinance icon">
 
-openFinance ships as a native macOS app you install from a `.dmg` like anything else. The whole stack — React UI, a Rust API server running inside the app process, and an SQLCipher-encrypted SQLite database — lives inside the one app bundle. No Docker, no database server, no network. One script (`./scripts/build-mac.sh`) builds the installer. 🚀
+# openFinance
 
----
+### Your money. Your Mac. Nobody else's business.
 
-## ⚡ Superpowers
+A private, local-first finance app that budgets, tracks and answers questions about your money,<br>
+without an account, a subscription or a single byte leaving your machine.
 
-- 🛡️ **Local-First & Passcode-Protected** — Runs entirely on your own Mac. The database is unlocked with a passcode you set on first launch, and your data never leaves the machine.
-- 🔒 **Encrypted at Rest, End to End** — The entire database is SQLCipher-encrypted with your passcode, and uploaded bank statements, contract notes, and AI chat memories get their own AES-256-GCM layer on disk. Lose the passcode and the file is just noise.
-- 📦 **One-File Install** — Drag one app into Applications. The UI, the API server, and the database engine are all inside one binary; nothing else to install and nothing to keep running.
-- 💸 **Envelope Budgeting** — Dynamic zero-based budgeting with custom rollovers (carry it forward, cap it, or reset it).
-- 🏦 **Unified Balance Sheet** — Scannable tracking across Checking, Savings, Credit Cards, Cash, Investments, and Loans.
-- 📈 **Tax-Loss & Portfolio Tracking** — Real-time performance metrics across mutual funds, stocks, bonds, high-yield deposits, real estate, and crypto.
-- 🛟 **Life Insurance Register** — Who is covered, how much cover, when it renews, and the policy document itself — with renewal warnings ahead of the date. Cover is tracked for reference and deliberately kept out of your net worth, because a death benefit is not an asset you hold.
-- 🧠 **100% Offline Local AI Chat** — Talk to your database! Ask natural-language questions like *"How much did I spend on Starbucks this month?"* powered by a local Ollama model. Your data never leaves your machine.
-- 💱 **Global Multi-Currency Engine** — Native support for INR, USD, SGD, GBP, EUR, JPY, and NTD with dynamic exchange rates and localized formatting.
-- 🌿 **Tactile Obsidian Theme** — A stunning, tactile user experience with rich layered depth, sage-green dark mode undertones, elegant brand gradients, and fluid transitions.
-- 📦 **One-Click Backup & Import** — Decrypts files on export to a standard `.zip` folder and re-encrypts with your key when importing.
+<img src="https://img.shields.io/badge/version-5.0.0-FF6B35?style=flat-square" alt="Version 5.0.0">
+<img src="https://img.shields.io/badge/macOS-native-1C1C1E?style=flat-square&logo=apple&logoColor=white" alt="macOS">
+<img src="https://img.shields.io/badge/Rust-backend-1C1C1E?style=flat-square&logo=rust&logoColor=white" alt="Rust">
+<img src="https://img.shields.io/badge/Tauri-2-1C1C1E?style=flat-square&logo=tauri&logoColor=white" alt="Tauri 2">
+<img src="https://img.shields.io/badge/data-100%25_local-FF6B35?style=flat-square" alt="100% local">
 
----
+[**Features**](#features) · [**Install**](#install) · [**Your data**](#data) · [**AI**](#ai) · [**Contribute**](#contribute)
 
-## Screenshots
+<br>
 
-### 1. Dashboard
-![Dashboard](screenshots/01-dashboard.png)
+<img src="screenshots/01-dashboard.png" width="90%" alt="openFinance dashboard">
 
-### 2. Net Worth Analytics
-![Net Worth](screenshots/02-net-worth.png)
+</div>
 
-### 3. Cash Flow Visualizer
-![Cash Flow](screenshots/03-cash-flow.png)
+<br>
 
-### 4. Envelope Budgeting
-![Envelope Budgeting](screenshots/04-budget.png)
+<a id="features"></a>
 
-### 5. Transactions Ledger
-![Transactions](screenshots/05-transactions.png)
+## ✨ What it does
 
-### 6. Checking & Savings Accounts
-![Savings Accounts](screenshots/06-accounts-savings.png)
+<table>
+<tr>
+<td width="33%" valign="top">
 
-### 7. Investments & Holdings
-![Investments](screenshots/07-accounts-investments.png)
+### 🔐
+**Locked by default**<br>
+SQLCipher-encrypted database, unlocked by a passcode only you know. Documents and chats get their own AES-256 layer.
 
-### 8. Insurance Policies
-![Insurance Policies](screenshots/08-accounts-policies.png)
+</td>
+<td width="33%" valign="top">
 
-### 9. Debt & Loans Tracker
-![Debt & Loans](screenshots/09-accounts-debt.png)
+### ✉️
+**Envelope budgets**<br>
+Zero-based budgeting where every dollar gets a job. Rollovers can carry forward, cap or reset.
 
-### 10. Local AI Financial Assistant
-![AI Chat](screenshots/11-ai-chat.png)
+</td>
+<td width="33%" valign="top">
 
-### 11. Help & Documentation
-![Help & FAQ](screenshots/12-help-n-faqs.png)
+### 🏦
+**Every account, one view**<br>
+Checking, savings, cards, cash, loans, investments, physical assets and life insurance, rolled into net worth.
 
-### 12. Settings & Backups
-![Settings](screenshots/13-settings.png)
+</td>
+</tr>
+<tr>
+<td width="33%" valign="top">
 
-### 13. Secure Document Storage
-![Settings](screenshots/14-document-storage.png)
+### 🧠
+**Offline AI**<br>
+Ask *"what did I spend on coffee this month?"* A local Ollama model answers, with no cloud involved.
 
----
+</td>
+<td width="33%" valign="top">
 
-## Tech Stack
+### 💱
+**Seven currencies**<br>
+INR, USD, SGD, GBP, EUR, JPY and NTD, with live exchange rates and local formatting.
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19 + Vite + TypeScript + TailwindCSS 4 |
-| **Backend** | Rust (axum + tokio), running inside the app process on `127.0.0.1:3001` |
-| **Database** | SQLite (SQLCipher-encrypted, via rusqlite) |
-| **AI LLM Client** | Ollama (local instance) |
-| **App Shell** | Tauri 2 (Rust + WebKit) |
-| **Packaging** | macOS `.dmg`, a single Tauri binary (no Node runtime) |
+</td>
+<td width="33%" valign="top">
 
----
+### 📦
+**One app, zero setup**<br>
+No Docker, no server, no database to babysit. Drag to Applications and go.
 
-## Prerequisites
+</td>
+</tr>
+</table>
 
-To **run** the app:
-- **macOS** — nothing else. The installer carries everything it needs.
+<details>
+<summary><b>📸 Take the tour</b> (click to expand)</summary>
+<br>
 
-To **build the installer** or **modify the codebase**:
-- **macOS** with Xcode command line tools (`xcode-select --install`)
-- **Rust** — install from [rustup.rs](https://rustup.rs)
-- **Node.js 22+** (builds the UI; the app does not ship it)
-- **pnpm 10+**
-- **Ollama** (optional, for AI chat features):
-  ```bash
-  ollama pull gemma4:e2b
-  ```
+| | |
+|:---:|:---:|
+| <img src="screenshots/02-net-worth.png" alt="Net worth"><br>**Net worth** | <img src="screenshots/03-cash-flow.png" alt="Cash flow"><br>**Cash flow** |
+| <img src="screenshots/04-budget.png" alt="Envelope budget"><br>**Envelope budget** | <img src="screenshots/05-transactions.png" alt="Transactions"><br>**Transactions** |
+| <img src="screenshots/07-accounts-investments.png" alt="Investments"><br>**Investments** | <img src="screenshots/09-accounts-debt.png" alt="Debt and loans"><br>**Debt & loans** |
+| <img src="screenshots/08-accounts-policies.png" alt="Insurance"><br>**Insurance** | <img src="screenshots/11-ai-chat.png" alt="AI chat"><br>**AI assistant** |
+| <img src="screenshots/14-document-storage.png" alt="Document vault"><br>**Document vault** | <img src="screenshots/13-settings.png" alt="Settings"><br>**Settings & backups** |
 
----
+</details>
 
-## Building the Mac App
+<br>
+
+<a id="install"></a>
+
+## 🚀 Get it running
+
+**1 · Grab the tools.** You need macOS, [Rust](https://rustup.rs), Node.js 22+ and pnpm 10+.
+
+**2 · Build the app.**
 
 ```bash
 ./scripts/build-mac.sh
 ```
 
-That is the whole thing. The script installs the UI's dependencies and hands over to Tauri, which builds the UI with Vite and compiles the app together with its Rust API server and SQLCipher. Node is only needed at build time; the app does not ship it. The finished installer lands in `apps/desktop/src-tauri/target/release/bundle/dmg/`.
+**3 · Install it.** Open the `.dmg` in `apps/desktop/src-tauri/target/release/bundle/dmg/` and drag **openFinance** into Applications.
 
-Open the `.dmg` and drag **openFinance** into Applications.
+**4 · First launch.** The app is unsigned, so right-click it, choose **Open**, then **Open** again. You only do this once.
 
-The build is unsigned, so macOS Gatekeeper stops the first launch. Get past it once and it never asks again:
+> [!IMPORTANT]
+> On first launch you'll set a **passcode**. It *is* your encryption key, and it's never stored anywhere, so a forgotten passcode can't be recovered. Write it down somewhere safe.
 
-- right-click the app in Applications → **Open** → **Open**, or
-- `xattr -cr /Applications/openFinance.app`
+<br>
 
-### First launch
+<a id="data"></a>
 
-You are asked to **set a passcode**. That passcode is the database encryption key — it is not stored anywhere, so there is no reset. Write it down somewhere safe. Every later launch asks for it to unlock.
-
-If you ever need to start over, the unlock screen has a **Reset App / Wipe Database** link.
-
-### Where your data lives
+## 🗂️ Where your data lives
 
 ```
 ~/Library/Application Support/com.anindaghosh.openfinance/
-├── openfinance.db      # SQLCipher-encrypted database
-├── uploads/            # Documents, AES-256-GCM encrypted
-└── chat-memories/      # AI conversation memories, encrypted
+├── 🔒 openfinance.db     encrypted database
+├── 📄 uploads/           encrypted documents
+└── 💬 chat-memories/     encrypted AI history
 ```
 
-Time Machine picks this up like any other folder. For a portable copy, use **Settings → Backup & Restore → Export** — it writes a single encrypted `.ofb` file.
+🕰️ Time Machine backs it up like any other folder.<br>
+💾 For a portable copy, use **Settings → Backup & Restore → Export**. Backups from older versions import from the same screen.
 
----
+<br>
 
-## Migrating From an Older Install
+<a id="ai"></a>
 
-Backups (`.ofb`) exported by any earlier openFinance version — including the old self-hosted Docker/PostgreSQL stack — import into the Mac app through **Settings → Backup & Restore**. (From the old stack, export while it is still running: the export decrypts your documents with that deployment's `ENCRYPTION_KEY`.) If the backup was made by a different install, the app asks for the **username and password** used there. Everything transfers, including uploaded documents, which are re-encrypted under your passcode on the way in.
+## 🤖 Ask your money anything
 
-> ⚠️ **Import replaces all existing data** in the Mac app. Do it before you start entering anything by hand.
-
-Backups from the even older **Finwise** app (`.fwb`) can be converted first: `node scripts/convert-backup.mjs <path-to-backup.fwb>` asks for the old Finwise username and password and writes an unencrypted ZIP the app imports directly.
-
----
-
-## Local Development
+The assistant is optional. Install [Ollama](https://ollama.com), pull a model, and point **Settings → AI Assistant** at it (it defaults to `http://localhost:11434`):
 
 ```bash
-# 1. Install the UI's dependencies
+ollama pull gemma4:e2b
+```
+
+It can run on this Mac, a GPU box on your LAN, or anywhere you can reach.
+
+<br>
+
+<a id="contribute"></a>
+
+## 🛠️ Hack on it
+
+```bash
 pnpm install
-
-# 2. Run the app with the Tauri shell and hot reload
-pnpm --filter openfinance-desktop tauri dev
+pnpm --filter openfinance-desktop tauri dev     # app with hot reload
 ```
 
-The Tauri window opens on the passcode screen and, on unlock, starts the Rust API server inside the app process, against the database in the app's data directory (the same one the installed app uses). `pnpm dev` alone starts only the Vite dev server for the UI; it has no backend.
-
-Checks:
+<details>
+<summary><b>✅ Checks to run before a PR</b></summary>
 
 ```bash
-pnpm build                     # type-check (tsc) and build the UI (vite)
-pnpm test                      # UI unit tests (vitest)
-pnpm lint                      # biome
+pnpm build && pnpm test && pnpm lint
 cd apps/desktop/src-tauri
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace         # backend + app lifecycle tests
+cargo test --workspace
 ```
 
-The backend crate has its own guide: [`apps/desktop/src-tauri/crates/openfinance-core/README.md`](apps/desktop/src-tauri/crates/openfinance-core/README.md).
+</details>
 
-### AI assistant (Ollama)
+<details>
+<summary><b>🧭 Find your way around</b></summary>
+<br>
 
-The AI chat connects to any reachable [Ollama](https://ollama.com) server — configure the URL and model from the in-app **Settings → AI Assistant** page (defaults to `http://localhost:11434`). Nothing is hardcoded: point it at your Mac, a GPU box on your LAN, or anywhere else.
+| | Path | What's inside |
+|:--:|------|---------------|
+| 🎨 | `apps/desktop/src` | React 19 UI, Vite and Tailwind 4 |
+| 🪟 | `apps/desktop/src-tauri` | Tauri 2 shell: passcode gate and app lifecycle |
+| ⚙️ | `apps/desktop/src-tauri/crates/openfinance-core` | Rust backend: API, encrypted DB, crypto and AI ([guide](apps/desktop/src-tauri/crates/openfinance-core/README.md)) |
+| 🧩 | `packages/shared` | Schemas, API types and helpers used by the UI |
+| 🔧 | `scripts` | Build and install scripts |
 
----
+</details>
 
-## Project Structure
+<br>
 
-```
-openFinance/
-├── apps/
-│   └── desktop/                  # The Mac app
-│       ├── src/                  # React UI (Vite, TailwindCSS)
-│       └── src-tauri/            # Tauri app: passcode gate, backend lifecycle (src/)
-│           └── crates/
-│               └── openfinance-core/   # Rust API server, SQLCipher DB, crypto, AI chat
-│
-├── packages/
-│   └── shared/                   # Shared API types, constants and helpers used by the UI
-│
-├── docs/rust-port/               # Known ported bugs (QUIRKS.md), manual acceptance checklist
-├── screenshots/                  # README previews
-├── scripts/
-│   ├── build-mac.sh              # Builds the macOS app and .dmg installer
-│   └── convert-backup.mjs        # Decrypts legacy Finwise backups
-├── package.json                  # Workspace root package config
-└── pnpm-workspace.yaml           # pnpm workspace configuration
-```
+<div align="center">
 
----
+📜 [Changelog](CHANGELOG.md)
 
-## Changelog
+<sub>Built with 🧡 for people who'd rather not hand their bank statements to a startup.</sub>
 
-See [CHANGELOG.md](./CHANGELOG.md) for full project releases and commit histories.
+</div>
