@@ -1,27 +1,36 @@
-import { useState, useRef } from "react";
-import { toast } from "sonner";
+import { formatCurrency } from "@openfinance/shared/utils";
 import {
+  ExternalLink,
+  File as FileIcon,
+  FileSpreadsheet,
   FileText,
   Image as ImageIcon,
-  FileSpreadsheet,
-  File as FileIcon,
-  UploadCloud,
-  Trash2,
   Loader2,
-  ExternalLink,
+  Trash2,
+  UploadCloud,
 } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import {
-  useDocumentsList,
-  useUploadDocumentMutation,
-  useDeleteDocumentMutation,
-} from "@/modules/documents/hooks";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BASE_URL, getToken } from "@/lib/api";
-import { formatCurrency } from "@openfinance/shared/utils";
-import { isTauri } from "@/lib/utils";
+import { BASE_URL } from "@/lib/api";
+import {
+  useDeleteDocumentMutation,
+  useDocumentsList,
+  useUploadDocumentMutation,
+} from "@/modules/documents/hooks";
 
 interface InvestmentDocumentsProps {
   investmentId: string;
@@ -50,32 +59,32 @@ export function InvestmentDocuments({
     kind === "account"
       ? { accountId: investmentId }
       : kind === "life_insurance"
-      ? { lifeInsuranceId: investmentId }
-      : { investmentId };
+        ? { lifeInsuranceId: investmentId }
+        : { investmentId };
   const noun =
     parentLabel ??
     (kind === "account"
       ? "account"
       : kind === "life_insurance"
-      ? "policy"
-      : "investment");
+        ? "policy"
+        : "investment");
   const filters = parentId;
   const { data = { documents: [] }, isLoading } = useDocumentsList(filters);
-  const { mutate: uploadDoc, isPending: uploading } = useUploadDocumentMutation();
-  const { mutate: deleteDoc, isPending: deleting } = useDeleteDocumentMutation();
+  const { mutate: uploadDoc, isPending: uploading } =
+    useUploadDocumentMutation();
+  const { mutate: deleteDoc, isPending: deleting } =
+    useDeleteDocumentMutation();
 
   const handleOpenFile = async (docId: string) => {
-    const url = `${BASE_URL}/api/documents/${docId}?token=${encodeURIComponent(getToken() || "")}`;
-    if (isTauri()) {
-      try {
-        const { openUrl } = await import("@tauri-apps/plugin-opener");
-        await openUrl(url);
-      } catch (err) {
-        console.error("Failed to open file via Tauri opener:", err);
-        toast.error("Failed to open file. Make sure your system has a default app for this file type.");
-      }
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
+    const url = `${BASE_URL}/api/documents/${docId}`;
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+    } catch (err) {
+      console.error("Failed to open file via Tauri opener:", err);
+      toast.error(
+        "Failed to open file. Make sure your system has a default app for this file type."
+      );
     }
   };
 
@@ -94,7 +103,7 @@ export function InvestmentDocuments({
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return parseFloat((bytes / k ** i).toFixed(2)) + " " + sizes[i];
   };
 
   // Helper to resolve Lucide icon based on MIME type
@@ -133,7 +142,8 @@ export function InvestmentDocuments({
       setSelectedFile(file);
       if (!docName) {
         // Pre-fill display name with file basename (without extension)
-        const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+        const nameWithoutExt =
+          file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
         setDocName(nameWithoutExt);
       }
     }
@@ -144,7 +154,8 @@ export function InvestmentDocuments({
       const file = e.target.files[0];
       setSelectedFile(file);
       if (!docName) {
-        const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+        const nameWithoutExt =
+          file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
         setDocName(nameWithoutExt);
       }
     }
@@ -180,30 +191,40 @@ export function InvestmentDocuments({
     );
   };
 
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const performDelete = (docId: string) => {
+    deleteDoc(
+      { docId },
+      {
+        onSuccess: () => {
+          toast.success("Document deleted successfully!");
+        },
+        onError: (err) => {
+          toast.error(err.message || "Failed to delete document.");
+        },
+      }
+    );
+  };
+
   const handleDelete = (docId: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete "${name}"?`)) {
-      deleteDoc(
-        { docId },
-        {
-          onSuccess: () => {
-            toast.success("Document deleted successfully!");
-          },
-          onError: (err) => {
-            toast.error(err.message || "Failed to delete document.");
-          },
-        }
-      );
-    }
+    setPendingDelete({ id: docId, name });
   };
 
   return (
     <div className="space-y-6">
       {/* ─── Upload Form ─── */}
-      <form onSubmit={handleUploadSubmit} className="space-y-4 rounded-xl border border-border p-4 bg-card">
+      <form
+        onSubmit={handleUploadSubmit}
+        className="space-y-4 rounded-xl border border-border p-4 bg-card"
+      >
         <h3 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">
           Upload New Document
         </h3>
-        
+
         {/* Dropzone */}
         <div
           onDragOver={handleDragOver}
@@ -214,8 +235,8 @@ export function InvestmentDocuments({
             isDragOver
               ? "border-primary bg-primary/5"
               : selectedFile
-              ? "border-muted-foreground/30 bg-muted/20"
-              : "border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/10"
+                ? "border-muted-foreground/30 bg-muted/20"
+                : "border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/10"
           }`}
         >
           <input
@@ -225,7 +246,9 @@ export function InvestmentDocuments({
             className="hidden"
             accept=".pdf,.png,.jpg,.jpeg,.gif,.csv,.xls,.xlsx"
           />
-          <UploadCloud className={`w-8 h-8 mb-2 ${selectedFile ? "text-primary" : "text-muted-foreground/70"}`} />
+          <UploadCloud
+            className={`w-8 h-8 mb-2 ${selectedFile ? "text-primary" : "text-muted-foreground/70"}`}
+          />
           {selectedFile ? (
             <div className="text-center">
               <p className="text-sm font-medium text-foreground max-w-[300px] truncate">
@@ -301,9 +324,12 @@ export function InvestmentDocuments({
         ) : documents.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 bg-muted/10 text-center">
             <FileIcon className="w-10 h-10 text-muted-foreground/50 mb-2" />
-            <p className="text-sm font-medium text-foreground">No documents uploaded</p>
+            <p className="text-sm font-medium text-foreground">
+              No documents uploaded
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Upload statements or contracts above to secure them for this {noun}.
+              Upload statements or contracts above to secure them for this{" "}
+              {noun}.
             </p>
           </div>
         ) : (
@@ -315,7 +341,9 @@ export function InvestmentDocuments({
               >
                 {/* File Details & Icon */}
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex-shrink-0">{getFileIcon(doc.mime_type)}</div>
+                  <div className="mt-0.5 flex-shrink-0">
+                    {getFileIcon(doc.mime_type)}
+                  </div>
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold text-foreground truncate max-w-[280px] sm:max-w-[400px]">
                       {doc.name}
@@ -323,11 +351,16 @@ export function InvestmentDocuments({
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-1">
                       <span>{formatBytes(doc.file_size)}</span>
                       <span>•</span>
-                      <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(doc.created_at).toLocaleDateString()}
+                      </span>
                       {doc.notes && (
                         <>
                           <span>•</span>
-                          <span className="italic truncate max-w-[150px] sm:max-w-[250px]" title={doc.notes}>
+                          <span
+                            className="italic truncate max-w-[150px] sm:max-w-[250px]"
+                            title={doc.notes}
+                          >
                             "{doc.notes}"
                           </span>
                         </>
@@ -342,7 +375,9 @@ export function InvestmentDocuments({
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
                         {(kind === "life_insurance"
                           ? "life insurance"
-                          : investment.asset_type || investment.type || "generic"
+                          : investment.asset_type ||
+                            investment.type ||
+                            "generic"
                         ).toUpperCase()}
                       </span>
                       <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-green-500/10 text-green-600 border border-green-500/20">
@@ -393,6 +428,31 @@ export function InvestmentDocuments({
           </div>
         )}
       </div>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete "{pendingDelete?.name}
+              "? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) performDelete(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

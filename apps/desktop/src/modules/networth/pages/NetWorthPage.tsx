@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isZeroBalance } from "@/components/ZeroBalanceAccounts";
 import {
   useAccounts,
   useExchangeRates,
@@ -20,7 +21,6 @@ import {
   useNetWorthHistory,
 } from "@/modules/dashboard/hooks/useDashboard";
 import { useAppStore } from "@/stores/app.store";
-import { isZeroBalance } from "@/components/ZeroBalanceAccounts";
 
 const PERIOD_OPTIONS = [
   { label: "3M", months: 3 },
@@ -139,8 +139,7 @@ export default function NetWorthPage() {
   const assetEntries = Object.entries(assetByType).sort((a, b) => b[1] - a[1]);
   const liabilityByType: Record<string, number> = {};
   for (const a of liabilityAccounts) {
-    liabilityByType[a.type] =
-      (liabilityByType[a.type] ?? 0) + a.balance_inr;
+    liabilityByType[a.type] = (liabilityByType[a.type] ?? 0) + a.balance_inr;
   }
   const liabilityEntries = Object.entries(liabilityByType).sort(
     (a, b) => a[1] - b[1]
@@ -157,7 +156,9 @@ export default function NetWorthPage() {
               {formatCurrency(payload[0].value, defaultCurrency as any)}
             </p>
           </div>
-          <p className="text-[10px] text-muted-foreground leading-none">Net Worth</p>
+          <p className="text-[10px] text-muted-foreground leading-none">
+            Net Worth
+          </p>
         </div>
       );
     }
@@ -194,6 +195,7 @@ export default function NetWorthPage() {
         <div className="flex rounded-lg border overflow-hidden text-sm">
           {PERIOD_OPTIONS.map((opt) => (
             <button
+              type="button"
               key={opt.label}
               onClick={() => setPeriodMonths(opt.months)}
               className={`px-3 py-1.5 font-medium transition-colors ${periodMonths === opt.months ? "bg-foreground text-background" : "hover:bg-muted text-muted-foreground"}`}
@@ -221,7 +223,7 @@ export default function NetWorthPage() {
               <defs>
                 <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#8da99a" stopOpacity={0.25} />
-                  <stop offset="50%" stopColor="#7aa892" stopOpacity={0.10} />
+                  <stop offset="50%" stopColor="#7aa892" stopOpacity={0.1} />
                   <stop offset="100%" stopColor="#7aa892" stopOpacity={0.0} />
                 </linearGradient>
                 <linearGradient id="nwStrokeGrad" x1="0" y1="0" x2="1" y2="0">
@@ -248,9 +250,13 @@ export default function NetWorthPage() {
                 tickFormatter={(v: number) => formatShort(v)}
                 width={50}
               />
-              <Tooltip 
-                content={<CustomTooltip />} 
-                cursor={{ stroke: "currentColor", strokeOpacity: 0.08, strokeWidth: 1.5 }} 
+              <Tooltip
+                content={<CustomTooltip />}
+                cursor={{
+                  stroke: "currentColor",
+                  strokeOpacity: 0.08,
+                  strokeWidth: 1.5,
+                }}
               />
               <Area
                 type="natural"

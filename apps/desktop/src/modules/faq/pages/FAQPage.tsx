@@ -20,11 +20,11 @@ const FAQ_SECTIONS: FAQSection[] = [
     items: [
       {
         q: "What is openFinance and what does it do?",
-        a: "openFinance is a self-hosted personal finance app. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running within your own infrastructure.",
+        a: "openFinance is a personal finance app for your Mac. It helps you track your budget using envelopes, manage investments across multiple currencies, monitor insurance policies, track debt, and get AI-powered financial advice — all running on your own computer.",
       },
       {
         q: "Where is my data stored?",
-        a: "All data is stored in a PostgreSQL database that runs as part of your local openFinance setup. Nothing is sent to any external cloud service — your data stays entirely within your own infrastructure.",
+        a: "All data is stored in an encrypted SQLite database on your Mac, locked with your passcode. Nothing is sent to any external cloud service — your data stays on your computer.",
       },
       {
         q: "What currencies are supported?",
@@ -269,8 +269,8 @@ const FAQ_SECTIONS: FAQSection[] = [
           <span>
             Check the Ollama server URL under{" "}
             <strong>Settings → AI Assistant</strong> and use{" "}
-            <strong>Save &amp; Test</strong> to verify the connection. Make
-            sure Ollama is running on that machine (
+            <strong>Save &amp; Test</strong> to verify the connection. Make sure
+            Ollama is running on that machine (
             <code className="bg-muted px-1 rounded text-xs">ollama.com</code>)
             and that you have pulled at least one model (e.g.{" "}
             <code className="bg-muted px-1 rounded text-xs">
@@ -329,6 +329,7 @@ function FAQEntry({ item }: { item: FAQItem }) {
   return (
     <div className="border-b last:border-0">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-4 py-3.5 px-4 text-left hover:bg-muted/40 transition-colors"
       >
@@ -364,6 +365,7 @@ export default function FAQPage() {
       {/* Section pills */}
       <div className="flex flex-wrap gap-2">
         <button
+          type="button"
           onClick={() => setActiveSection(null)}
           className={cn(
             "text-xs px-3 py-1.5 rounded-full border font-medium transition-colors",
@@ -376,6 +378,7 @@ export default function FAQPage() {
         </button>
         {FAQ_SECTIONS.map((s) => (
           <button
+            type="button"
             key={s.title}
             onClick={() =>
               setActiveSection(activeSection === s.title ? null : s.title)

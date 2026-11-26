@@ -10,8 +10,8 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -136,7 +136,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
-  const [inFlightUserMessage, setInFlightUserMessage] = useState<string | null>(null);
+  const [inFlightUserMessage, setInFlightUserMessage] = useState<string | null>(
+    null
+  );
   const [activeTask, setActiveTask] = useState<{
     toolCalls: Array<{ name: string; params: any; result: string }>;
   } | null>(null);
@@ -357,7 +359,9 @@ export default function ChatPage() {
             <Sparkles className="w-4 h-4 text-indigo-500" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-tight">openFinance AI</p>
+            <p className="text-sm font-semibold leading-tight">
+              openFinance AI
+            </p>
             {availableModels.length > 1 ? (
               <div className="relative">
                 <select
@@ -504,6 +508,7 @@ export default function ChatPage() {
                 "When is my next premium due?",
               ].map((q) => (
                 <button
+                  type="button"
                   key={q}
                   disabled={isUnavailable}
                   onClick={() => {
@@ -546,7 +551,10 @@ export default function ChatPage() {
                 </div>
 
                 <p className="text-xs text-indigo-700/80 dark:text-indigo-300/80 leading-normal">
-                  openFinance AI is analyzing your data locally and performing necessary calculations. You can safely navigate away or close the app; the completed analysis will be saved here automatically.
+                  openFinance AI is analyzing your data locally and performing
+                  necessary calculations. You can safely navigate away or close
+                  the app; the completed analysis will be saved here
+                  automatically.
                 </p>
 
                 <div className="border-t border-indigo-100/50 dark:border-indigo-900/50 pt-2.5 space-y-2">

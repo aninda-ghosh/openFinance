@@ -83,7 +83,9 @@ async function main() {
   const inputPath = process.argv[2];
 
   if (!inputPath) {
-    console.error("Usage: node scripts/convert-backup.mjs <path-to-backup.fwb>");
+    console.error(
+      "Usage: node scripts/convert-backup.mjs <path-to-backup.fwb>"
+    );
     process.exit(1);
   }
 
@@ -97,7 +99,9 @@ async function main() {
   // Check if it's actually encrypted
   if (!rawBuffer.subarray(0, 4).equals(BACKUP_MAGIC)) {
     console.log("This backup is not encrypted (no FWB1 magic header).");
-    console.log("It should import directly into openFinance without conversion.");
+    console.log(
+      "It should import directly into openFinance without conversion."
+    );
     process.exit(0);
   }
 
@@ -128,19 +132,26 @@ async function main() {
   try {
     const decrypted = decryptBackup(rawBuffer, keyHex);
     if (!decrypted) {
-      console.error("Error: Could not decrypt — the file does not have an encrypted backup header.");
+      console.error(
+        "Error: Could not decrypt — the file does not have an encrypted backup header."
+      );
       process.exit(1);
     }
 
     // Verify it's a valid ZIP (PK magic bytes)
     if (decrypted[0] !== 0x50 || decrypted[1] !== 0x4b) {
-      console.error("Error: Decryption produced invalid data. The username or password is likely incorrect.");
+      console.error(
+        "Error: Decryption produced invalid data. The username or password is likely incorrect."
+      );
       process.exit(1);
     }
 
     // Write unencrypted ZIP
     const basename = path.basename(inputPath, path.extname(inputPath));
-    const outputPath = path.join(path.dirname(inputPath), `${basename}-converted.zip`);
+    const outputPath = path.join(
+      path.dirname(inputPath),
+      `${basename}-converted.zip`
+    );
     fs.writeFileSync(outputPath, decrypted);
 
     console.log();
@@ -149,14 +160,18 @@ async function main() {
     console.log(`Output: ${outputPath}`);
     console.log();
     console.log("You can now import this file in the openFinance app:");
-    console.log("  Settings → Backup & Restore → Import Backup → select the .zip file");
+    console.log(
+      "  Settings → Backup & Restore → Import Backup → select the .zip file"
+    );
     console.log();
   } catch (err) {
     console.error();
     console.error("❌ Decryption failed — incorrect username or password.");
     console.error(`   (${err.message})`);
     console.error();
-    console.error("Make sure you're using the exact same username and password");
+    console.error(
+      "Make sure you're using the exact same username and password"
+    );
     console.error("that were used to set up the original Finwise app.");
     process.exit(1);
   }

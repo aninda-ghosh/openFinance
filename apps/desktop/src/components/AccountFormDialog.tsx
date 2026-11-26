@@ -1,4 +1,11 @@
-import React, { useState, useEffect } from "react";
+import {
+  BALANCE_ADJUSTMENT_PAYEE,
+  isLiabilityType,
+  STARTING_BALANCE_PAYEE,
+} from "@openfinance/shared/constants";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -6,15 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { useAppStore } from "@/stores/app.store";
-import {
-  BALANCE_ADJUSTMENT_PAYEE,
-  STARTING_BALANCE_PAYEE,
-  isLiabilityType,
-} from "@openfinance/shared/constants";
 
 const CURRENCIES = ["USD", "INR", "SGD", "GBP", "EUR", "JPY", "NTD"];
 
@@ -109,7 +110,8 @@ export function AccountFormDialog({
   );
   const [balance, setBalance] = useState(String(initial?.balance ?? 0));
   const [offBudget, setOffBudget] = useState(
-    initial?.off_budget ?? defaultOffBudgetForType(initial?.type ?? DEFAULT_TYPE)
+    initial?.off_budget ??
+      defaultOffBudgetForType(initial?.type ?? DEFAULT_TYPE)
   );
   // Once the user touches the checkbox we stop deriving it from the type.
   const [offBudgetTouched, setOffBudgetTouched] = useState(
@@ -272,7 +274,8 @@ export function AccountFormDialog({
               <div>
                 <p className="text-xs font-semibold">Active Account</p>
                 <p className="text-xs text-muted-foreground leading-normal">
-                  Archived accounts are hidden but their historical logs remain in Net Worth
+                  Archived accounts are hidden but their historical logs remain
+                  in Net Worth
                 </p>
               </div>
             </label>

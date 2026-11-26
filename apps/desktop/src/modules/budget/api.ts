@@ -1,6 +1,10 @@
 import type {
   AccountListResponse,
   AccountResponse,
+  BulkCreateRequest,
+  BulkCreateResponse,
+  BulkPreviewRequest,
+  BulkPreviewResponse,
   CreateAccountRequest,
   CreateEnvelopeRequest,
   CreateTransactionRequest,
@@ -98,9 +102,9 @@ export const budgetApi = {
 
   getTransactions: (filters: Partial<TransactionFilters>) => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(
-      ([k, v]) => v != null && params.set(k, String(v))
-    );
+    for (const [k, v] of Object.entries(filters)) {
+      if (v != null) params.set(k, String(v));
+    }
     return apiFetch<PaginatedTransactionsResponse>(
       `${BASE}/transactions?${params}`
     );
@@ -123,6 +127,20 @@ export const budgetApi = {
   deleteTransaction: (id: string) =>
     apiFetch<{ success: boolean }>(`${BASE}/transactions/${id}`, {
       method: "DELETE",
+    }),
+
+  bulkPreview: (data: BulkPreviewRequest) =>
+    apiFetch<BulkPreviewResponse>(`${BASE}/transactions/bulk/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  bulkCreate: (data: BulkCreateRequest) =>
+    apiFetch<BulkCreateResponse>(`${BASE}/transactions/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     }),
 
   createTransfer: (data: {

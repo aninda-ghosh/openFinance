@@ -157,7 +157,8 @@ function LifeInsuranceFormDialog({
       // Premium is optional on both sides: an empty box clears it rather than
       // silently keeping the previous value on an edit.
       premium_amount: premium,
-      premium_frequency: premium === null ? null : form.premium_frequency || null,
+      premium_frequency:
+        premium === null ? null : form.premium_frequency || null,
     });
     setOpen(false);
   };
@@ -555,7 +556,8 @@ export function LifeInsuranceCard() {
                             updatePolicy(
                               { id: p.id, data: payload },
                               {
-                                onSuccess: () => toast.success("Policy updated"),
+                                onSuccess: () =>
+                                  toast.success("Policy updated"),
                                 onError: (e) => toast.error(e.message),
                               }
                             )
@@ -573,7 +575,8 @@ export function LifeInsuranceCard() {
                               )
                             ) {
                               deletePolicy(p.id, {
-                                onSuccess: () => toast.success("Policy deleted"),
+                                onSuccess: () =>
+                                  toast.success("Policy deleted"),
                                 onError: (e) => toast.error(e.message),
                               });
                             }

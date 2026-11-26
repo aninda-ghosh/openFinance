@@ -19,18 +19,6 @@ export const AssetTypeEnum = z.enum([
 /** Yearly depreciation in percent (15 = 15%/yr). null clears it. */
 const DepreciationRate = z.number().min(0).max(100).nullable().optional();
 
-export const SetContributionSchema = z.object({
-  contribution: z.number(),
-});
-
-export const BulkContributionSchema = z.object({
-  /**
-   * match_delta: treat every recorded change as new money (the starting point
-   * for a holding whose history is all deposits). clear: back to all-market.
-   */
-  mode: z.enum(["match_delta", "clear"]),
-});
-
 export const CreateInvestmentSchema = z.object({
   name: z.string().min(1),
   asset_type: AssetTypeEnum,

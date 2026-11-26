@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [5.0.0] — 2026-11-25
+
+### Added
+
+- **Bulk Add.** Transactions → Bulk add takes pasted rows (tab-separated text from a statement or spreadsheet) for one account, shows a preview to review and fix, then saves them in one go. Rows already saved before are skipped.
+- **Keyboard shortcuts.** Jump between pages with G then a letter or ⌘1…9, quick-add a transaction with N, and press ? for the full cheat sheet.
+- **New app icon.**
+
+### Changed
+
+- **Rust backend, in-process.** The API server is now Rust (axum + tokio + rusqlite with SQLCipher) and runs inside the Tauri app process on `127.0.0.1:3001`, instead of a bundled Node.js sidecar. The API, database schema, document / chat-memory encryption and backup format are unchanged, so existing data opens without migration. Known Node behaviours kept as-is are listed in `docs/rust-port/QUIRKS.md`.
+- **Smaller app.** The `.app` is about 25 MB (was 133 MB, of which 116 MB was the Node runtime) and the `.dmg` about 9 MB (was 46 MB).
+- **Instant wrong-passcode message.** A wrong passcode is reported at once instead of after a 15-second health-check timeout.
+- **Developer scripts.** `pnpm dev`, `pnpm build`, `pnpm test` and `pnpm lint` call the desktop package directly; `pnpm test` runs the UI's vitest suites.
+
+### Removed
+
+- **Node server** (`apps/server`) and the Node-vs-Rust parity harness. The last Node build is `main` / `1502e08`.
+- **Browser / self-hosted mode** in the UI: the login screen (`LoginGate`), JWT token handling, `VITE_API_URL`, and the always-offline "API Server" card in Settings.
+- **Dev tooling**: Turborepo, `dev:all` / `concurrently`, and the unused `@playwright/test` and `@tanstack/react-query-devtools` dependencies.
+- **Unused shared code**: helpers, schemas and types in `packages/shared` that only the Node server used.
+
+---
+
 ## [4.3.0] — 2026-10-02
 
 ### Added

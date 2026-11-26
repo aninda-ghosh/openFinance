@@ -1,54 +1,63 @@
-import { useState, useMemo } from "react";
-import { toast } from "sonner";
+import { formatCurrency } from "@openfinance/shared/utils";
 import {
+  Database,
+  ExternalLink,
+  File as FileIcon,
+  FileSpreadsheet,
   FileText,
   Image as ImageIcon,
-  FileSpreadsheet,
-  File as FileIcon,
-  UploadCloud,
-  Trash2,
   Loader2,
-  ExternalLink,
-  Search,
   PlusCircle,
-  Database,
+  Search,
+  Trash2,
+  UploadCloud,
 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
-  useDocumentsList,
-  useUploadDocumentMutation,
-  useDeleteDocumentMutation,
-} from "../hooks";
-import { useInvestments } from "@/modules/investments/hooks/useInvestments";
-import { useAccounts } from "@/modules/budget/hooks/useBudget";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
-import { BASE_URL, getToken } from "@/lib/api";
-import { formatCurrency } from "@openfinance/shared/utils";
-import { isTauri } from "@/lib/utils";
+import { BASE_URL } from "@/lib/api";
+import { useAccounts } from "@/modules/budget/hooks/useBudget";
+import { useInvestments } from "@/modules/investments/hooks/useInvestments";
+import {
+  useDeleteDocumentMutation,
+  useDocumentsList,
+  useUploadDocumentMutation,
+} from "../hooks";
 
 export default function DocumentsPage() {
   const { data: docsData, isLoading: loadingDocs } = useDocumentsList();
   const { data: investmentsData } = useInvestments();
   const { data: accountsData } = useAccounts();
 
-  const { mutate: uploadDoc, isPending: uploading } = useUploadDocumentMutation();
-  const { mutate: deleteDoc, isPending: deleting } = useDeleteDocumentMutation();
+  const { mutate: uploadDoc, isPending: uploading } =
+    useUploadDocumentMutation();
+  const { mutate: deleteDoc, isPending: deleting } =
+    useDeleteDocumentMutation();
 
   const handleOpenFile = async (docId: string) => {
-    const url = `${BASE_URL}/api/documents/${docId}?token=${encodeURIComponent(getToken() || "")}`;
-    if (isTauri()) {
-      try {
-        const { openUrl } = await import("@tauri-apps/plugin-opener");
-        await openUrl(url);
-      } catch (err) {
-        console.error("Failed to open file via Tauri opener:", err);
-        toast.error("Failed to open file. Make sure your system has a default app for this file type.");
-      }
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
+    const url = `${BASE_URL}/api/documents/${docId}`;
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+    } catch (err) {
+      console.error("Failed to open file via Tauri opener:", err);
+      toast.error(
+        "Failed to open file. Make sure your system has a default app for this file type."
+      );
     }
   };
 
@@ -58,7 +67,9 @@ export default function DocumentsPage() {
 
   // Direct upload form state
   const [showUploadForm, setShowUploadForm] = useState(false);
-  const [targetType, setTargetType] = useState<"investment" | "account">("investment");
+  const [targetType, setTargetType] = useState<"investment" | "account">(
+    "investment"
+  );
   const [targetId, setTargetId] = useState("");
   const [docName, setDocName] = useState("");
   const [docNotes, setDocNotes] = useState("");
@@ -74,18 +85,25 @@ export default function DocumentsPage() {
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    return parseFloat((bytes / k ** i).toFixed(2)) + " " + sizes[i];
   };
 
   // KPI Calculations
   const metrics = useMemo(() => {
     const totalFiles = documents.length;
     const totalSize = documents.reduce((sum, doc) => sum + doc.file_size, 0);
-    const pdfCount = documents.filter(d => d.mime_type.includes("pdf")).length;
-    const sheetCount = documents.filter(d => 
-      d.mime_type.includes("sheet") || d.mime_type.includes("excel") || d.mime_type.includes("csv")
+    const pdfCount = documents.filter((d) =>
+      d.mime_type.includes("pdf")
     ).length;
-    const imageCount = documents.filter(d => d.mime_type.includes("image")).length;
+    const sheetCount = documents.filter(
+      (d) =>
+        d.mime_type.includes("sheet") ||
+        d.mime_type.includes("excel") ||
+        d.mime_type.includes("csv")
+    ).length;
+    const imageCount = documents.filter((d) =>
+      d.mime_type.includes("image")
+    ).length;
     const otherCount = totalFiles - pdfCount - sheetCount - imageCount;
 
     return {
@@ -122,11 +140,22 @@ export default function DocumentsPage() {
       // 1. Search text matching
       const matchesSearch =
         doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (doc.notes && doc.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (doc.investment_name && doc.investment_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (doc.account_name && doc.account_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (doc.life_insurance_name && doc.life_insurance_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (doc.life_insurance_insured_person && doc.life_insurance_insured_person.toLowerCase().includes(searchTerm.toLowerCase()));
+        (doc.notes &&
+          doc.notes.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (doc.investment_name &&
+          doc.investment_name
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())) ||
+        (doc.account_name &&
+          doc.account_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (doc.life_insurance_name &&
+          doc.life_insurance_name
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())) ||
+        (doc.life_insurance_insured_person &&
+          doc.life_insurance_insured_person
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()));
 
       if (!matchesSearch) return false;
 
@@ -134,19 +163,25 @@ export default function DocumentsPage() {
       if (selectedType !== "all") {
         const isPdf = doc.mime_type.includes("pdf");
         const isImage = doc.mime_type.includes("image");
-        const isSheet = doc.mime_type.includes("sheet") || doc.mime_type.includes("excel") || doc.mime_type.includes("csv");
-        
+        const isSheet =
+          doc.mime_type.includes("sheet") ||
+          doc.mime_type.includes("excel") ||
+          doc.mime_type.includes("csv");
+
         if (selectedType === "pdf" && !isPdf) return false;
         if (selectedType === "image" && !isImage) return false;
         if (selectedType === "sheet" && !isSheet) return false;
-        if (selectedType === "other" && (isPdf || isImage || isSheet)) return false;
+        if (selectedType === "other" && (isPdf || isImage || isSheet))
+          return false;
       }
 
       // 3. Parent category matching
       if (selectedParentGroup !== "all") {
-        if (selectedParentGroup === "investments" && !doc.investment_id) return false;
+        if (selectedParentGroup === "investments" && !doc.investment_id)
+          return false;
         if (selectedParentGroup === "accounts" && !doc.account_id) return false;
-        if (selectedParentGroup === "life_insurance" && !doc.life_insurance_id) return false;
+        if (selectedParentGroup === "life_insurance" && !doc.life_insurance_id)
+          return false;
       }
 
       return true;
@@ -159,7 +194,8 @@ export default function DocumentsPage() {
       const file = e.target.files[0];
       setSelectedFile(file);
       if (!docName) {
-        const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
+        const nameWithoutExt =
+          file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
         setDocName(nameWithoutExt);
       }
     }
@@ -178,7 +214,10 @@ export default function DocumentsPage() {
 
     uploadDoc(
       {
-        parentId: targetType === "account" ? { accountId: targetId } : { investmentId: targetId },
+        parentId:
+          targetType === "account"
+            ? { accountId: targetId }
+            : { investmentId: targetId },
         name: docName || selectedFile.name,
         file: selectedFile,
         notes: docNotes || undefined,
@@ -199,21 +238,27 @@ export default function DocumentsPage() {
     );
   };
 
-  // Delete handler
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const performDelete = (docId: string) => {
+    deleteDoc(
+      { docId },
+      {
+        onSuccess: () => {
+          toast.success("Document deleted successfully!");
+        },
+        onError: (err) => {
+          toast.error(err.message || "Failed to delete document.");
+        },
+      }
+    );
+  };
+
   const handleDelete = (docId: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete "${name}"?`)) {
-      deleteDoc(
-        { docId },
-        {
-          onSuccess: () => {
-            toast.success("Document deleted successfully!");
-          },
-          onError: (err) => {
-            toast.error(err.message || "Failed to delete document.");
-          },
-        }
-      );
-    }
+    setPendingDelete({ id: docId, name });
   };
 
   return (
@@ -225,7 +270,8 @@ export default function DocumentsPage() {
             Secure Document Storage
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Manage brokerage contract notes, bank statements, policies, and receipts securely in one offline vault.
+            Manage brokerage contract notes, bank statements, policies, and
+            receipts securely in one offline vault.
           </p>
         </div>
         <Button
@@ -242,8 +288,12 @@ export default function DocumentsPage() {
         <Card className="bg-card/40 backdrop-blur-sm border-border/40">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Files</p>
-              <h3 className="text-xl font-bold mt-1 tabular-nums">{metrics.totalFiles}</h3>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Total Files
+              </p>
+              <h3 className="text-xl font-bold mt-1 tabular-nums">
+                {metrics.totalFiles}
+              </h3>
             </div>
             <div className="p-2.5 rounded-lg bg-primary/5 text-primary">
               <Database className="w-5 h-5" />
@@ -253,8 +303,12 @@ export default function DocumentsPage() {
         <Card className="bg-card/40 backdrop-blur-sm border-border/40">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Storage Used</p>
-              <h3 className="text-xl font-bold mt-1 tabular-nums">{metrics.totalSize}</h3>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Storage Used
+              </p>
+              <h3 className="text-xl font-bold mt-1 tabular-nums">
+                {metrics.totalSize}
+              </h3>
             </div>
             <div className="p-2.5 rounded-lg bg-emerald-500/5 text-emerald-500">
               <FileSpreadsheet className="w-5 h-5" />
@@ -264,8 +318,12 @@ export default function DocumentsPage() {
         <Card className="bg-card/40 backdrop-blur-sm border-border/40">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">PDF Statements</p>
-              <h3 className="text-xl font-bold mt-1 tabular-nums">{metrics.pdfCount}</h3>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                PDF Statements
+              </p>
+              <h3 className="text-xl font-bold mt-1 tabular-nums">
+                {metrics.pdfCount}
+              </h3>
             </div>
             <div className="p-2.5 rounded-lg bg-rose-500/5 text-rose-500">
               <FileText className="w-5 h-5" />
@@ -275,7 +333,9 @@ export default function DocumentsPage() {
         <Card className="bg-card/40 backdrop-blur-sm border-border/40">
           <CardContent className="p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Spreadsheets & Images</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Spreadsheets & Images
+              </p>
               <h3 className="text-xl font-bold mt-1 tabular-nums">
                 {metrics.sheetCount + metrics.imageCount}
               </h3>
@@ -289,7 +349,10 @@ export default function DocumentsPage() {
 
       {/* ─── Dynamic Attachment Form ─── */}
       {showUploadForm && (
-        <form onSubmit={handleUploadSubmit} className="space-y-4 rounded-2xl border border-border p-5 bg-card/60 backdrop-blur-md shadow-xl transition-all">
+        <form
+          onSubmit={handleUploadSubmit}
+          className="space-y-4 rounded-2xl border border-border p-5 bg-card/60 backdrop-blur-md shadow-xl transition-all"
+        >
           <h3 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">
             Attach Document to Vault
           </h3>
@@ -308,7 +371,9 @@ export default function DocumentsPage() {
                 className="w-full border border-border bg-background rounded-lg px-3 py-2 text-sm h-10 focus:ring-1 focus:ring-primary"
               >
                 <option value="investment">Investment / Holding</option>
-                <option value="account">Standard Account (Budget/Balance Sheet)</option>
+                <option value="account">
+                  Standard Account (Budget/Balance Sheet)
+                </option>
               </select>
             </div>
 
@@ -352,7 +417,9 @@ export default function DocumentsPage() {
                   type="button"
                   variant="outline"
                   className="w-full h-10 text-xs border-dashed justify-center truncate"
-                  onClick={() => document.getElementById("direct-file-input")?.click()}
+                  onClick={() =>
+                    document.getElementById("direct-file-input")?.click()
+                  }
                 >
                   <UploadCloud className="w-4 h-4 mr-2" />
                   {selectedFile ? selectedFile.name : "Select Document File"}
@@ -421,6 +488,7 @@ export default function DocumentsPage() {
             <div className="flex items-center rounded-lg border border-border/50 bg-background/50 p-0.5 text-xs">
               {(["all", "pdf", "sheet", "image", "other"] as const).map((t) => (
                 <button
+                  type="button"
                   key={t}
                   onClick={() => setSelectedType(t)}
                   className={`px-3 py-1.5 rounded-md capitalize font-semibold transition-colors ${
@@ -429,7 +497,13 @@ export default function DocumentsPage() {
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {t === "all" ? "All Formats" : t === "sheet" ? "Sheets" : t === "image" ? "Images" : t}
+                  {t === "all"
+                    ? "All Formats"
+                    : t === "sheet"
+                      ? "Sheets"
+                      : t === "image"
+                        ? "Images"
+                        : t}
                 </button>
               ))}
             </div>
@@ -469,9 +543,12 @@ export default function DocumentsPage() {
         ) : filteredDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 p-12 bg-muted/5 text-center">
             <FileIcon className="w-12 h-12 text-muted-foreground/45 mb-2" />
-            <p className="text-sm font-semibold text-foreground">No documents matching filters</p>
+            <p className="text-sm font-semibold text-foreground">
+              No documents matching filters
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-[340px]">
-              Try clearing your search term, adjusting filters, or upload a bank statement above to attach it.
+              Try clearing your search term, adjusting filters, or upload a bank
+              statement above to attach it.
             </p>
           </div>
         ) : (
@@ -480,12 +557,15 @@ export default function DocumentsPage() {
               // Resolve metadata dynamically based on joined account or investment
               const isLifeInsurance = !!doc.life_insurance_id;
               const parentName =
-                doc.investment_name || doc.account_name || doc.life_insurance_name || "—";
+                doc.investment_name ||
+                doc.account_name ||
+                doc.life_insurance_name ||
+                "—";
               const parentCategory = doc.investment_id
                 ? (doc.investment_asset_type || "HOLDING").toUpperCase()
                 : isLifeInsurance
-                ? "LIFE INSURANCE"
-                : (doc.account_type || "ACCOUNT").toUpperCase();
+                  ? "LIFE INSURANCE"
+                  : (doc.account_type || "ACCOUNT").toUpperCase();
               const parentCurrency =
                 doc.investment_currency ||
                 doc.account_currency ||
@@ -496,8 +576,8 @@ export default function DocumentsPage() {
               const parentValue = doc.investment_id
                 ? (doc.investment_current_value ?? 0)
                 : isLifeInsurance
-                ? (doc.life_insurance_coverage_amount ?? 0)
-                : (doc.account_balance ?? 0);
+                  ? (doc.life_insurance_coverage_amount ?? 0)
+                  : (doc.account_balance ?? 0);
 
               const isInvestment = !!doc.investment_id;
 
@@ -507,20 +587,27 @@ export default function DocumentsPage() {
                   className="flex flex-col sm:flex-row sm:items-center justify-between rounded-2xl border border-border/50 p-4 bg-card hover:bg-muted/5 transition-colors gap-4 shadow-sm"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="mt-0.5 flex-shrink-0">{getFileIcon(doc.mime_type)}</div>
+                    <div className="mt-0.5 flex-shrink-0">
+                      {getFileIcon(doc.mime_type)}
+                    </div>
                     <div className="min-w-0">
                       <h4 className="text-sm font-semibold text-foreground truncate max-w-[280px] sm:max-w-[400px]">
                         {doc.name}
                       </h4>
-                      
+
                       <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground mt-1">
                         <span>{formatBytes(doc.file_size)}</span>
                         <span>•</span>
-                        <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                        <span>
+                          {new Date(doc.created_at).toLocaleDateString()}
+                        </span>
                         {doc.notes && (
                           <>
                             <span>•</span>
-                            <span className="italic truncate max-w-[150px] sm:max-w-[250px]" title={doc.notes}>
+                            <span
+                              className="italic truncate max-w-[150px] sm:max-w-[250px]"
+                              title={doc.notes}
+                            >
                               "{doc.notes}"
                             </span>
                           </>
@@ -529,11 +616,13 @@ export default function DocumentsPage() {
 
                       {/* Parent badging */}
                       <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
-                          isInvestment 
-                            ? "bg-violet-500/10 text-violet-500 border-violet-500/20" 
-                            : "bg-blue-500/10 text-blue-500 border-blue-500/20"
-                        }`}>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
+                            isInvestment
+                              ? "bg-violet-500/10 text-violet-500 border-violet-500/20"
+                              : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                          }`}
+                        >
                           {parentName}
                         </span>
                         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground border border-border">
@@ -574,6 +663,31 @@ export default function DocumentsPage() {
           </div>
         )}
       </div>
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => !open && setPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete "{pendingDelete?.name}
+              "? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDelete) performDelete(pendingDelete.id);
+                setPendingDelete(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

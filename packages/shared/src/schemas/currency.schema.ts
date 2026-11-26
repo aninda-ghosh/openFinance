@@ -20,13 +20,3 @@ export const SUPPORTED_CURRENCIES: Currency[] = [
   "JPY",
   "NTD",
 ];
-
-export const CURRENCY_SYMBOLS: Record<Currency, string> = {
-  INR: "₹",
-  USD: "$",
-  SGD: "S$",
-  GBP: "£",
-  EUR: "€",
-  JPY: "¥",
-  NTD: "NT$",
-};

@@ -1,13 +1,9 @@
 import type { z } from "zod";
 import type {
-  CreateEnvelopeGroupSchema,
   CreateEnvelopeSchema,
   UpdateEnvelopeSchema,
 } from "../schemas/envelope.schema";
 
-export type CreateEnvelopeGroupRequest = z.infer<
-  typeof CreateEnvelopeGroupSchema
->;
 export type CreateEnvelopeRequest = z.infer<typeof CreateEnvelopeSchema>;
 export type UpdateEnvelopeRequest = z.infer<typeof UpdateEnvelopeSchema>;
 

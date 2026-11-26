@@ -1,26 +1,33 @@
 import type { InvestmentResponse } from "@openfinance/shared/api-contracts";
+import { isPhysicalAsset } from "@openfinance/shared/constants";
 import { SUPPORTED_CURRENCIES } from "@openfinance/shared/schemas";
-import { convertFromINR, formatCurrency, formatINR, localIsoDate } from "@openfinance/shared/utils";
+import {
+  convertFromINR,
+  formatCurrency,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import {
   ArrowUpDown,
+  Check,
   ChevronDown,
   ChevronRight,
   Coins,
+  FileText,
+  History,
   Layers,
   List,
   Pencil,
+  PiggyBank,
   PlusCircle,
   RefreshCw,
   Trash2,
-  History,
-  FileText,
-  PiggyBank,
-  Check,
   X,
 } from "lucide-react";
-import { useState, useMemo, Fragment, useEffect } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { toast } from "sonner";
+import { AccountFormDialog } from "@/components/AccountFormDialog";
+import TransactionForm from "@/components/TransactionForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,9 +48,17 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AccountFormDialog } from "@/components/AccountFormDialog";
-import { useAppStore } from "@/stores/app.store";
-import TransactionForm from "@/components/TransactionForm";
+import {
+  HiddenZeroBalanceNotice,
+  useZeroBalanceFilter,
+} from "@/components/ZeroBalanceAccounts";
+import {
+  holdingsValueForAccount,
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
+import { budgetApi } from "@/modules/budget/api";
 import {
   useAccounts,
   useCreateAccount,
@@ -54,31 +69,20 @@ import {
   useTransactions,
   useUpdateAccount,
 } from "@/modules/budget/hooks/useBudget";
+import { LifeInsuranceCard } from "@/modules/life-insurance/components/LifeInsuranceCard";
+import { useAppStore } from "@/stores/app.store";
+import { InvestmentDocuments } from "../components/InvestmentDocuments";
 import {
+  useBulkContributions,
   useCreateInvestment,
   useDeleteInvestment,
   useInvestments,
   usePortfolioSummary,
   useRefreshPrice,
+  useSetEntryContribution,
   useUpdateInvestment,
   useValueHistory,
-  useSetEntryContribution,
-  useBulkContributions,
 } from "../hooks/useInvestments";
-import { budgetApi } from "@/modules/budget/api";
-import { InvestmentDocuments } from "../components/InvestmentDocuments";
-import { LifeInsuranceCard } from "@/modules/life-insurance/components/LifeInsuranceCard";
-import {
-  holdingsValueForAccount,
-  useHoldingsExcludedBalance,
-  useRunningBalances,
-} from "@/hooks/useRunningBalances";
-import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
-import {
-  HiddenZeroBalanceNotice,
-  useZeroBalanceFilter,
-} from "@/components/ZeroBalanceAccounts";
-import { isPhysicalAsset } from "@openfinance/shared/constants";
 
 const COLORS = [
   "var(--chart-1)",
@@ -125,12 +129,17 @@ function MoneyCell({
   native,
   nativeCurrency,
   inr,
+  fmt,
+  defaultCurrency,
 }: {
   native: number;
   nativeCurrency: string;
   inr: number;
+  fmt: (inr: number) => string;
+  defaultCurrency: string;
 }) {
-  const isINR = nativeCurrency === "INR";
+  // `inr` is the value converted to the app's default/base currency
+  const isINR = nativeCurrency === defaultCurrency;
   return (
     <div className="text-right">
       <div className="font-medium tabular-nums">
@@ -138,7 +147,7 @@ function MoneyCell({
       </div>
       {!isINR && (
         <div className="text-xs text-muted-foreground tabular-nums">
-          ≈ {formatINR(inr)}
+          ≈ {fmt(inr)}
         </div>
       )}
     </div>
@@ -176,11 +185,11 @@ function formatDateLabel(dateStr: string) {
     const parts = dateStr.slice(0, 10).split("-").map(Number);
     const d = new Date(parts[0], parts[1] - 1, parts[2]);
     if (Number.isNaN(d.getTime())) return dateStr;
-    
+
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
-    
+
     const formatKey = (date: Date) => {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -188,14 +197,28 @@ function formatDateLabel(dateStr: string) {
       return `${y}-${m}-${day}`;
     };
     const targetKey = dateStr.slice(0, 10);
-    
+
     if (targetKey === formatKey(today)) {
-      return "Today, " + d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return (
+        "Today, " +
+        d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      );
     }
     if (targetKey === formatKey(yesterday)) {
-      return "Yesterday, " + d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return (
+        "Yesterday, " +
+        d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      );
     }
-    
+
     return d.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -240,6 +263,9 @@ function LinkedAccountSheet({
     rates
   );
   const runningBalances = useRunningBalances(txns, seedBalance);
+  const linkedHoldings = (investmentsData?.investments ?? []).filter(
+    (i: any) => i.account_id === account.id && !isPhysicalAsset(i.asset_type)
+  );
 
   const showHint = account.currency !== defaultCurrency;
   const fmtDefault = (inr: number) =>
@@ -272,6 +298,42 @@ function LinkedAccountSheet({
           </p>
         </SheetHeader>
 
+        {/* Where the balance comes from: linked holdings + cash/opening balance */}
+        <div className="mx-6 mt-4 rounded-2xl border border-border/30 bg-card/50 px-4 py-3 text-xs flex-shrink-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 mb-2 select-none">
+            Balance breakdown
+          </p>
+          {linkedHoldings.map((inv) => (
+            <div key={inv.id} className="flex justify-between py-0.5">
+              <span className="truncate pr-3">
+                {inv.name}
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {ASSET_LABELS[inv.asset_type] ?? inv.asset_type}
+                </span>
+              </span>
+              <span className="tabular-nums">
+                {formatCurrency(
+                  convertFromINR(
+                    inv.current_value_inr,
+                    account.currency as any,
+                    rates
+                  ),
+                  account.currency
+                )}
+              </span>
+            </div>
+          ))}
+          <div className="flex justify-between py-0.5 border-t border-border/30 mt-1 pt-1">
+            <span className="text-muted-foreground">
+              Cash &amp; opening balance (not from holdings)
+            </span>
+            <span className="tabular-nums">
+              {formatCurrency(seedBalance, account.currency)}
+            </span>
+          </div>
+        </div>
+
         {/* Floating Quick Entry Form */}
         <div className="bg-card border border-border/30 rounded-3xl shadow-sm mx-6 my-4 overflow-hidden animate-fade-in flex-shrink-0">
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 px-5 pt-4 flex items-center gap-1.5 select-none">
@@ -302,7 +364,7 @@ function LinkedAccountSheet({
                         {formatDateLabel(t.date)}
                       </div>
                     )}
-                    
+
                     <div className="flex items-center justify-between px-6 py-3.5 hover:bg-muted/20 group/txn transition-colors relative border-b border-border/20 last:border-0 bg-background/5">
                       {/* Left: Payee + Badges */}
                       <div className="min-w-0 flex-1 pr-4">
@@ -331,19 +393,22 @@ function LinkedAccountSheet({
                               t.type === "income"
                                 ? "text-positive"
                                 : t.type === "expense"
-                                ? "text-negative"
-                                : "text-primary"
+                                  ? "text-negative"
+                                  : "text-primary"
                             }`}
                           >
                             {t.type === "income"
                               ? "+"
                               : t.type === "expense"
-                              ? "−"
-                              : "⇄"}
+                                ? "−"
+                                : "⇄"}
                             {formatCurrency(t.amount, account.currency)}
                           </p>
                           <p className="text-[10px] text-muted-foreground/80 font-bold tabular-nums mt-1 select-all">
-                            {formatCurrency(runningBalances[t.id] ?? 0, account.currency)}
+                            {formatCurrency(
+                              runningBalances[t.id] ?? 0,
+                              account.currency
+                            )}
                           </p>
                           {showHint && (
                             <p className="text-[9px] text-muted-foreground/60 font-semibold tabular-nums mt-0.5">
@@ -358,11 +423,13 @@ function LinkedAccountSheet({
                         {/* Action buttons (float on hover) */}
                         <div className="opacity-0 group-hover/txn:opacity-100 flex items-center gap-1 bg-background/90 backdrop-blur rounded-lg p-0.5 border border-border/40 shadow-md transition-opacity duration-150 absolute right-4 top-1/2 -translate-y-1/2 z-20">
                           <button
+                            type="button"
                             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-negative transition-colors duration-150"
                             onClick={() => {
-                              const confirmMsg = t.type === "transfer"
-                                ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity. Are you sure you want to proceed?"
-                                : "Are you sure you want to delete this transaction?";
+                              const confirmMsg =
+                                t.type === "transfer"
+                                  ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity. Are you sure you want to proceed?"
+                                  : "Are you sure you want to delete this transaction?";
                               if (window.confirm(confirmMsg)) {
                                 deleteTxn(t.id, {
                                   onSuccess: () => toast.success("Deleted"),
@@ -431,15 +498,12 @@ function AddLinkedAccountDialog({ trigger }: { trigger: React.ReactNode }) {
   const { mutate: create, isPending } = useCreateAccount();
 
   const submit = (data: any) => {
-    create(
-      data,
-      {
-        onSuccess: () => {
-          toast.success("Account added");
-        },
-        onError: (e) => toast.error(e.message),
-      }
-    );
+    create(data, {
+      onSuccess: () => {
+        toast.success("Account added");
+      },
+      onError: (e) => toast.error(e.message),
+    });
   };
 
   return (
@@ -697,7 +761,8 @@ function InvestmentFormDialog({
       : null;
   const valueDelta =
     isEdit && initial && form.current_value !== ""
-      ? parseFloat(form.current_value) - parseFloat(initial.current_value || "0")
+      ? parseFloat(form.current_value) -
+        parseFloat(initial.current_value || "0")
       : null;
   const marketPart =
     valueDelta !== null && contributionAmount !== null
@@ -719,7 +784,9 @@ function InvestmentFormDialog({
       account_id: form.account_id || null,
       maturity_date: form.maturity_date || null,
       // Only meaningful on an edit: how much of the value change is new money.
-      ...(contributionAmount !== null ? { contribution: contributionAmount } : {}),
+      ...(contributionAmount !== null
+        ? { contribution: contributionAmount }
+        : {}),
     });
     setOpen(false);
   };
@@ -1068,7 +1135,9 @@ function InvestmentHistorySheet({
 }) {
   const { data: historyData, isLoading } = useValueHistory(inv?.id ?? null);
   const history = historyData?.history ?? [];
-  const [activeTab, setActiveTab] = useState<"history" | "documents">("history");
+  const [activeTab, setActiveTab] = useState<"history" | "documents">(
+    "history"
+  );
   const { mutate: bulkContributions, isPending: bulkPending } =
     useBulkContributions();
 
@@ -1140,22 +1209,32 @@ function InvestmentHistorySheet({
               </p>
             </div>
           </div>
-          {inv?.maturity_date && (() => {
-            const isMatured = new Date(inv.maturity_date) <= new Date();
-            return (
-              <div className="mt-3 flex items-center gap-1 text-xs select-none">
-                <span className="text-muted-foreground">Maturity:</span>
-                <span className={`font-semibold ${isMatured ? "text-muted-foreground line-through" : "text-amber-600 dark:text-amber-400 animate-pulse-subtle"}`}>
-                  {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: "long" })}
-                </span>
-                {isMatured && <span className="text-[10px] uppercase font-bold text-muted-foreground/75 px-1.5 py-0.5 rounded bg-muted">Matured</span>}
-              </div>
-            );
-          })()}
+          {inv?.maturity_date &&
+            (() => {
+              const isMatured = new Date(inv.maturity_date) <= new Date();
+              return (
+                <div className="mt-3 flex items-center gap-1 text-xs select-none">
+                  <span className="text-muted-foreground">Maturity:</span>
+                  <span
+                    className={`font-semibold ${isMatured ? "text-muted-foreground line-through" : "text-amber-600 dark:text-amber-400 animate-pulse-subtle"}`}
+                  >
+                    {new Date(inv.maturity_date).toLocaleDateString(undefined, {
+                      dateStyle: "long",
+                    })}
+                  </span>
+                  {isMatured && (
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground/75 px-1.5 py-0.5 rounded bg-muted">
+                      Matured
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
         </SheetHeader>
 
         <div className="flex border-b px-6 bg-muted/10 flex-shrink-0">
           <button
+            type="button"
             onClick={() => setActiveTab("history")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "history"
@@ -1167,6 +1246,7 @@ function InvestmentHistorySheet({
             Value History
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("documents")}
             className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-all flex items-center justify-center gap-2 ${
               activeTab === "documents"
@@ -1316,10 +1396,7 @@ function InvestmentHistorySheet({
           ) : (
             <div className="px-6 py-5">
               {inv && (
-                <InvestmentDocuments
-                  investmentId={inv.id}
-                  investment={inv}
-                />
+                <InvestmentDocuments investmentId={inv.id} investment={inv} />
               )}
             </div>
           )}
@@ -1348,12 +1425,24 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
   const [activeDonutIndex, setActiveDonutIndex] = useState<number | null>(null);
 
   const [groupByType, setGroupByType] = useState(true);
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<string, boolean>
+  >({});
   const [sortBy, setSortBy] = useState<
-    "name" | "purchase_date_desc" | "purchase_date_asc" | "maturity_date_asc" | "maturity_date_desc" | "value_desc" | "gain"
+    | "name"
+    | "purchase_date_desc"
+    | "purchase_date_asc"
+    | "maturity_date_asc"
+    | "maturity_date_desc"
+    | "value_desc"
+    | "gain"
   >("name");
 
-  const compareMaturityDates = (a: InvestmentResponse, b: InvestmentResponse, ascending: boolean) => {
+  const compareMaturityDates = (
+    a: InvestmentResponse,
+    b: InvestmentResponse,
+    ascending: boolean
+  ) => {
     const dateA = a.maturity_date;
     const dateB = b.maturity_date;
     if (!dateA && !dateB) return a.name.localeCompare(b.name);
@@ -1370,25 +1459,25 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
     return data.investments
       .filter((inv) => !isPhysicalAsset(inv.asset_type))
       .sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return a.name.localeCompare(b.name);
-        case "purchase_date_desc":
-          return b.purchase_date.localeCompare(a.purchase_date);
-        case "purchase_date_asc":
-          return a.purchase_date.localeCompare(b.purchase_date);
-        case "maturity_date_asc":
-          return compareMaturityDates(a, b, true);
-        case "maturity_date_desc":
-          return compareMaturityDates(a, b, false);
-        case "value_desc":
-          return b.current_value_inr - a.current_value_inr;
-        case "gain":
-          return b.gain_loss_inr - a.gain_loss_inr;
-        default:
-          return 0;
-      }
-    });
+        switch (sortBy) {
+          case "name":
+            return a.name.localeCompare(b.name);
+          case "purchase_date_desc":
+            return b.purchase_date.localeCompare(a.purchase_date);
+          case "purchase_date_asc":
+            return a.purchase_date.localeCompare(b.purchase_date);
+          case "maturity_date_asc":
+            return compareMaturityDates(a, b, true);
+          case "maturity_date_desc":
+            return compareMaturityDates(a, b, false);
+          case "value_desc":
+            return b.current_value_inr - a.current_value_inr;
+          case "gain":
+            return b.gain_loss_inr - a.gain_loss_inr;
+          default:
+            return 0;
+        }
+      });
   }, [data?.investments, sortBy]);
 
   const groupedInvestments = useMemo(() => {
@@ -1401,27 +1490,39 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
       groups[type].push(inv);
     });
 
-    return Object.entries(groups).map(([type, items]) => {
-      // Basis, not the original purchase — otherwise a group containing a
-      // topped-up holding shows a gain that none of its rows agree with.
-      const purchaseSumINR = items.reduce((sum, item) => sum + (item.cost_basis_inr || 0), 0);
-      const currentSumINR = items.reduce((sum, item) => sum + (item.current_value_inr || 0), 0);
-      const gainLossSumINR = items.reduce((sum, item) => sum + (item.gain_loss_inr || 0), 0);
-      const gainLossPct = purchaseSumINR > 0 ? (gainLossSumINR / purchaseSumINR) * 100 : 0;
+    return Object.entries(groups)
+      .map(([type, items]) => {
+        // Basis, not the original purchase — otherwise a group containing a
+        // topped-up holding shows a gain that none of its rows agree with.
+        const purchaseSumINR = items.reduce(
+          (sum, item) => sum + (item.cost_basis_inr || 0),
+          0
+        );
+        const currentSumINR = items.reduce(
+          (sum, item) => sum + (item.current_value_inr || 0),
+          0
+        );
+        const gainLossSumINR = items.reduce(
+          (sum, item) => sum + (item.gain_loss_inr || 0),
+          0
+        );
+        const gainLossPct =
+          purchaseSumINR > 0 ? (gainLossSumINR / purchaseSumINR) * 100 : 0;
 
-      return {
-        type,
-        items,
-        purchaseSumINR,
-        currentSumINR,
-        gainLossSumINR,
-        gainLossPct,
-      };
-    }).sort((a, b) => {
-      const labelA = ASSET_LABELS[a.type] ?? a.type;
-      const labelB = ASSET_LABELS[b.type] ?? b.type;
-      return labelA.localeCompare(labelB);
-    });
+        return {
+          type,
+          items,
+          purchaseSumINR,
+          currentSumINR,
+          gainLossSumINR,
+          gainLossPct,
+        };
+      })
+      .sort((a, b) => {
+        const labelA = ASSET_LABELS[a.type] ?? a.type;
+        const labelB = ASSET_LABELS[b.type] ?? b.type;
+        return labelA.localeCompare(labelB);
+      });
   }, [sortedInvestments]);
 
   const toggleGroup = (type: string) => {
@@ -1440,7 +1541,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
     );
 
   const linkedAccounts = (accountsData?.accounts ?? []).filter(
-    (a) => a.off_budget && ["investment", "savings", "checking", "cash"].includes(a.type)
+    (a) =>
+      a.off_budget &&
+      ["investment", "savings", "checking", "cash"].includes(a.type)
   );
   const { visible: shownLinkedAccounts, hiddenCount: hiddenZeroCount } =
     useZeroBalanceFilter(linkedAccounts);
@@ -1512,7 +1615,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
       {portfolio && donutData.length > 0 && (
         <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm">
           <CardHeader className="pt-5 pb-1 px-6">
-            <CardTitle className="text-sm font-semibold tracking-tight">Portfolio Breakdown</CardTitle>
+            <CardTitle className="text-sm font-semibold tracking-tight">
+              Portfolio Breakdown
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-6">
             {/* Centered Donut Chart */}
@@ -1534,14 +1639,16 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                     {donutData.map((_, i) => {
                       const isHovered = activeDonutIndex === i;
                       return (
-                        <Cell 
-                          key={i} 
-                          fill={COLORS[i % COLORS.length]} 
+                        <Cell
+                          key={i}
+                          fill={COLORS[i % COLORS.length]}
                           stroke="none"
                           strokeWidth={0}
                           style={{
                             outline: "none",
-                            filter: isHovered ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))" : "none",
+                            filter: isHovered
+                              ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))"
+                              : "none",
                             transition: "all 0.2s ease-in-out",
                           }}
                         />
@@ -1553,10 +1660,17 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-2">
                 <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground/80 truncate max-w-[110px] leading-tight">
-                  {activeDonutIndex !== null && donutData[activeDonutIndex] ? (ASSET_LABELS[donutData[activeDonutIndex].name] ?? donutData[activeDonutIndex].name) : "Total Portfolio"}
+                  {activeDonutIndex !== null && donutData[activeDonutIndex]
+                    ? (ASSET_LABELS[donutData[activeDonutIndex].name] ??
+                      donutData[activeDonutIndex].name)
+                    : "Total Portfolio"}
                 </span>
                 <span className="text-sm font-extrabold tracking-tight mt-0.5 tabular-nums text-foreground truncate max-w-[110px]">
-                  {fmt(activeDonutIndex !== null && donutData[activeDonutIndex] ? donutData[activeDonutIndex].value : portfolio.total_inr)}
+                  {fmt(
+                    activeDonutIndex !== null && donutData[activeDonutIndex]
+                      ? donutData[activeDonutIndex].value
+                      : portfolio.total_inr
+                  )}
                 </span>
               </div>
             </div>
@@ -1569,7 +1683,10 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                     ? (d.value / portfolio.total_inr) * 100
                     : 0;
                 return (
-                  <div key={d.name} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-border/30">
+                  <div
+                    key={d.name}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 transition-colors border border-transparent hover:border-border/30"
+                  >
                     <div className="flex items-center gap-2.5">
                       <div
                         className="w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-black/10"
@@ -1708,13 +1825,27 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                             title="Delete account"
                             onClick={async () => {
                               try {
-                                const txnsData = await budgetApi.getTransactions({ account_id: a.id, limit: 200 });
-                                const hasTransfers = txnsData.transactions.some((t: any) => t.type === "transfer" || t.transfer_pair_id != null);
+                                const txnsData =
+                                  await budgetApi.getTransactions({
+                                    account_id: a.id,
+                                    limit: 200,
+                                  });
+                                const hasTransfers = txnsData.transactions.some(
+                                  (t: any) =>
+                                    t.type === "transfer" ||
+                                    t.transfer_pair_id != null
+                                );
                                 if (hasTransfers) {
-                                  alert("This account cannot be deleted because it contains transactions involving transfers. To preserve double-entry integrity, please delete the transfers individually first from their respective accounts.");
+                                  alert(
+                                    "This account cannot be deleted because it contains transactions involving transfers. To preserve double-entry integrity, please delete the transfers individually first from their respective accounts."
+                                  );
                                   return;
                                 }
-                                if (window.confirm(`Are you sure you want to delete the linked account "${a.name}"? This will permanently delete the account and all associated transfer history.`)) {
+                                if (
+                                  window.confirm(
+                                    `Are you sure you want to delete the linked account "${a.name}"? This will permanently delete the account and all associated transfer history.`
+                                  )
+                                ) {
                                   deleteAccount(a.id, {
                                     onSuccess: () =>
                                       toast.success("Account deleted"),
@@ -1722,7 +1853,9 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                                   });
                                 }
                               } catch (e: any) {
-                                toast.error("Failed to check for associated transfers");
+                                toast.error(
+                                  "Failed to check for associated transfers"
+                                );
                               }
                             }}
                           >
@@ -1777,18 +1910,26 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
         <div className="space-y-4">
           {/* Custom premium toggle bar */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">Holdings</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/80">
+              Holdings
+            </h2>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5 text-xs">
-                <span className="text-muted-foreground font-medium select-none">Sort:</span>
+                <span className="text-muted-foreground font-medium select-none">
+                  Sort:
+                </span>
                 <select
                   value={sortBy}
                   onChange={(e: any) => setSortBy(e.target.value)}
                   className="bg-background border rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-ring select-none"
                 >
                   <option value="name">Name (A-Z)</option>
-                  <option value="purchase_date_desc">Purchase Date (Newest)</option>
-                  <option value="purchase_date_asc">Purchase Date (Oldest)</option>
+                  <option value="purchase_date_desc">
+                    Purchase Date (Newest)
+                  </option>
+                  <option value="purchase_date_asc">
+                    Purchase Date (Oldest)
+                  </option>
                   <option value="maturity_date_asc">Maturity Soonest</option>
                   <option value="maturity_date_desc">Maturity Furthest</option>
                   <option value="value_desc">Current Value (High)</option>
@@ -1798,6 +1939,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
 
               <div className="flex bg-muted/40 p-0.5 rounded-lg border border-border/30 backdrop-blur-sm shadow-sm select-none">
                 <button
+                  type="button"
                   onClick={() => setGroupByType(true)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
                     groupByType
@@ -1809,6 +1951,7 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                   Group by Type
                 </button>
                 <button
+                  type="button"
                   onClick={() => setGroupByType(false)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-wider transition-all duration-200 ${
                     !groupByType
@@ -1846,386 +1989,449 @@ export default function InvestmentsPage({ embed }: { embed?: boolean }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {groupByType ? (
-                  groupedInvestments.map((g) => {
-                    const isCollapsed = !!collapsedGroups[g.type];
-                    const pos = g.gainLossSumINR >= 0;
-                    return (
-                      <Fragment key={g.type}>
-                        <tr
-                          onClick={() => toggleGroup(g.type)}
-                          className="bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer select-none font-semibold border-b border-t first:border-t-0"
-                        >
-                          <td className="px-4 py-3.5">
-                            <div className="flex items-center gap-2">
-                              {isCollapsed ? (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200" />
-                              )}
-                              <span className="text-foreground font-bold tracking-tight">
-                                {ASSET_LABELS[g.type] ?? g.type}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/80 text-muted-foreground">
-                                {g.items.length} {g.items.length === 1 ? "holding" : "holdings"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5" />
-                          <td className="px-4 py-3.5 text-right font-bold tabular-nums">
-                            {fmt(g.purchaseSumINR)}
-                          </td>
-                          <td className="px-4 py-3.5 text-right font-bold tabular-nums">
-                            {fmt(g.currentSumINR)}
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className={`text-right font-bold tabular-nums ${pos ? "text-positive" : "text-negative"}`}>
-                              <div>
-                                {pos ? "+" : ""}
-                                {fmt(g.gainLossSumINR)}
-                              </div>
-                              <div className="text-[10px] font-extrabold opacity-80 mt-0.5">
-                                {pos ? "+" : ""}
-                                {g.gainLossPct.toFixed(2)}%
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5" />
-                        </tr>
-                        {!isCollapsed &&
-                          g.items.map((inv) => (
-                            <tr
-                              key={inv.id}
-                              className="hover:bg-muted/10 transition-colors cursor-pointer border-b border-border/40 last:border-b-0"
-                              onClick={() => setSelectedInv(inv)}
-                            >
-                              <td className="px-4 py-3 pl-8">
-                                <div className="font-medium flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-foreground/90">{inv.name}</span>
-                                  {inv.account_id ? (
-                                    (() => {
-                                      const acc = (accountsData?.accounts ?? []).find(
-                                        (a: any) => a.id === inv.account_id
-                                      );
-                                      return acc ? (
-                                        <Badge
-                                          variant="outline"
-                                          className="text-[9px] h-4 px-1 py-0 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 capitalize font-normal select-none"
-                                        >
-                                          {acc.name} ({acc.currency})
-                                        </Badge>
-                                      ) : null;
-                                    })()
-                                  ) : (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[9px] h-4 px-1.5 py-0 bg-muted text-muted-foreground border-muted-foreground/20 capitalize font-medium select-none"
-                                    >
-                                      Standalone
-                                    </Badge>
-                                  )}
-                                </div>
-                                {inv.units && (
-                                  <div className="text-xs text-muted-foreground/80 mt-0.5">
-                                    {inv.units} units
-                                  </div>
+                {groupByType
+                  ? groupedInvestments.map((g) => {
+                      const isCollapsed = !!collapsedGroups[g.type];
+                      const pos = g.gainLossSumINR >= 0;
+                      return (
+                        <Fragment key={g.type}>
+                          <tr
+                            onClick={() => toggleGroup(g.type)}
+                            className="bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer select-none font-semibold border-b border-t first:border-t-0"
+                          >
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                {isCollapsed ? (
+                                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200" />
                                 )}
-                                {inv.maturity_date && (() => {
-                                  const isMatured = new Date(inv.maturity_date) <= new Date();
-                                  return (
-                                    <div className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
-                                      {isMatured ? "Matured: " : "Matures: "}
-                                      {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                                    </div>
-                                  );
-                                })()}
-                                {inv.current_value_at && (
-                                  <div className="text-xs text-muted-foreground/80 mt-0.5">
-                                    Updated{" "}
-                                    {new Date(inv.current_value_at).toLocaleDateString()}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <Badge variant="secondary" className="text-[10px] font-medium bg-muted/60 text-muted-foreground">
-                                  {ASSET_LABELS[inv.asset_type] ?? inv.asset_type}
-                                </Badge>
-                                <div className="text-xs text-muted-foreground/80 mt-0.5">
-                                  {inv.currency}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3">
-                                <MoneyCell
-                                  native={inv.cost_basis}
-                                  nativeCurrency={inv.currency}
-                                  inr={inv.cost_basis_inr}
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <MoneyCell
-                                  native={inv.current_value}
-                                  nativeCurrency={inv.currency}
-                                  inr={inv.current_value_inr}
-                                />
-                              </td>
-                              <td className="px-4 py-3">
-                                <GainLossCell inv={inv} fmt={fmt} />
-                              </td>
-                              <td
-                                className="px-4 py-3"
-                                onClick={(e) => e.stopPropagation()}
+                                <span className="text-foreground font-bold tracking-tight">
+                                  {ASSET_LABELS[g.type] ?? g.type}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-muted/80 text-muted-foreground">
+                                  {g.items.length}{" "}
+                                  {g.items.length === 1
+                                    ? "holding"
+                                    : "holdings"}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5" />
+                            <td className="px-4 py-3.5 text-right font-bold tabular-nums">
+                              {fmt(g.purchaseSumINR)}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-bold tabular-nums">
+                              {fmt(g.currentSumINR)}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div
+                                className={`text-right font-bold tabular-nums ${pos ? "text-positive" : "text-negative"}`}
                               >
-                                <div className="flex gap-1 justify-end">
-                                  <InvestmentFormDialog
-                                    title="Edit Investment"
-                                    trigger={
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        title="Edit investment"
+                                <div>
+                                  {pos ? "+" : ""}
+                                  {fmt(g.gainLossSumINR)}
+                                </div>
+                                <div className="text-[10px] font-extrabold opacity-80 mt-0.5">
+                                  {pos ? "+" : ""}
+                                  {g.gainLossPct.toFixed(2)}%
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5" />
+                          </tr>
+                          {!isCollapsed &&
+                            g.items.map((inv) => (
+                              <tr
+                                key={inv.id}
+                                className="hover:bg-muted/10 transition-colors cursor-pointer border-b border-border/40 last:border-b-0"
+                                onClick={() => setSelectedInv(inv)}
+                              >
+                                <td className="px-4 py-3 pl-8">
+                                  <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-foreground/90">
+                                      {inv.name}
+                                    </span>
+                                    {inv.account_id ? (
+                                      (() => {
+                                        const acc = (
+                                          accountsData?.accounts ?? []
+                                        ).find(
+                                          (a: any) => a.id === inv.account_id
+                                        );
+                                        return acc ? (
+                                          <Badge
+                                            variant="outline"
+                                            className="text-[9px] h-4 px-1 py-0 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 capitalize font-normal select-none"
+                                          >
+                                            {acc.name} ({acc.currency})
+                                          </Badge>
+                                        ) : null;
+                                      })()
+                                    ) : (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[9px] h-4 px-1.5 py-0 bg-muted text-muted-foreground border-muted-foreground/20 capitalize font-medium select-none"
                                       >
-                                        <Pencil className="w-3 h-3" />
-                                      </Button>
-                                    }
-                                    isPending={updating}
-                                    initial={{
-                                      name: inv.name,
-                                      asset_type: inv.asset_type as any,
-                                      currency: inv.currency as any,
-                                      purchase_value: String(inv.purchase_value),
-                                      current_value: String(inv.current_value),
-                                      purchase_date: inv.purchase_date,
-                                      units: inv.units != null ? String(inv.units) : "",
-                                      notes: inv.notes ?? "",
-                                      account_id: inv.account_id ?? "",
-                                      maturity_date: inv.maturity_date ?? "",
-                                      contribution: "",
-                                    }}
-                                    onSubmit={(data) =>
-                                      updateInv(
-                                        { id: inv.id, data },
-                                        {
-                                          onSuccess: () =>
-                                            toast.success("Investment updated"),
-                                          onError: (e) => toast.error(e.message),
-                                        }
-                                      )
-                                    }
+                                        Standalone
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {inv.units && (
+                                    <div className="text-xs text-muted-foreground/80 mt-0.5">
+                                      {inv.units} units
+                                    </div>
+                                  )}
+                                  {inv.maturity_date &&
+                                    (() => {
+                                      const isMatured =
+                                        new Date(inv.maturity_date) <=
+                                        new Date();
+                                      return (
+                                        <div
+                                          className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}
+                                        >
+                                          {isMatured
+                                            ? "Matured: "
+                                            : "Matures: "}
+                                          {new Date(
+                                            inv.maturity_date
+                                          ).toLocaleDateString(undefined, {
+                                            dateStyle: "medium",
+                                          })}
+                                        </div>
+                                      );
+                                    })()}
+                                  {inv.current_value_at && (
+                                    <div className="text-xs text-muted-foreground/80 mt-0.5">
+                                      Updated{" "}
+                                      {new Date(
+                                        inv.current_value_at
+                                      ).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] font-medium bg-muted/60 text-muted-foreground"
+                                  >
+                                    {ASSET_LABELS[inv.asset_type] ??
+                                      inv.asset_type}
+                                  </Badge>
+                                  <div className="text-xs text-muted-foreground/80 mt-0.5">
+                                    {inv.currency}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <MoneyCell
+                                    native={inv.cost_basis}
+                                    nativeCurrency={inv.currency}
+                                    inr={inv.cost_basis_inr}
+                                    fmt={fmt}
+                                    defaultCurrency={defaultCurrency}
                                   />
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    disabled={refreshingId === inv.id}
-                                    title="Refresh price from web"
-                                    onClick={() => {
-                                      setRefreshingId(inv.id);
-                                      refreshPrice(inv.id, {
-                                        onSuccess: () => {
-                                          toast.success("Price refreshed");
-                                          setRefreshingId(null);
-                                        },
-                                        onError: (e) => {
-                                          toast.error(e.message);
-                                          setRefreshingId(null);
-                                        },
-                                      });
-                                    }}
-                                  >
-                                    <RefreshCw
-                                      className={`w-3 h-3 ${refreshingId === inv.id ? "animate-spin" : ""}`}
-                                    />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive"
-                                    title="Delete investment"
-                                    onClick={() => {
-                                      if (window.confirm(`Are you sure you want to delete the investment "${inv.name}"?`)) {
-                                        deleteInv(inv.id, {
-                                          onSuccess: () => toast.success("Deleted"),
-                                          onError: (e) => toast.error(e.message),
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                      </Fragment>
-                    );
-                  })
-                ) : (
-                  sortedInvestments.map((inv) => (
-                    <tr
-                      key={inv.id}
-                      className="hover:bg-muted/20 transition-colors cursor-pointer border-b last:border-b-0"
-                      onClick={() => setSelectedInv(inv)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-medium flex items-center gap-1.5 flex-wrap">
-                          <span>{inv.name}</span>
-                          {inv.account_id ? (
-                            (() => {
-                              const acc = (accountsData?.accounts ?? []).find(
-                                (a: any) => a.id === inv.account_id
-                              );
-                              return acc ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-[9px] h-4 px-1 py-0 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 capitalize font-normal select-none"
+                                </td>
+                                <td className="px-4 py-3">
+                                  <MoneyCell
+                                    native={inv.current_value}
+                                    nativeCurrency={inv.currency}
+                                    inr={inv.current_value_inr}
+                                    fmt={fmt}
+                                    defaultCurrency={defaultCurrency}
+                                  />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <GainLossCell inv={inv} fmt={fmt} />
+                                </td>
+                                <td
+                                  className="px-4 py-3"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  {acc.name} ({acc.currency})
-                                </Badge>
-                              ) : null;
-                            })()
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] h-4 px-1.5 py-0 bg-muted text-muted-foreground border-muted-foreground/20 capitalize font-medium select-none"
-                            >
-                              Standalone
-                            </Badge>
-                          )}
-                        </div>
-                        {inv.units && (
-                          <div className="text-xs text-muted-foreground">
-                            {inv.units} units
-                          </div>
-                        )}
-                        {inv.maturity_date && (() => {
-                          const isMatured = new Date(inv.maturity_date) <= new Date();
-                          return (
-                            <div className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>
-                              {isMatured ? "Matured: " : "Matures: "}
-                              {new Date(inv.maturity_date).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                            </div>
-                          );
-                        })()}
-                        {inv.current_value_at && (
-                          <div className="text-xs text-muted-foreground">
-                            Updated{" "}
-                            {new Date(inv.current_value_at).toLocaleDateString()}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant="secondary" className="text-xs">
-                          {ASSET_LABELS[inv.asset_type] ?? inv.asset_type}
-                        </Badge>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {inv.currency}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <MoneyCell
-                          native={inv.cost_basis}
-                          nativeCurrency={inv.currency}
-                          inr={inv.cost_basis_inr}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <MoneyCell
-                          native={inv.current_value}
-                          nativeCurrency={inv.currency}
-                          inr={inv.current_value_inr}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <GainLossCell inv={inv} fmt={fmt} />
-                      </td>
-                      <td
-                        className="px-4 py-3"
-                        onClick={(e) => e.stopPropagation()}
+                                  <div className="flex gap-1 justify-end">
+                                    <InvestmentFormDialog
+                                      title="Edit Investment"
+                                      trigger={
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          title="Edit investment"
+                                        >
+                                          <Pencil className="w-3 h-3" />
+                                        </Button>
+                                      }
+                                      isPending={updating}
+                                      initial={{
+                                        name: inv.name,
+                                        asset_type: inv.asset_type as any,
+                                        currency: inv.currency as any,
+                                        purchase_value: String(
+                                          inv.purchase_value
+                                        ),
+                                        current_value: String(
+                                          inv.current_value
+                                        ),
+                                        purchase_date: inv.purchase_date,
+                                        units:
+                                          inv.units != null
+                                            ? String(inv.units)
+                                            : "",
+                                        notes: inv.notes ?? "",
+                                        account_id: inv.account_id ?? "",
+                                        maturity_date: inv.maturity_date ?? "",
+                                        contribution: "",
+                                      }}
+                                      onSubmit={(data) =>
+                                        updateInv(
+                                          { id: inv.id, data },
+                                          {
+                                            onSuccess: () =>
+                                              toast.success(
+                                                "Investment updated"
+                                              ),
+                                            onError: (e) =>
+                                              toast.error(e.message),
+                                          }
+                                        )
+                                      }
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      disabled={refreshingId === inv.id}
+                                      title="Refresh price from web"
+                                      onClick={() => {
+                                        setRefreshingId(inv.id);
+                                        refreshPrice(inv.id, {
+                                          onSuccess: () => {
+                                            toast.success("Price refreshed");
+                                            setRefreshingId(null);
+                                          },
+                                          onError: (e) => {
+                                            toast.error(e.message);
+                                            setRefreshingId(null);
+                                          },
+                                        });
+                                      }}
+                                    >
+                                      <RefreshCw
+                                        className={`w-3 h-3 ${refreshingId === inv.id ? "animate-spin" : ""}`}
+                                      />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive"
+                                      title="Delete investment"
+                                      onClick={() => {
+                                        if (
+                                          window.confirm(
+                                            `Are you sure you want to delete the investment "${inv.name}"?`
+                                          )
+                                        ) {
+                                          deleteInv(inv.id, {
+                                            onSuccess: () =>
+                                              toast.success("Deleted"),
+                                            onError: (e) =>
+                                              toast.error(e.message),
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                        </Fragment>
+                      );
+                    })
+                  : sortedInvestments.map((inv) => (
+                      <tr
+                        key={inv.id}
+                        className="hover:bg-muted/20 transition-colors cursor-pointer border-b last:border-b-0"
+                        onClick={() => setSelectedInv(inv)}
                       >
-                        <div className="flex gap-1 justify-end">
-                          <InvestmentFormDialog
-                            title="Edit Investment"
-                            trigger={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                title="Edit investment"
+                        <td className="px-4 py-3">
+                          <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                            <span>{inv.name}</span>
+                            {inv.account_id ? (
+                              (() => {
+                                const acc = (accountsData?.accounts ?? []).find(
+                                  (a: any) => a.id === inv.account_id
+                                );
+                                return acc ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] h-4 px-1 py-0 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 capitalize font-normal select-none"
+                                  >
+                                    {acc.name} ({acc.currency})
+                                  </Badge>
+                                ) : null;
+                              })()
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] h-4 px-1.5 py-0 bg-muted text-muted-foreground border-muted-foreground/20 capitalize font-medium select-none"
                               >
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                            }
-                            isPending={updating}
-                            initial={{
-                              name: inv.name,
-                              asset_type: inv.asset_type as any,
-                              currency: inv.currency as any,
-                              purchase_value: String(inv.purchase_value),
-                              current_value: String(inv.current_value),
-                              purchase_date: inv.purchase_date,
-                              units: inv.units != null ? String(inv.units) : "",
-                              notes: inv.notes ?? "",
-                              account_id: inv.account_id ?? "",
-                              maturity_date: inv.maturity_date ?? "",
-                              contribution: "",
-                            }}
-                            onSubmit={(data) =>
-                              updateInv(
-                                { id: inv.id, data },
-                                {
-                                  onSuccess: () =>
-                                    toast.success("Investment updated"),
-                                  onError: (e) => toast.error(e.message),
-                                }
-                              )
-                            }
+                                Standalone
+                              </Badge>
+                            )}
+                          </div>
+                          {inv.units && (
+                            <div className="text-xs text-muted-foreground">
+                              {inv.units} units
+                            </div>
+                          )}
+                          {inv.maturity_date &&
+                            (() => {
+                              const isMatured =
+                                new Date(inv.maturity_date) <= new Date();
+                              return (
+                                <div
+                                  className={`text-xs font-semibold mt-0.5 ${isMatured ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}
+                                >
+                                  {isMatured ? "Matured: " : "Matures: "}
+                                  {new Date(
+                                    inv.maturity_date
+                                  ).toLocaleDateString(undefined, {
+                                    dateStyle: "medium",
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          {inv.current_value_at && (
+                            <div className="text-xs text-muted-foreground">
+                              Updated{" "}
+                              {new Date(
+                                inv.current_value_at
+                              ).toLocaleDateString()}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="secondary" className="text-xs">
+                            {ASSET_LABELS[inv.asset_type] ?? inv.asset_type}
+                          </Badge>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {inv.currency}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <MoneyCell
+                            native={inv.cost_basis}
+                            nativeCurrency={inv.currency}
+                            inr={inv.cost_basis_inr}
+                            fmt={fmt}
+                            defaultCurrency={defaultCurrency}
                           />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            disabled={refreshingId === inv.id}
-                            title="Refresh price from web"
-                            onClick={() => {
-                              setRefreshingId(inv.id);
-                              refreshPrice(inv.id, {
-                                onSuccess: () => {
-                                  toast.success("Price refreshed");
-                                  setRefreshingId(null);
-                                },
-                                onError: (e) => {
-                                  toast.error(e.message);
-                                  setRefreshingId(null);
-                                },
-                              });
-                            }}
-                          >
-                            <RefreshCw
-                              className={`w-3 h-3 ${refreshingId === inv.id ? "animate-spin" : ""}`}
-                            />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive"
-                            title="Delete investment"
-                            onClick={() => {
-                              if (window.confirm(`Are you sure you want to delete the investment "${inv.name}"?`)) {
-                                deleteInv(inv.id, {
-                                  onSuccess: () => toast.success("Deleted"),
-                                  onError: (e) => toast.error(e.message),
-                                });
+                        </td>
+                        <td className="px-4 py-3">
+                          <MoneyCell
+                            native={inv.current_value}
+                            nativeCurrency={inv.currency}
+                            inr={inv.current_value_inr}
+                            fmt={fmt}
+                            defaultCurrency={defaultCurrency}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <GainLossCell inv={inv} fmt={fmt} />
+                        </td>
+                        <td
+                          className="px-4 py-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex gap-1 justify-end">
+                            <InvestmentFormDialog
+                              title="Edit Investment"
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  title="Edit investment"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
                               }
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                              isPending={updating}
+                              initial={{
+                                name: inv.name,
+                                asset_type: inv.asset_type as any,
+                                currency: inv.currency as any,
+                                purchase_value: String(inv.purchase_value),
+                                current_value: String(inv.current_value),
+                                purchase_date: inv.purchase_date,
+                                units:
+                                  inv.units != null ? String(inv.units) : "",
+                                notes: inv.notes ?? "",
+                                account_id: inv.account_id ?? "",
+                                maturity_date: inv.maturity_date ?? "",
+                                contribution: "",
+                              }}
+                              onSubmit={(data) =>
+                                updateInv(
+                                  { id: inv.id, data },
+                                  {
+                                    onSuccess: () =>
+                                      toast.success("Investment updated"),
+                                    onError: (e) => toast.error(e.message),
+                                  }
+                                )
+                              }
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={refreshingId === inv.id}
+                              title="Refresh price from web"
+                              onClick={() => {
+                                setRefreshingId(inv.id);
+                                refreshPrice(inv.id, {
+                                  onSuccess: () => {
+                                    toast.success("Price refreshed");
+                                    setRefreshingId(null);
+                                  },
+                                  onError: (e) => {
+                                    toast.error(e.message);
+                                    setRefreshingId(null);
+                                  },
+                                });
+                              }}
+                            >
+                              <RefreshCw
+                                className={`w-3 h-3 ${refreshingId === inv.id ? "animate-spin" : ""}`}
+                              />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive"
+                              title="Delete investment"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `Are you sure you want to delete the investment "${inv.name}"?`
+                                  )
+                                ) {
+                                  deleteInv(inv.id, {
+                                    onSuccess: () => toast.success("Deleted"),
+                                    onError: (e) => toast.error(e.message),
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>

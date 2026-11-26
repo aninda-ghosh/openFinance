@@ -1,6 +1,20 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "files": {
+    "includes": [
+      "**",
+      "!**/crates/openfinance-core/tests/compat/fixtures",
+      "!**/crates/openfinance-core/src/ai/tools/definitions.json",
+      "!sample-data.json"
+    ]
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -8,7 +22,21 @@
   },
   "linter": {
     "enabled": true,
-    "rules": { "recommended": true }
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "useKeyWithClickEvents": "warn",
+        "noStaticElementInteractions": "warn",
+        "noLabelWithoutControl": "warn",
+        "noAutofocus": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "warn"
+      }
+    }
   },
   "formatter": {
     "enabled": true,
@@ -16,6 +44,14 @@
     "indentWidth": 2
   },
   "javascript": {
-    "formatter": { "quoteStyle": "double", "trailingCommas": "es5" }
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "es5"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
   }
 }

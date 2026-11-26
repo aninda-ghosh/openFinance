@@ -61,7 +61,12 @@ export const investmentsApi = {
     ),
   getDocuments: (investmentId: string) =>
     apiFetch<{ documents: any[] }>(`${BASE}/${investmentId}/documents`),
-  uploadDocument: (investmentId: string, name: string, file: File, notes?: string) => {
+  uploadDocument: (
+    investmentId: string,
+    name: string,
+    file: File,
+    notes?: string
+  ) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("name", name);

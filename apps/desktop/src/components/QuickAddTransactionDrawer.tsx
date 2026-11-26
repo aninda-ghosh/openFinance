@@ -26,6 +26,7 @@ export default function QuickAddTransactionDrawer() {
             </h2>
           </div>
           <button
+            type="button"
             onClick={() => setQuickAddOpen(false)}
             className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
           >

@@ -1,7 +1,28 @@
-import { ChevronLeft, ChevronRight, Search, X, Edit2, Trash2 } from "lucide-react";
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import { isTransferIn, isTransferOut } from "@openfinance/shared/constants";
+import { formatCurrency } from "@openfinance/shared/utils";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit2,
+  ListPlus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import TransactionForm from "@/components/TransactionForm";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -11,24 +32,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import TransactionForm from "@/components/TransactionForm";
-import { cn } from "@/lib/utils";
-import {
   useHoldingsExcludedBalances,
   useRunningBalances,
 } from "@/hooks/useRunningBalances";
-import { useAccounts, useTransactions, useEnvelopes, useDeleteTransaction, useExchangeRates } from "@/modules/budget/hooks/useBudget";
+import { MOD } from "@/lib/shortcuts";
+import { cn } from "@/lib/utils";
+import {
+  useAccounts,
+  useDeleteTransaction,
+  useEnvelopes,
+  useExchangeRates,
+  useTransactions,
+} from "@/modules/budget/hooks/useBudget";
 import { useInvestments } from "@/modules/investments/hooks/useInvestments";
 import { useAppStore } from "@/stores/app.store";
-import { isTransferIn, isTransferOut } from "@openfinance/shared/constants";
-import { formatCurrency } from "@openfinance/shared/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -121,6 +138,7 @@ function Filters({
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
         <Input
           placeholder="Search payee…"
+          data-shortcut="search"
           value={filters.search ?? ""}
           onChange={(e) => set({ search: e.target.value || undefined })}
           className="pl-8 w-48 h-8 text-sm"
@@ -348,7 +366,7 @@ export default function TransactionsPage() {
       const parts = dateStr.slice(0, 10).split("-").map(Number);
       const d = new Date(parts[0], parts[1] - 1, parts[2]);
       if (isNaN(d.getTime())) return dateStr;
-      
+
       const formatKey = (date: Date) => {
         const y = date.getFullYear();
         const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -390,11 +408,21 @@ export default function TransactionsPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
         <h1 className="text-xl font-semibold">Transactions</h1>
-        {total > 0 && (
-          <span className="text-sm text-muted-foreground">
-            {total.toLocaleString()} total
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {total > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {total.toLocaleString()} total
+            </span>
+          )}
+          <Link
+            to="/bulk-add"
+            title={`Paste a statement (${MOD}⇧N)`}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors"
+          >
+            <ListPlus className="w-4 h-4" />
+            Bulk add
+          </Link>
+        </div>
       </div>
 
       {/* Filter bar */}
@@ -426,9 +454,12 @@ export default function TransactionsPage() {
                 <div className="space-y-2">
                   {items.map((txn: any) => {
                     const isCredit = txn.type === "income" || isTransferIn(txn);
-                    const amtColor = isCredit ? "text-positive" : "text-negative";
+                    const amtColor = isCredit
+                      ? "text-positive"
+                      : "text-negative";
                     const acctName = accountMap[txn.account_id] ?? "—";
-                    const currency = accountCurrencyMap[txn.account_id] ?? "INR";
+                    const currency =
+                      accountCurrencyMap[txn.account_id] ?? "INR";
                     const showConverted = currency !== defaultCurrency;
                     return (
                       <div
@@ -445,40 +476,51 @@ export default function TransactionsPage() {
                             </span>
                             <TypeBadge type={txn.type} />
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold">
-                            <span className="truncate max-w-[100px]">{acctName}</span>
+                            <span className="truncate max-w-[100px]">
+                              {acctName}
+                            </span>
                             <span>•</span>
                             <span className="truncate max-w-[120px]">
-                              {txn.type === "income" ? (
-                                txn.income_category === "cashback" ? (
-                                  "Cashback"
-                                ) : txn.income_category === "starting_balance" ? (
-                                  "Starting Bal"
-                                ) : (
-                                  "Income"
-                                )
-                              ) : txn.income_category === "from_savings" ? (
-                                "From Savings"
-                              ) : (
-                                txn.envelope_name ?? "Uncategorised"
-                              )}
+                              {txn.type === "income"
+                                ? txn.income_category === "cashback"
+                                  ? "Cashback"
+                                  : txn.income_category === "starting_balance"
+                                    ? "Starting Bal"
+                                    : "Income"
+                                : txn.income_category === "from_savings"
+                                  ? "From Savings"
+                                  : (txn.envelope_name ?? "Uncategorised")}
                             </span>
                           </div>
-                          {txn.notes && !isTransferIn(txn) && !isTransferOut(txn) && (
-                            <p className="text-[11px] text-muted-foreground/80 italic truncate mt-0.5 font-medium">
-                              {txn.notes}
-                            </p>
-                          )}
+                          {txn.notes &&
+                            !isTransferIn(txn) &&
+                            !isTransferOut(txn) && (
+                              <p className="text-[11px] text-muted-foreground/80 italic truncate mt-0.5 font-medium">
+                                {txn.notes}
+                              </p>
+                            )}
                         </div>
 
                         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 select-none">
-                          <span className={cn("text-sm font-bold tabular-nums", amtColor)}>
+                          <span
+                            className={cn(
+                              "text-sm font-bold tabular-nums",
+                              amtColor
+                            )}
+                          >
                             {fmt(txn.amount, txn.type, currency, txn.payee)}
                           </span>
                           {showConverted && (
                             <span className="text-[10px] text-muted-foreground/60 font-semibold tabular-nums">
-                              ≈ {fmt(txn.amount * (rates[currency] ?? 1), txn.type, defaultCurrency, txn.payee)}
+                              ≈{" "}
+                              {fmt(
+                                txn.amount * (rates[currency] ?? 1),
+                                txn.type,
+                                defaultCurrency,
+                                txn.payee
+                              )}
                             </span>
                           )}
                           <span className="text-[10px] text-muted-foreground/75 font-bold tabular-nums mt-0.5">
@@ -507,7 +549,9 @@ export default function TransactionsPage() {
                 <th className="px-6 py-2.5 font-medium text-right w-32">
                   Balance
                 </th>
-                <th className="w-24 px-6 py-2.5 text-right font-medium text-xs uppercase tracking-wider opacity-60">Actions</th>
+                <th className="w-24 px-6 py-2.5 text-right font-medium text-xs uppercase tracking-wider opacity-60">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -523,96 +567,121 @@ export default function TransactionsPage() {
                       i % 2 === 0 ? "" : "bg-muted/10"
                     )}
                   >
-                  <td className="px-6 py-2.5 text-muted-foreground tabular-nums">
-                    {txn.date}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground truncate max-w-0 w-44">
-                    <span className="block truncate">
-                      {accountMap[txn.account_id] ?? "—"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 font-medium">
-                    <div className="truncate max-w-xs">{txn.payee}</div>
-                    {txn.notes && (
-                      <div className="text-xs text-muted-foreground truncate max-w-xs">
-                        {txn.notes}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
-                    <span className="truncate block max-w-[9rem]">
-                      {txn.type === "income" ? (
-                        txn.income_category === "cashback" ? (
-                          <span className="text-positive/80 font-medium">Cashback / Refund</span>
-                        ) : txn.income_category === "starting_balance" ? (
-                          <span className="text-cyan-500/80 font-medium">Starting Balance</span>
-                        ) : (
-                          <span className="opacity-80">Regular Income</span>
-                        )
-                      ) : txn.income_category === "from_savings" ? (
-                        <span className="text-positive/80 font-medium">From Savings</span>
-                      ) : (
-                        txn.envelope_name ?? "—"
+                    <td className="px-6 py-2.5 text-muted-foreground tabular-nums">
+                      {txn.date}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground truncate max-w-0 w-44">
+                      <span className="block truncate">
+                        {accountMap[txn.account_id] ?? "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 font-medium">
+                      <div className="truncate max-w-xs">{txn.payee}</div>
+                      {txn.notes && (
+                        <div className="text-xs text-muted-foreground truncate max-w-xs">
+                          {txn.notes}
+                        </div>
                       )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <TypeBadge type={txn.type} />
-                  </td>
-                  <td className="px-6 py-2.5 text-right tabular-nums">
-                    <span className={cn("font-medium block", typeColor(txn.type))}>
-                      {fmt(txn.amount, txn.type, currency, txn.payee)}
-                    </span>
-                    {showConverted && (
-                      <span className="text-[10px] text-muted-foreground block font-medium">
-                        ≈ {fmt(txn.amount * (rates[currency] ?? 1), txn.type, defaultCurrency, txn.payee)}
+                    </td>
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      <span className="truncate block max-w-[9rem]">
+                        {txn.type === "income" ? (
+                          txn.income_category === "cashback" ? (
+                            <span className="text-positive/80 font-medium">
+                              Cashback / Refund
+                            </span>
+                          ) : txn.income_category === "starting_balance" ? (
+                            <span className="text-cyan-500/80 font-medium">
+                              Starting Balance
+                            </span>
+                          ) : (
+                            <span className="opacity-80">Regular Income</span>
+                          )
+                        ) : txn.income_category === "from_savings" ? (
+                          <span className="text-positive/80 font-medium">
+                            From Savings
+                          </span>
+                        ) : (
+                          (txn.envelope_name ?? "—")
+                        )}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-2.5 text-right tabular-nums">
-                    <span className="font-semibold text-foreground/80 block">
-                      {fmtBalance(runningBalances[txn.id] ?? 0, currency)}
-                    </span>
-                    {showConverted && (
-                      <span className="text-[10px] text-muted-foreground block font-medium">
-                        ≈ {fmtBalance((runningBalances[txn.id] ?? 0) * (rates[currency] ?? 1), defaultCurrency)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-2.5 text-right w-24" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex gap-2 justify-end opacity-70 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => setEditingTxn(txn)}
-                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        title="Edit Transaction"
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <TypeBadge type={txn.type} />
+                    </td>
+                    <td className="px-6 py-2.5 text-right tabular-nums">
+                      <span
+                        className={cn("font-medium block", typeColor(txn.type))}
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <ConfirmDialog
-                        title="Delete Transaction?"
-                        description={
-                          txn.type === "transfer"
-                            ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity."
-                            : "This transaction will be permanently removed. This will instantly adjust the account balance and any budgeted category."
-                        }
-                        onConfirm={() => {
-                          deleteTxn(txn.id, {
-                            onSuccess: () => toast.success("Transaction deleted"),
-                            onError: (err) => toast.error(err.message),
-                          });
-                        }}
-                        trigger={
-                          <button
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        }
-                      />
-                    </div>
-                  </td>
-                </tr>
+                        {fmt(txn.amount, txn.type, currency, txn.payee)}
+                      </span>
+                      {showConverted && (
+                        <span className="text-[10px] text-muted-foreground block font-medium">
+                          ≈{" "}
+                          {fmt(
+                            txn.amount * (rates[currency] ?? 1),
+                            txn.type,
+                            defaultCurrency,
+                            txn.payee
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-2.5 text-right tabular-nums">
+                      <span className="font-semibold text-foreground/80 block">
+                        {fmtBalance(runningBalances[txn.id] ?? 0, currency)}
+                      </span>
+                      {showConverted && (
+                        <span className="text-[10px] text-muted-foreground block font-medium">
+                          ≈{" "}
+                          {fmtBalance(
+                            (runningBalances[txn.id] ?? 0) *
+                              (rates[currency] ?? 1),
+                            defaultCurrency
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td
+                      className="px-6 py-2.5 text-right w-24"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex gap-2 justify-end opacity-70 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTxn(txn)}
+                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit Transaction"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <ConfirmDialog
+                          title="Delete Transaction?"
+                          description={
+                            txn.type === "transfer"
+                              ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity."
+                              : "This transaction will be permanently removed. This will instantly adjust the account balance and any budgeted category."
+                          }
+                          onConfirm={() => {
+                            deleteTxn(txn.id, {
+                              onSuccess: () =>
+                                toast.success("Transaction deleted"),
+                              onError: (err) => toast.error(err.message),
+                            });
+                          }}
+                          trigger={
+                            <button
+                              type="button"
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-negative transition-colors"
+                              title="Delete Transaction"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          }
+                        />
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>

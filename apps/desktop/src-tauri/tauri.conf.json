@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "openFinance",
-  "version": "4.3.0",
+  "version": "5.0.0",
   "identifier": "com.anindaghosh.openfinance",
   "build": {
-    "beforeDevCommand": "pnpm dev:all",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
@@ -33,12 +33,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/server"
-    ],
-    "resources": [
-      "binaries/server-bundle/**/*"
-    ],
     "macOS": {
       "dmg": {
         "windowSize": {
@@ -54,11 +48,6 @@
           "y": 170
         }
       }
-    }
-  },
-  "plugins": {
-    "shell": {
-      "open": false
     }
   }
 }

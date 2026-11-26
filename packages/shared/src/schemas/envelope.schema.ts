@@ -6,11 +6,6 @@ export const RolloverTypeEnum = z.enum(["none", "amount", "leftover"]);
 // Month format: "YYYY-MM"
 const YearMonthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-export const CreateEnvelopeGroupSchema = z.object({
-  name: z.string().min(1),
-  sort_order: z.number().int().default(0),
-});
-
 export const CreateEnvelopeSchema = z.object({
   group_id: z.string().min(1),
   name: z.string().min(1),

@@ -1,3 +1,9 @@
+import { isLiabilityType } from "@openfinance/shared/constants";
+import {
+  convertFromINR,
+  formatCurrency,
+  localIsoDate,
+} from "@openfinance/shared/utils";
 import {
   ArrowRightLeft,
   Calendar,
@@ -10,7 +16,6 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isLiabilityType } from "@openfinance/shared/constants";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { isModKey } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import {
   useAccounts,
@@ -32,7 +38,6 @@ import {
   useUpdateTransaction,
 } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
-import { convertFromINR, formatCurrency, localIsoDate } from "@openfinance/shared/utils";
 
 const getCurrencySymbol = (currencyCode: string): string => {
   const map: Record<string, string> = {
@@ -102,7 +107,6 @@ export type TransactionFormProps = {
   layout?: "single" | "split";
 };
 
-
 function EnvelopeTrigger({
   envelopes,
   envelopeId,
@@ -158,7 +162,8 @@ function AccountTrigger({
       disabled={disabled}
       className={cn(
         "w-full h-10 border border-border/60 hover:border-primary/30 bg-card hover:bg-muted/40 rounded-lg px-3 flex items-center justify-between transition-all outline-none focus:ring-2 focus:ring-primary/10 font-semibold text-left shadow-sm",
-        disabled && "opacity-70 cursor-not-allowed hover:bg-card hover:border-border/60"
+        disabled &&
+          "opacity-70 cursor-not-allowed hover:bg-card hover:border-border/60"
       )}
     >
       <div className="flex flex-col justify-center min-w-0">
@@ -217,17 +222,12 @@ export default function TransactionForm({
   const { mutate: updateTxn, isPending: updating } = useUpdateTransaction();
   const { mutate: deleteTxn, isPending: deleting } = useDeleteTransaction();
 
-  const accounts = useMemo(
-    () => accountsData?.accounts ?? [],
-    [accountsData]
-  );
+  const accounts = useMemo(() => accountsData?.accounts ?? [], [accountsData]);
   const transactions = transactionsData?.transactions ?? [];
 
   // Form states
   const [tab, setTab] = useState<TabType>(
-    isEdit
-      ? (transaction?.type ?? "expense")
-      : (defaultTab ?? "expense")
+    isEdit ? (transaction?.type ?? "expense") : (defaultTab ?? "expense")
   );
   const [amount, setAmount] = useState(
     isEdit ? String(transaction?.amount ?? "") : ""
@@ -245,9 +245,7 @@ export default function TransactionForm({
     isEdit ? (transaction?.income_category ?? "income") : "income"
   );
   const [date, setDate] = useState(() =>
-    isEdit && transaction?.date
-      ? transaction.date.slice(0, 10)
-      : localIsoDate()
+    isEdit && transaction?.date ? transaction.date.slice(0, 10) : localIsoDate()
   );
   const [notes, setNotes] = useState(isEdit ? (transaction?.notes ?? "") : "");
 
@@ -255,7 +253,9 @@ export default function TransactionForm({
   const [showEnvelopeSelect, setShowEnvelopeSelect] = useState(false);
   const [envSearchQuery, setEnvSearchQuery] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [activeAccountField, setActiveAccountField] = useState<"from" | "to" | null>(null);
+  const [activeAccountField, setActiveAccountField] = useState<
+    "from" | "to" | null
+  >(null);
   const [accountSearchQuery, setAccountSearchQuery] = useState("");
 
   // UI state
@@ -311,8 +311,7 @@ export default function TransactionForm({
     if (isEdit || accounts.length === 0) return;
     if (!accountId) {
       const defaultAcc =
-        (defaultAccountId &&
-          accounts.find((a) => a.id === defaultAccountId)) ||
+        (defaultAccountId && accounts.find((a) => a.id === defaultAccountId)) ||
         accounts.find(
           (a) =>
             a.is_active &&
@@ -330,7 +329,10 @@ export default function TransactionForm({
   useEffect(() => {
     if (isEdit || accounts.length < 2 || toAccountId) return;
 
-    if (defaultToAccountId && accounts.some((a) => a.id === defaultToAccountId)) {
+    if (
+      defaultToAccountId &&
+      accounts.some((a) => a.id === defaultToAccountId)
+    ) {
       setToAccountId(defaultToAccountId);
       return;
     }
@@ -339,12 +341,20 @@ export default function TransactionForm({
 
     const nextAcc =
       accounts.find(
-        (a) => a.id !== accountId && a.is_active && a.currency === defaultCurrency
+        (a) =>
+          a.id !== accountId && a.is_active && a.currency === defaultCurrency
       ) ||
       accounts.find((a) => a.id !== accountId && a.is_active) ||
       accounts.find((a) => a.id !== accountId);
     if (nextAcc) setToAccountId(nextAcc.id);
-  }, [isEdit, accounts, accountId, toAccountId, defaultToAccountId, defaultCurrency]);
+  }, [
+    isEdit,
+    accounts,
+    accountId,
+    toAccountId,
+    defaultToAccountId,
+    defaultCurrency,
+  ]);
 
   // Focus Amount input on mount
   useEffect(() => {
@@ -357,7 +367,10 @@ export default function TransactionForm({
   // Top 5 payees and predictive envelopes based on transaction history
   const { topPayees, predictiveEnvelopes } = useMemo(() => {
     if (isEdit || !transactions || transactions.length === 0) {
-      return { topPayees: [], predictiveEnvelopes: {} as Record<string, string> };
+      return {
+        topPayees: [],
+        predictiveEnvelopes: {} as Record<string, string>,
+      };
     }
 
     const payeeCounts: Record<string, number> = {};
@@ -437,7 +450,7 @@ export default function TransactionForm({
   // Group and filter accounts by search query
   const filteredAccountsByGroup = useMemo(() => {
     const query = accountSearchQuery.toLowerCase().trim();
-    
+
     // Filter active accounts
     const activeAccounts = accounts.filter((a) => a.is_active);
 
@@ -470,10 +483,16 @@ export default function TransactionForm({
       groups.push({ groupName: "On-Budget Accounts", items: onBudget });
     }
     if (offBudgetLiabilities.length > 0) {
-      groups.push({ groupName: "Off-Budget Liabilities (Debt)", items: offBudgetLiabilities });
+      groups.push({
+        groupName: "Off-Budget Liabilities (Debt)",
+        items: offBudgetLiabilities,
+      });
     }
     if (offBudgetAssets.length > 0) {
-      groups.push({ groupName: "Off-Budget Assets (Investments)", items: offBudgetAssets });
+      groups.push({
+        groupName: "Off-Budget Assets (Investments)",
+        items: offBudgetAssets,
+      });
     }
 
     return groups;
@@ -751,11 +770,21 @@ export default function TransactionForm({
     : ["expense", "income", "transfer"];
 
   return (
-    <div className={cn(
-      "relative flex flex-col min-h-0",
-      layout === "split" ? "h-full" : "h-auto",
-      className
-    )}>
+    <div
+      className={cn(
+        "relative flex flex-col min-h-0",
+        layout === "split" ? "h-full" : "h-auto",
+        className
+      )}
+      onKeyDown={(e) => {
+        // Mod+Enter saves from any field, including notes
+        if (e.key === "Enter" && isModKey(e) && !pending && !deleting) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleSubmit();
+        }
+      }}
+    >
       {/* Premium Custom Envelope Selector Overlay */}
       {showEnvelopeSelect && (
         <div className="absolute inset-0 z-50 flex flex-col bg-card animate-slide-up">
@@ -801,10 +830,12 @@ export default function TransactionForm({
                   <h3 className="text-[10px] font-semibold tracking-wider text-muted-foreground/80 uppercase border-b border-border/10 pb-0.5">
                     {groupName}
                   </h3>
-                  <div className={cn(
-                    "grid grid-cols-1 gap-2",
-                    layout === "split" && "md:grid-cols-2"
-                  )}>
+                  <div
+                    className={cn(
+                      "grid grid-cols-1 gap-2",
+                      layout === "split" && "md:grid-cols-2"
+                    )}
+                  >
                     {items.map((env) => {
                       const isSelected = env.id === envelopeId;
                       // `spent` and `available` are both base-currency (INR);
@@ -957,16 +988,18 @@ export default function TransactionForm({
                   <h3 className="text-[10px] font-semibold tracking-wider text-muted-foreground/80 uppercase border-b border-border/10 pb-0.5">
                     {groupName}
                   </h3>
-                  <div className={cn(
-                    "grid grid-cols-1 gap-2",
-                    layout === "split" && "md:grid-cols-2"
-                  )}>
+                  <div
+                    className={cn(
+                      "grid grid-cols-1 gap-2",
+                      layout === "split" && "md:grid-cols-2"
+                    )}
+                  >
                     {items.map((acc) => {
                       const isSelected =
                         activeAccountField === "from"
                           ? acc.id === accountId
                           : acc.id === toAccountId;
-                      
+
                       // For "to" account, we disable selecting the same account as "from"
                       const isDisabled =
                         activeAccountField === "to" && acc.id === accountId;
@@ -993,7 +1026,8 @@ export default function TransactionForm({
                             isSelected
                               ? "border-primary bg-primary/5 ring-1 ring-primary/30"
                               : "border-border/60 bg-background hover:bg-muted/40 hover:border-muted-foreground/20",
-                            isDisabled && "opacity-40 cursor-not-allowed hover:bg-background"
+                            isDisabled &&
+                              "opacity-40 cursor-not-allowed hover:bg-background"
                           )}
                         >
                           <div className="flex flex-col min-w-0 pr-2">
@@ -1066,10 +1100,12 @@ export default function TransactionForm({
 
       {/* Form area: Fully scrollable and takes up dynamic space */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-5 py-4">
-        <div className={cn(
-          "space-y-4",
-          layout === "split" && "md:grid md:grid-cols-2 md:gap-6 md:space-y-0"
-        )}>
+        <div
+          className={cn(
+            "space-y-4",
+            layout === "split" && "md:grid md:grid-cols-2 md:gap-6 md:space-y-0"
+          )}
+        >
           {/* Left Column (Primary Details) */}
           <div className="space-y-4">
             {/* Amount input block */}
@@ -1099,7 +1135,8 @@ export default function TransactionForm({
               </div>
               {isTransferEdit && (
                 <p className="text-[10px] text-muted-foreground font-semibold">
-                  Transfer amounts can't be edited — delete and recreate the transfer to change them.
+                  Transfer amounts can't be edited — delete and recreate the
+                  transfer to change them.
                 </p>
               )}
             </div>
@@ -1140,7 +1177,9 @@ export default function TransactionForm({
               <div className="space-y-1.5 animate-fade-in">
                 <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
                   Amount Received ({toAccount?.currency})
-                  <span className="text-negative/85 font-bold ml-1">*Required</span>
+                  <span className="text-negative/85 font-bold ml-1">
+                    *Required
+                  </span>
                 </label>
                 <input
                   type="number"
@@ -1273,10 +1312,11 @@ export default function TransactionForm({
                       <ArrowRightLeft className="w-3.5 h-3.5" /> YNAB Envelope
                       Boundary Crossing
                     </div>
-                    You are transferring funds from an <strong>On-Budget</strong>{" "}
-                    account to an <strong>Off-Budget</strong> account. Since the
-                    funds are leaving your liquid budget envelopes, you must select
-                    an envelope category to log the outflow.
+                    You are transferring funds from an{" "}
+                    <strong>On-Budget</strong> account to an{" "}
+                    <strong>Off-Budget</strong> account. Since the funds are
+                    leaving your liquid budget envelopes, you must select an
+                    envelope category to log the outflow.
                   </div>
                 )}
 
@@ -1288,8 +1328,14 @@ export default function TransactionForm({
                     <div className="flex gap-2">
                       {(
                         [
-                          { value: "pool", label: "From Savings → Ready to assign" },
-                          { value: "envelope", label: "Straight into an envelope" },
+                          {
+                            value: "pool",
+                            label: "From Savings → Ready to assign",
+                          },
+                          {
+                            value: "envelope",
+                            label: "Straight into an envelope",
+                          },
                           { value: "none", label: "Uncategorised" },
                         ] as const
                       ).map((item) => {
@@ -1312,8 +1358,8 @@ export default function TransactionForm({
                       })}
                     </div>
                     <div className="rounded-xl border border-positive/15 bg-positive/5 p-3 text-xs leading-relaxed text-muted-foreground shadow-sm">
-                      Money is moving from an <strong>Off-Budget</strong> account
-                      into your budget.{" "}
+                      Money is moving from an <strong>Off-Budget</strong>{" "}
+                      account into your budget.{" "}
                       {inflowTarget === "pool"
                         ? "It adds to Ready to assign so you can fund envelopes like Car Loan — shown as From Savings, never as income."
                         : inflowTarget === "envelope"
@@ -1325,33 +1371,33 @@ export default function TransactionForm({
 
                 {envelopes.length > 0 &&
                   (!isInflowCrossing || inflowTarget === "envelope") && (
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
-                      Budget Envelope Category
-                      {isBoundaryCrossing ||
-                      (isInflowCrossing && inflowTarget === "envelope") ? (
-                        <span className="text-negative/85 font-bold ml-1">
-                          *Required
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground ml-1">
-                          (Optional)
-                        </span>
-                      )}
-                    </label>
-                    <EnvelopeTrigger
-                      envelopes={envelopes}
-                      envelopeId={envelopeId}
-                      onOpen={() => setShowEnvelopeSelect(true)}
-                    />
-                  </div>
-                )}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-semibold text-muted-foreground/80 tracking-wide block">
+                        Budget Envelope Category
+                        {isBoundaryCrossing ||
+                        (isInflowCrossing && inflowTarget === "envelope") ? (
+                          <span className="text-negative/85 font-bold ml-1">
+                            *Required
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground ml-1">
+                            (Optional)
+                          </span>
+                        )}
+                      </label>
+                      <EnvelopeTrigger
+                        envelopes={envelopes}
+                        envelopeId={envelopeId}
+                        onOpen={() => setShowEnvelopeSelect(true)}
+                      />
+                    </div>
+                  )}
 
                 {!isBoundaryCrossing && !isInflowCrossing && (
                   <div className="rounded-xl border border-border/10 bg-background p-3 text-xs text-muted-foreground text-center font-bold shadow-sm">
-                    🔄 This transfer is <strong>Budget-Neutral</strong>. An envelope
-                    category is optional as the funds remain within the same budget
-                    boundary.
+                    🔄 This transfer is <strong>Budget-Neutral</strong>. An
+                    envelope category is optional as the funds remain within the
+                    same budget boundary.
                   </div>
                 )}
               </div>
@@ -1440,7 +1486,8 @@ export default function TransactionForm({
           disabled={
             pending ||
             deleting ||
-            (!isTransferEdit && (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0))
+            (!isTransferEdit &&
+              (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0))
           }
           className={cn(
             "h-10 font-bold tracking-wide text-xs rounded-xl transition-all duration-200 flex items-center justify-center gap-2 select-none outline-none focus:ring-2 focus:ring-primary/20 border border-transparent",

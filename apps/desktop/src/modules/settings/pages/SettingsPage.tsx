@@ -9,11 +9,10 @@ import {
   Lock,
   RefreshCw,
   ScrollText,
-  Server,
-  Upload,
-  XCircle,
   ShieldCheck,
   Stethoscope,
+  Upload,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -35,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiFetch, BASE_URL, getToken } from "@/lib/api";
+import { apiFetch, BASE_URL } from "@/lib/api";
 import { chatApi } from "@/modules/chat/api";
 import { useAppStore } from "@/stores/app.store";
 
@@ -44,6 +43,35 @@ const CHANGELOG: {
   date: string;
   sections: { label: string; items: string[] }[];
 }[] = [
+  {
+    version: "5.0.0",
+    date: "2026-11-25",
+    sections: [
+      {
+        label: "Added",
+        items: [
+          "Bulk Add: paste rows from a statement or spreadsheet, review them, and save them all at once. Rows already saved are skipped.",
+          "Keyboard shortcuts: G then a letter or ⌘1…9 to switch pages, N to quick-add a transaction, ? for the full list.",
+          "New app icon.",
+        ],
+      },
+      {
+        label: "Changed",
+        items: [
+          "The app now runs as a single program. Its engine was rewritten in Rust and runs inside the app, replacing the bundled Node.js server.",
+          "Much smaller download: about 9 MB instead of 46 MB.",
+          "A wrong passcode is reported immediately instead of after a 15-second wait.",
+          "Your existing data, documents, chat history and backups open as before, with no migration.",
+        ],
+      },
+      {
+        label: "Removed",
+        items: [
+          "Browser and self-hosted mode. openFinance is now a Mac app only.",
+        ],
+      },
+    ],
+  },
   {
     version: "4.1.6",
     date: "2026-07-11",
@@ -134,7 +162,7 @@ const CHANGELOG: {
           "Mobile Transactions Feed — enabled the Transactions tab in mobile bottom navigation, complete with a beautiful, chronological date-grouped card list, horizontal swipe filters, and dynamic inline deletion capabilities.",
           "iPhone Notch & Safe Area Compliance — added global landscape/portrait safe-area fit margins to perfectly slide and render all screens and headers underneath modern phone status bars.",
           "Unified Version UI — relocated app version badges to the top-right header areas on both desktop (nested elegantly in Sidebar logo block) and mobile (glassmorphic notch-respecting floating badge).",
-          "API Flow Intent Verification — integrated robust Sonner alerts across all 6 main transaction/transfer forms and category categorizers to explicitly notify users if a database entry is unfulfilled on failure."
+          "API Flow Intent Verification — integrated robust Sonner alerts across all 6 main transaction/transfer forms and category categorizers to explicitly notify users if a database entry is unfulfilled on failure.",
         ],
       },
     ],
@@ -149,7 +177,7 @@ const CHANGELOG: {
           "Inactivity Auto-Logout Security — implemented an industry-grade 5-minute inactivity session lock. Listens for user input events (clicks, scrolls, typing) and combines periodic checks with visibility focus hooks to immediately wipe auth tokens and prompt for passcode verification upon screen unlocks or wakes.",
           "Date-Grouped Investment History Feed — restructured the value history list of standalone investment instruments (e.g. 401K) into date-grouped feeds with sticky headers, matching check/savings pages.",
           "Mobile Mode Layout Pruning — optimized the mobile bottom navigation bar to exactly 4 clean, balanced tabs: Dashboard, Cash Flow, Budget, and AI Chat.",
-          "Mobile Floating Quick Add — enabled the premium floating action button (FAB) on mobile, positioned elegantly 20px above the bottom navigation bar to trigger the Quick Add drawer."
+          "Mobile Floating Quick Add — enabled the premium floating action button (FAB) on mobile, positioned elegantly 20px above the bottom navigation bar to trigger the Quick Add drawer.",
         ],
       },
     ],
@@ -162,14 +190,14 @@ const CHANGELOG: {
         label: "Added",
         items: [
           "Running Balance Column — added a dynamic, chronological backward-running balance column next to transaction amounts inside the Checking & Savings details drawer, Debt details drawer, and the main mixed-account paginated Transactions register.",
-          "Date-Grouped Chronological Feed — refactored side-drawer transaction lists into highly scannable chronological feeds grouped under sticky section Date Headers, giving payee names full horizontal breathing width and eliminating text wrapping or clipping."
+          "Date-Grouped Chronological Feed — refactored side-drawer transaction lists into highly scannable chronological feeds grouped under sticky section Date Headers, giving payee names full horizontal breathing width and eliminating text wrapping or clipping.",
         ],
       },
       {
         label: "Fixed",
         items: [
           "Private Document History Purge — successfully rewrote repository Git history and force-pushed to origin/main, completely deleting all traces of accidental local statement PDF commits while keeping your local physical files untouched.",
-          "Uploads Ignored Integration — configured root .gitignore to completely ignore apps/server/uploads/ to prevent future statement staging or leaks."
+          "Uploads Ignored Integration — configured root .gitignore to completely ignore apps/server/uploads/ to prevent future statement staging or leaks.",
         ],
       },
     ],
@@ -185,14 +213,14 @@ const CHANGELOG: {
           "Dynamic Balanced Sankey Layout — automatically shifts from 4-column to a perfectly centered 3-column layout (COL0=15, COL1=440, COL2=865) if there are no envelope expenses, maximizing card width usage.",
           "Left-Aligned Gutter Labels — shifted final column text labels to the left of the nodes (textAnchor='end'), preventing any text boundary clipping or overlapping at the right card edge.",
           "Full-Bleed Visual Polish — removed card padding on the Sankey container to let SVG paths flow beautifully edge-to-edge with the card borders.",
-          "AI Chat Mobile Text Input Auto-Grow — implemented a robust JavaScript auto-resize listener that scales the input box height based on scrollHeight (up to 144px), resolving mobile Safari paragraph clipping."
+          "AI Chat Mobile Text Input Auto-Grow — implemented a robust JavaScript auto-resize listener that scales the input box height based on scrollHeight (up to 144px), resolving mobile Safari paragraph clipping.",
         ],
       },
       {
         label: "Fixed",
         items: [
           "Sankey Node Value Scale — resolved a bug where small-height nodes formatted as $0.00 by removing the conditional h > 10 threshold check from the amount formatter.",
-          "Database Envelope Alignment — corrected a cross-month database mismatch where a May transaction ($742.57) was incorrectly linked to a June envelope, balancing May's budget to exactly $0.00 and clearing the header badge."
+          "Database Envelope Alignment — corrected a cross-month database mismatch where a May transaction ($742.57) was incorrectly linked to a June envelope, balancing May's budget to exactly $0.00 and clearing the header badge.",
         ],
       },
     ],
@@ -206,7 +234,7 @@ const CHANGELOG: {
         items: [
           "Envelope Budgeting Mismatch — aligned totalExpenses and envelope spent logic in the Hono backend to correctly capture envelope-assigned transfers, resolving the $6.8k budget discrepancy.",
           "Global Auto-Refresh Mutations — integrated a global React Query MutationCache that automatically refetches active dashboard, cashflow, and net-worth queries on any successful data change.",
-          "Off-Budget Transaction Separator — added off_budget filter support to cleanly separate on-budget transfers from off-budget net worth holding valuations."
+          "Off-Budget Transaction Separator — added off_budget filter support to cleanly separate on-budget transfers from off-budget net worth holding valuations.",
         ],
       },
     ],
@@ -225,7 +253,7 @@ const CHANGELOG: {
           "Symmetrical Mobile Bottom Navigation — simplified the mobile view nav bar to 4 equal-width, balanced tabs: Net Worth, Budget, Quick Add, and More.",
           "Consolidated More Actions grid — moved all 9 remaining workspace links into a slide-up More drawer bottom sheet in a grid over a frosted blur backdrop.",
           "Linear/Vercel-inspired Submit button — upgraded log transaction triggers to clean, curved, title-cased buttons with soft drop shadows.",
-          "Subtle close FAB style — changed the Quick Add close button background state from neon red to a quiet, elegant muted charcoal."
+          "Subtle close FAB style — changed the Quick Add close button background state from neon red to a quiet, elegant muted charcoal.",
         ],
       },
       {
@@ -233,7 +261,7 @@ const CHANGELOG: {
         items: [
           "Horizontal Baseline Alignment — resolved the vertical baseline offset between the currency symbol and input amount using items-center and leading-none.",
           "Large Numeric Input text-clipping — enlarged the dynamic width multiplier to 1.65 to guarantee digits are never cut off at larger font sizes.",
-          "Clipped Dashboard Donut chart — scaled the Portfolio Breakdown donut chart container to 125px and inner radius to 38 (76px diameter) so long texts are perfectly enclosed."
+          "Clipped Dashboard Donut chart — scaled the Portfolio Breakdown donut chart container to 125px and inner radius to 38 (76px diameter) so long texts are perfectly enclosed.",
         ],
       },
     ],
@@ -267,7 +295,6 @@ const CHANGELOG: {
     ],
   },
   {
-
     version: "1.0.5",
     date: "2026-05-29",
     sections: [
@@ -474,9 +501,7 @@ const CHANGELOG: {
     sections: [
       {
         label: "Changed",
-        items: [
-          "AI model default switched to faster speed gemma4:e2b.",
-        ],
+        items: ["AI model default switched to faster speed gemma4:e2b."],
       },
       {
         label: "Fixed",
@@ -958,54 +983,6 @@ function AiAssistantCard() {
   );
 }
 
-function ServerStatus() {
-  const [status, setStatus] = useState<"checking" | "online" | "offline">(
-    "checking"
-  );
-
-  useEffect(() => {
-    fetch("/api/auth/status")
-      .then((r) => setStatus(r.ok ? "online" : "offline"))
-      .catch(() => setStatus("offline"));
-  }, []);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Server className="w-4 h-4" /> API Server
-        </CardTitle>
-        <CardDescription>Hono API — PostgreSQL backend</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2">
-          {status === "checking" && (
-            <span className="text-xs text-muted-foreground animate-pulse">
-              Checking…
-            </span>
-          )}
-          {status === "online" && (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-                Online
-              </span>
-            </>
-          )}
-          {status === "offline" && (
-            <>
-              <XCircle className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                Offline
-              </span>
-            </>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ExchangeRatesCard() {
   const queryClient = useQueryClient();
   const defaultCurrency = useAppStore((s) => s.defaultCurrency);
@@ -1084,7 +1061,9 @@ function ExchangeRatesCard() {
                 <span className="text-muted-foreground">
                   1 {r.from_currency}
                 </span>
-                <span className="font-medium">{formatRate(r.rate_to_base)}</span>
+                <span className="font-medium">
+                  {formatRate(r.rate_to_base)}
+                </span>
               </div>
             ))}
           </div>
@@ -1122,10 +1101,7 @@ function DataBackupCard() {
   const exportBackup = async () => {
     setExporting(true);
     try {
-      const token = getToken();
-      const res = await fetch(`${BASE_URL}/api/backup/export`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await fetch(`${BASE_URL}/api/backup/export`);
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -1160,11 +1136,9 @@ function DataBackupCard() {
     if (!pendingBackupFile) return;
     setImporting(true);
     try {
-      const token = getToken();
       const arrayBuffer = await pendingBackupFile.arrayBuffer();
       const headers: Record<string, string> = {
         "Content-Type": "application/octet-stream",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(password ? { "x-backup-password": password } : {}),
         ...(username ? { "x-backup-username": username } : {}),
       };
@@ -1179,7 +1153,9 @@ function DataBackupCard() {
         if (body?.error === "DECRYPTION_REQUIRED") {
           // Backup was made by a different user — ask for their password
           setDecryptionRequired(true);
-          setFallbackError(password ? "Incorrect password — please try again." : "");
+          setFallbackError(
+            password ? "Incorrect password — please try again." : ""
+          );
           return;
         }
         throw new Error(body?.error ?? "Import failed");
@@ -1214,7 +1190,8 @@ function DataBackupCard() {
           Backup &amp; Restore
         </CardTitle>
         <CardDescription>
-          Exports are automatically encrypted with your account password. Import replaces all existing data.
+          Exports are automatically encrypted with your account password. Import
+          replaces all existing data.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
@@ -1263,12 +1240,16 @@ function DataBackupCard() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground text-left leading-relaxed">
-                This will <strong>replace all existing data</strong> (including accounts, transactions, envelopes, and secure documents) with the contents of the backup file. This cannot be undone.
+                This will <strong>replace all existing data</strong> (including
+                accounts, transactions, envelopes, and secure documents) with
+                the contents of the backup file. This cannot be undone.
               </p>
               {pendingBackupFile && (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3.5 text-xs font-semibold text-muted-foreground flex items-center justify-between shadow-sm">
                   <span>Selected file:</span>
-                  <span className="text-foreground font-bold font-mono">{pendingBackupFile.name}</span>
+                  <span className="text-foreground font-bold font-mono">
+                    {pendingBackupFile.name}
+                  </span>
                 </div>
               )}
               <Button
@@ -1304,10 +1285,14 @@ function DataBackupCard() {
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <p className="text-sm text-muted-foreground leading-relaxed">
-                This backup was encrypted with a <strong>different account</strong>. Enter the credentials that were used when this backup was created.
+                This backup was encrypted with a{" "}
+                <strong>different account</strong>. Enter the credentials that
+                were used when this backup was created.
               </p>
               <div className="space-y-1.5">
-                <Label htmlFor="backup-fallback-user" className="text-sm">Username</Label>
+                <Label htmlFor="backup-fallback-user" className="text-sm">
+                  Username
+                </Label>
                 <Input
                   id="backup-fallback-user"
                   type="text"
@@ -1321,7 +1306,9 @@ function DataBackupCard() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="backup-fallback-pw" className="text-sm">Password</Label>
+                <Label htmlFor="backup-fallback-pw" className="text-sm">
+                  Password
+                </Label>
                 <Input
                   id="backup-fallback-pw"
                   type="password"
@@ -1339,7 +1326,11 @@ function DataBackupCard() {
               </div>
               <Button
                 className="w-full"
-                disabled={importing || !fallbackPassword.trim() || !fallbackUsername.trim()}
+                disabled={
+                  importing ||
+                  !fallbackPassword.trim() ||
+                  !fallbackUsername.trim()
+                }
                 onClick={importWithPassword}
               >
                 {importing ? "Decrypting & Restoring…" : "Unlock & Restore"}
@@ -1382,9 +1373,10 @@ function DataHealthCard() {
   const check = async () => {
     setBusy(true);
     try {
-      const res = await apiFetch<{ count: number; transactions: MisfiledTxn[] }>(
-        "/api/budget/maintenance/misfiled"
-      );
+      const res = await apiFetch<{
+        count: number;
+        transactions: MisfiledTxn[];
+      }>("/api/budget/maintenance/misfiled");
       setResult(res.transactions);
     } catch {
       toast.error("Could not run the check");
@@ -1426,19 +1418,23 @@ function DataHealthCard() {
       <CardContent className="space-y-3">
         {result && result.length === 0 && (
           <p className="text-sm text-positive flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" /> Every transaction is filed under
-            its own month.
+            <CheckCircle2 className="w-4 h-4" /> Every transaction is filed
+            under its own month.
           </p>
         )}
         {result && result.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm">
               <strong>{result.length}</strong> transaction
-              {result.length === 1 ? " is" : "s are"} filed under the wrong month:
+              {result.length === 1 ? " is" : "s are"} filed under the wrong
+              month:
             </p>
             <div className="max-h-56 overflow-y-auto rounded-lg border divide-y text-xs">
               {result.map((t) => (
-                <div key={t.id} className="flex justify-between gap-3 px-3 py-1.5">
+                <div
+                  key={t.id}
+                  className="flex justify-between gap-3 px-3 py-1.5"
+                >
                   <span className="truncate">
                     {t.date} · {t.payee}
                   </span>
@@ -1450,9 +1446,9 @@ function DataHealthCard() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Fixing moves each one to the same category in the month it's dated.
-              Amounts, accounts and balances don't change — only which month's
-              budget counts it.
+              Fixing moves each one to the same category in the month it's
+              dated. Amounts, accounts and balances don't change — only which
+              month's budget counts it.
             </p>
           </div>
         )}
@@ -1689,6 +1685,7 @@ export default function SettingsPage() {
           <div className="flex gap-3">
             {(["light", "dark", "system"] as const).map((t) => (
               <button
+                type="button"
                 key={t}
                 onClick={() => setTheme(t)}
                 className={`flex-1 py-2 rounded-md border text-sm font-medium capitalize transition-colors ${theme === t ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "border-border hover:bg-muted"}`}
@@ -1713,6 +1710,7 @@ export default function SettingsPage() {
           <div className="flex flex-wrap gap-2">
             {SUPPORTED_CURRENCIES.map((c) => (
               <button
+                type="button"
                 key={c}
                 disabled={updatingCurrency}
                 onClick={async () => {
@@ -1762,9 +1760,6 @@ export default function SettingsPage() {
       {/* AI assistant */}
       <AiAssistantCard />
 
-      {/* Server status */}
-      <ServerStatus />
-
       {/* Backup & restore */}
       <DataBackupCard />
 
@@ -1784,12 +1779,18 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border/40">
             <div className="space-y-0.5 pr-4">
-              <p className="text-xs font-bold text-foreground">Auto-Logout on Inactivity</p>
+              <p className="text-xs font-bold text-foreground">
+                Auto-Logout on Inactivity
+              </p>
               <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
-                Automatically lock session and require passcode authentication after 5 minutes of total user inactivity on this device.
+                Automatically lock session and require passcode authentication
+                after 5 minutes of total user inactivity on this device.
               </p>
             </div>
-            <Badge variant="default" className="bg-positive text-positive-foreground font-bold text-[10px] select-none hover:bg-positive px-2.5 py-0.5 shrink-0">
+            <Badge
+              variant="default"
+              className="bg-positive text-positive-foreground font-bold text-[10px] select-none hover:bg-positive px-2.5 py-0.5 shrink-0"
+            >
               Active (5m)
             </Badge>
           </div>
@@ -1813,8 +1814,8 @@ export default function SettingsPage() {
             <ChangelogDialog />
           </div>
           <p>
-            Personal finance manager. Your data is stored in PostgreSQL and
-            stays within your own infrastructure.
+            Personal finance manager. Your data is stored in an encrypted
+            database on this Mac and never leaves it.
           </p>
           <p>
             AI powered by{" "}

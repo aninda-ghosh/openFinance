@@ -1,25 +1,25 @@
-import { useState } from "react";
 import {
   ArrowLeftRight,
   BarChart2,
+  FileText,
   HelpCircle,
   Landmark,
   LayoutDashboard,
   LineChart,
+  Menu,
   MessageSquare,
   Settings,
   Wallet,
-  FileText,
-  Menu,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 const TABS = [
   { to: "/budget", label: "Budget", icon: Wallet },
@@ -81,7 +81,9 @@ export function BottomNav() {
               className={({ isActive }) =>
                 cn(
                   "flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-all duration-200 select-none",
-                  isActive ? "text-primary scale-105" : "text-muted-foreground hover:text-foreground"
+                  isActive
+                    ? "text-primary scale-105"
+                    : "text-muted-foreground hover:text-foreground"
                 )
               }
             >
@@ -94,10 +96,13 @@ export function BottomNav() {
 
           {/* More menu button */}
           <button
+            type="button"
             onClick={() => setMenuOpen(true)}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 py-2 transition-all duration-200 select-none",
-              isMoreActive ? "text-primary scale-105" : "text-muted-foreground hover:text-foreground"
+              isMoreActive
+                ? "text-primary scale-105"
+                : "text-muted-foreground hover:text-foreground"
             )}
           >
             <Menu className="w-5 h-5 flex-shrink-0" />
@@ -109,10 +114,13 @@ export function BottomNav() {
       </nav>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="right" className="w-72 p-0 flex flex-col gap-0 border-l border-border bg-sidebar">
+        <SheetContent
+          side="right"
+          className="w-72 p-0 flex flex-col gap-0 border-l border-border bg-sidebar"
+        >
           <SheetHeader className="px-5 py-4 border-b border-sidebar-border bg-sidebar flex-shrink-0 flex flex-row items-center gap-2">
             <img
-              src="/OpenFinance.png"
+              src="/icon-192.png"
               alt="openFinance"
               className="w-7 h-7 rounded-md object-contain flex-shrink-0"
             />

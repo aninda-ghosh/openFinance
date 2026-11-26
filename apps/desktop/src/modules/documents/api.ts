@@ -42,7 +42,8 @@ export const documentsApi = {
     lifeInsuranceId?: string;
   }) => {
     const params = new URLSearchParams();
-    if (filters?.investmentId) params.set("investment_id", filters.investmentId);
+    if (filters?.investmentId)
+      params.set("investment_id", filters.investmentId);
     if (filters?.accountId) params.set("account_id", filters.accountId);
     if (filters?.lifeInsuranceId)
       params.set("life_insurance_id", filters.lifeInsuranceId);

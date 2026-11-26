@@ -226,6 +226,28 @@ export function useCreateTransfer() {
   });
 }
 
+export function useBulkCreateTransactions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: budgetApi.bulkCreate,
+    onSuccess: () => {
+      for (const key of [
+        "transactions",
+        "envelopes",
+        "monthly-summary",
+        "accounts",
+        "cash-flow",
+        "spending-trends",
+        "net-worth-history",
+        "net-worth",
+        "dashboard",
+      ]) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+}
+
 export function useRecurring() {
   return useQuery({
     queryKey: ["recurring"],

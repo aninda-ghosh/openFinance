@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { BASE_URL } from "@/lib/api";
 
 interface Props {
   onUnlocked: () => void;
@@ -33,7 +34,7 @@ export function PasswordGate({ onUnlocked }: Props) {
           return;
         }
         try {
-          const res = await fetch("http://localhost:3001/health", {
+          const res = await fetch(`${BASE_URL}/health`, {
             signal: AbortSignal.timeout(1000),
           });
           if (res.ok) {
@@ -68,7 +69,13 @@ export function PasswordGate({ onUnlocked }: Props) {
     try {
       await invoke("spawn_server", { password });
       setPhase("starting");
-    } catch {
+    } catch (err) {
+      // The backend runs in-process, so a wrong passcode is reported right
+      // away instead of through the health-poll timeout.
+      if (err === "wrong_password") {
+        setPhase("wrong_password");
+        return;
+      }
       setError("Failed to start the server. Please try again.");
     }
   };
@@ -96,7 +103,9 @@ export function PasswordGate({ onUnlocked }: Props) {
       setError("");
       setPhase("input");
     } catch {
-      setError("Failed to reset database. Please try deleting the database files manually.");
+      setError(
+        "Failed to reset database. Please try deleting the database files manually."
+      );
       setConfirmWipe(false);
     }
   };
@@ -108,19 +117,24 @@ export function PasswordGate({ onUnlocked }: Props) {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="w-full max-w-xs space-y-6 p-8 border border-red-500/20 rounded-2xl bg-card shadow-lg">
           <div>
-            <h2 className="text-lg font-semibold text-red-500">Wipe Database?</h2>
+            <h2 className="text-lg font-semibold text-red-500">
+              Wipe Database?
+            </h2>
             <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
-              This will permanently delete all your local transactions, accounts, and financial records. This action cannot be undone.
+              This will permanently delete all your local transactions,
+              accounts, and financial records. This action cannot be undone.
             </p>
           </div>
           <div className="space-y-2">
             <button
+              type="button"
               onClick={executeWipe}
               className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors cursor-pointer"
             >
               Yes, delete all data
             </button>
             <button
+              type="button"
               onClick={() => setConfirmWipe(false)}
               className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-foreground border border-border rounded-md text-sm font-medium transition-colors cursor-pointer"
             >

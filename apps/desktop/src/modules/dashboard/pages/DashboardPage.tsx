@@ -1,4 +1,3 @@
-import { useState, useMemo } from "react";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
 import {
   BarChart3,
@@ -11,13 +10,8 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import {
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-} from "recharts";
+import { useMemo, useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -127,7 +121,8 @@ export default function DashboardPage() {
     return donutData.reduce((sum: number, item: any) => sum + item.value, 0);
   }, [donutData]);
 
-  const activeDonut = activeDonutIndex !== null ? donutData[activeDonutIndex] : null;
+  const activeDonut =
+    activeDonutIndex !== null ? donutData[activeDonutIndex] : null;
 
   const monthLabel = (() => {
     const [y, m] = selectedMonth.split("-").map(Number);
@@ -229,7 +224,13 @@ export default function DashboardPage() {
                 { label: "Investments", value: invs, dot: "bg-positive" },
                 { label: "Policies / Bonds", value: pols, dot: "bg-amber-500" },
                 ...(phys > 0
-                  ? [{ label: "Physical Assets", value: phys, dot: "bg-teal-500" }]
+                  ? [
+                      {
+                        label: "Physical Assets",
+                        value: phys,
+                        dot: "bg-teal-500",
+                      },
+                    ]
                   : []),
                 ...(debt > 0
                   ? [{ label: "Debt", value: -debt, dot: "bg-negative" }]
@@ -384,14 +385,19 @@ export default function DashboardPage() {
                               strokeWidth={0}
                               style={{
                                 outline: "none",
-                                filter: isHovered ? "drop-shadow(0 0 4px rgba(99,102,241,0.3))" : "none",
+                                filter: isHovered
+                                  ? "drop-shadow(0 0 4px rgba(99,102,241,0.3))"
+                                  : "none",
                                 transition: "all 0.2s ease-in-out",
                               }}
                             />
                           );
                         })}
                       </Pie>
-                      <Tooltip formatter={(v: any) => fmt(Number(v))} content={<></>} />
+                      <Tooltip
+                        formatter={(v: any) => fmt(Number(v))}
+                        content={<></>}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-1.5">
@@ -449,9 +455,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <div className="bg-negative/10 rounded-lg p-2 text-center">
-                    <p className="text-xs text-muted-foreground">
-                      Expenses
-                    </p>
+                    <p className="text-xs text-muted-foreground">Expenses</p>
                     <p className="text-sm font-bold text-negative tabular-nums truncate">
                       {fmt(expenses)}
                     </p>
@@ -480,39 +484,45 @@ export default function DashboardPage() {
                       : `${fmt(-toAssign)} over-budgeted`}
                   </p>
                 </div>
-                {dashboard?.top_categories && dashboard.top_categories.length > 0 && (
-                  <>
-                    <div className="border-t border-border/40 my-1" />
-                    <div className="space-y-1 pt-0.5">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Top Spending Categories
-                      </p>
-                      <div className="space-y-1">
-                        {dashboard.top_categories.slice(0, 3).map((c: any) => {
-                          const pct = spent > 0 ? (c.amount / spent) * 100 : 0;
-                          return (
-                            <div key={c.name} className="space-y-0.5">
-                              <div className="flex justify-between text-xs">
-                                <span className="text-muted-foreground capitalize truncate max-w-[130px]">
-                                  {c.name.replace(/_/g, " ")}
-                                </span>
-                                <span className="font-semibold tabular-nums text-[11px]">
-                                  {fmt(c.amount)} ({pct.toFixed(0)}%)
-                                </span>
-                              </div>
-                              <div className="h-1 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-500 rounded-full"
-                                  style={{ width: `${Math.min(100, pct)}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
+                {dashboard?.top_categories &&
+                  dashboard.top_categories.length > 0 && (
+                    <>
+                      <div className="border-t border-border/40 my-1" />
+                      <div className="space-y-1 pt-0.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Top Spending Categories
+                        </p>
+                        <div className="space-y-1">
+                          {dashboard.top_categories
+                            .slice(0, 3)
+                            .map((c: any) => {
+                              const pct =
+                                spent > 0 ? (c.amount / spent) * 100 : 0;
+                              return (
+                                <div key={c.name} className="space-y-0.5">
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground capitalize truncate max-w-[130px]">
+                                      {c.name.replace(/_/g, " ")}
+                                    </span>
+                                    <span className="font-semibold tabular-nums text-[11px]">
+                                      {fmt(c.amount)} ({pct.toFixed(0)}%)
+                                    </span>
+                                  </div>
+                                  <div className="h-1 bg-muted rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-indigo-500 rounded-full"
+                                      style={{
+                                        width: `${Math.min(100, pct)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
               </>
             )}
           </CardContent>
@@ -566,9 +576,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-
-
     </div>
   );
 }

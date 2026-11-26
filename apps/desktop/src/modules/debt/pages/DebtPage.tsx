@@ -1,12 +1,14 @@
 import { balanceDelta, isLiabilityType } from "@openfinance/shared/constants";
 import { convertFromINR, formatCurrency } from "@openfinance/shared/utils";
-import { CreditCard, Coins, Pencil, PlusCircle, Trash2 } from "lucide-react";
+import { Coins, CreditCard, Pencil, PlusCircle, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { toast } from "sonner";
+import { AccountFormDialog } from "@/components/AccountFormDialog";
+import TransactionForm from "@/components/TransactionForm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +24,16 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  HiddenZeroBalanceNotice,
+  useZeroBalanceFilter,
+} from "@/components/ZeroBalanceAccounts";
+import {
+  useHoldingsExcludedBalance,
+  useRunningBalances,
+} from "@/hooks/useRunningBalances";
+import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
+import { budgetApi } from "@/modules/budget/api";
+import {
   useAccounts,
   useCreateAccount,
   useDeleteAccount,
@@ -31,18 +43,6 @@ import {
   useUpdateAccount,
 } from "@/modules/budget/hooks/useBudget";
 import { useAppStore } from "@/stores/app.store";
-import { AccountFormDialog } from "@/components/AccountFormDialog";
-import { budgetApi } from "@/modules/budget/api";
-import TransactionForm from "@/components/TransactionForm";
-import {
-  useHoldingsExcludedBalance,
-  useRunningBalances,
-} from "@/hooks/useRunningBalances";
-import { ACCOUNT_LEDGER_PAGE_SIZE } from "@/lib/ledger";
-import {
-  HiddenZeroBalanceNotice,
-  useZeroBalanceFilter,
-} from "@/components/ZeroBalanceAccounts";
 
 function formatDateLabel(dateStr: string) {
   if (!dateStr) return "";
@@ -73,10 +73,7 @@ function PaymentDialog({
   const [open, setOpen] = useState(false);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={setOpen}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-[500px] md:max-w-[760px] p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/20 flex-shrink-0">
@@ -141,10 +138,14 @@ function TransactionSheet({
         className="w-full sm:w-[600px] sm:max-w-none flex flex-col p-0 gap-0"
       >
         <SheetHeader className="px-6 pt-5 pb-4 border-b flex-shrink-0 pr-14">
-          <SheetTitle className="text-base font-semibold">{account.name}</SheetTitle>
+          <SheetTitle className="text-base font-semibold">
+            {account.name}
+          </SheetTitle>
           <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
             <span>Balance:</span>
-            <span className={`font-semibold ${account.balance < 0 ? "text-negative" : "text-positive"}`}>
+            <span
+              className={`font-semibold ${account.balance < 0 ? "text-negative" : "text-positive"}`}
+            >
               {account.balance >= 0 ? "+ " : ""}
               {formatCurrency(account.balance, account.currency)}
             </span>
@@ -193,8 +194,7 @@ function TransactionSheet({
                 // "−" the old `payee === "Transfer in" ? "+" : "−"` fallback
                 // showed for it.
                 const delta = balanceDelta(t);
-                const amountSign =
-                  delta === null ? "" : delta >= 0 ? "+" : "−";
+                const amountSign = delta === null ? "" : delta >= 0 ? "+" : "−";
                 return (
                   <div key={t.id} className="flex flex-col">
                     {showDateHeader && (
@@ -202,11 +202,13 @@ function TransactionSheet({
                         {formatDateLabel(t.date)}
                       </div>
                     )}
-                    
+
                     <div className="flex items-center justify-between px-6 py-3.5 hover:bg-muted/30 group/row transition-colors relative border-b border-border/20 last:border-0 bg-background/5">
                       {/* Left Column: Payee & Category Badges */}
                       <div className="min-w-0 flex-1 pr-4">
-                        <p className="text-xs font-semibold truncate text-foreground">{t.payee}</p>
+                        <p className="text-xs font-semibold truncate text-foreground">
+                          {t.payee}
+                        </p>
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           {t.envelope_name && (
                             <span className="bg-indigo-500/10 text-indigo-500 font-medium px-1.5 py-0.5 rounded text-[10px] border border-indigo-500/20">
@@ -225,7 +227,7 @@ function TransactionSheet({
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center gap-6 ml-4 flex-shrink-0 pr-8">
                         {/* Amount Column */}
                         <div className="text-right w-24">
@@ -243,8 +245,13 @@ function TransactionSheet({
                           </p>
                           {showHint && (
                             <p className="text-[10px] text-muted-foreground tabular-nums mt-0.5">
-                              ≈ {t.amount * (rates[account.currency] ?? 1) >= 0 ? "+ " : ""}
-                              {fmtDefault(t.amount * (rates[account.currency] ?? 1))}
+                              ≈{" "}
+                              {t.amount * (rates[account.currency] ?? 1) >= 0
+                                ? "+ "
+                                : ""}
+                              {fmtDefault(
+                                t.amount * (rates[account.currency] ?? 1)
+                              )}
                             </p>
                           )}
                         </div>
@@ -252,7 +259,10 @@ function TransactionSheet({
                         {/* Running Balance Column */}
                         <div className="text-right w-24">
                           <p className="text-xs font-semibold tabular-nums text-foreground/80">
-                            {formatCurrency(runningBalances[t.id] ?? 0, account.currency)}
+                            {formatCurrency(
+                              runningBalances[t.id] ?? 0,
+                              account.currency
+                            )}
                           </p>
                         </div>
                       </div>
@@ -264,9 +274,10 @@ function TransactionSheet({
                           size="icon"
                           className="h-7 w-7 text-destructive hover:bg-muted"
                           onClick={() => {
-                            const confirmMsg = t.type === "transfer"
-                              ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity. Are you sure you want to proceed?"
-                              : "Are you sure you want to delete this transaction?";
+                            const confirmMsg =
+                              t.type === "transfer"
+                                ? "This transaction is a transfer. Deleting it will automatically delete the matching leg in the other involved account to preserve balance integrity. Are you sure you want to proceed?"
+                                : "Are you sure you want to delete this transaction?";
                             if (window.confirm(confirmMsg)) {
                               deleteTxn(t.id, {
                                 onSuccess: () => toast.success("Deleted"),
@@ -388,7 +399,9 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
             {debtAccounts.length > 0 && (
               <p className="text-sm text-muted-foreground">
                 Total balance:{" "}
-                <span className={`font-semibold ${totalDebtInr < 0 ? "text-negative" : "text-positive"}`}>
+                <span
+                  className={`font-semibold ${totalDebtInr < 0 ? "text-negative" : "text-positive"}`}
+                >
                   {totalDebtInr >= 0 ? "+ " : ""}
                   {fmt(totalDebtInr)}
                 </span>
@@ -447,7 +460,9 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
           {donutData.length > 0 && (
             <Card className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-transparent to-transparent shadow-sm animate-in fade-in-50 duration-300 mb-6">
               <CardHeader className="pt-5 pb-1 px-6">
-                <CardTitle className="text-sm font-semibold tracking-tight">Outstanding Debt Allocation</CardTitle>
+                <CardTitle className="text-sm font-semibold tracking-tight">
+                  Outstanding Debt Allocation
+                </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col md:flex-row items-center gap-8 md:gap-12 py-6">
                 {/* Centered Donut Chart */}
@@ -469,29 +484,38 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                         {donutData.map((_, i) => {
                           const isHovered = activeDonutIndex === i;
                           return (
-                            <Cell 
-                              key={i} 
-                              fill={COLORS[i % COLORS.length]} 
+                            <Cell
+                              key={i}
+                              fill={COLORS[i % COLORS.length]}
                               stroke="none"
                               strokeWidth={0}
                               style={{
                                 outline: "none",
-                                filter: isHovered ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))" : "none",
+                                filter: isHovered
+                                  ? "drop-shadow(0 0 6px rgba(99,102,241,0.3))"
+                                  : "none",
                                 transition: "all 0.2s ease-in-out",
                               }}
                             />
                           );
                         })}
                       </Pie>
-                      <Tooltip formatter={(v) => fmt(Number(v))} content={<></>} />
+                      <Tooltip
+                        formatter={(v) => fmt(Number(v))}
+                        content={<></>}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-2">
                     <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground/80 truncate max-w-[110px] leading-tight">
-                      {activeDonutIndex !== null && donutData[activeDonutIndex] ? donutData[activeDonutIndex].name : "Total Debt"}
+                      {activeDonutIndex !== null && donutData[activeDonutIndex]
+                        ? donutData[activeDonutIndex].name
+                        : "Total Debt"}
                     </span>
                     <span className="text-sm font-extrabold tracking-tight mt-0.5 tabular-nums text-foreground truncate max-w-[110px]">
-                      {activeDonutIndex !== null && donutData[activeDonutIndex] ? `−${fmt(donutData[activeDonutIndex].value)}` : fmt(totalDebtInr)}
+                      {activeDonutIndex !== null && donutData[activeDonutIndex]
+                        ? `−${fmt(donutData[activeDonutIndex].value)}`
+                        : fmt(totalDebtInr)}
                     </span>
                   </div>
                 </div>
@@ -499,7 +523,8 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
                 {/* Premium Legend Grid */}
                 <div className="flex flex-col gap-1.5 w-full flex-1">
                   {donutData.map((d, i) => {
-                    const pct = totalDebtInr > 0 ? (d.value / totalDebtInr) * 100 : 0;
+                    const pct =
+                      totalDebtInr > 0 ? (d.value / totalDebtInr) * 100 : 0;
                     return (
                       <div
                         key={d.name}
@@ -531,177 +556,198 @@ export default function DebtPage({ embed }: { embed?: boolean }) {
           )}
 
           <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Accounts</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm min-w-[480px]">
-              <thead>
-                <tr className="bg-muted/50 border-b">
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                    Account
-                  </th>
-                  <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
-                    Type
-                  </th>
-                  <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
-                    Balance
-                  </th>
-                  <th className="w-40 px-4 py-2.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {shownDebtAccounts.map((a: any) => {
-                  const showConversion = a.currency !== defaultCurrency;
-                  return (
-                    <tr
-                      key={a.id}
-                      className="hover:bg-muted/20 transition-colors group cursor-pointer"
-                      onClick={() => setSheetAccount(a)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-medium">{a.name}</div>
-                        {a.institution && (
-                          <div className="text-xs text-muted-foreground">
-                            {a.institution}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant="secondary"
-                          className="text-xs capitalize"
-                        >
-                          {a.type}
-                        </Badge>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {a.currency}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className={`font-semibold tabular-nums ${a.balance < 0 ? "text-negative" : "text-positive"}`}>
-                          {a.balance >= 0 ? "+ " : ""}
-                          {formatCurrency(a.balance, a.currency)}
-                        </div>
-                        {showConversion && (
-                          <div className="text-xs text-muted-foreground tabular-nums">
-                            ≈ {a.balance_inr >= 0 ? "+ " : ""}
-                            {fmt(a.balance_inr)}
-                          </div>
-                        )}
-                      </td>
-                      <td
-                        className="px-4 py-3"
-                        onClick={(e) => e.stopPropagation()}
+            <CardHeader>
+              <CardTitle className="text-sm">Accounts</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
+                      Account
+                    </th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
+                      Type
+                    </th>
+                    <th className="text-right px-4 py-2.5 font-medium text-muted-foreground">
+                      Balance
+                    </th>
+                    <th className="w-40 px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {shownDebtAccounts.map((a: any) => {
+                    const showConversion = a.currency !== defaultCurrency;
+                    return (
+                      <tr
+                        key={a.id}
+                        className="hover:bg-muted/20 transition-colors group cursor-pointer"
+                        onClick={() => setSheetAccount(a)}
                       >
-                        <div className="flex gap-1.5 justify-end">
-                          <PaymentDialog
-                            debtAccount={a}
-                            trigger={
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs"
-                              >
-                                Make Payment
-                              </Button>
-                            }
-                          />
-                          <AccountFormDialog
-                            title="Edit Debt Account"
-                            mode="edit"
-                            trigger={
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                            }
-                            isPending={updating}
-                            initial={{
-                              name: a.name,
-                              type: a.type,
-                              currency: a.currency,
-                              balance: a.balance,
-                              institution: a.institution ?? "",
-                              is_active: a.is_active ?? true,
-                              // Edit reflects what is stored, not a default.
-                              off_budget: a.off_budget,
-                            }}
-                            onSubmit={(data) => {
-                              // No client-side negation: the server owns the
-                              // liability sign (`-Math.abs(...)` in
-                              // updateAccount), so either sign reconciles to the
-                              // same target.
-                              updateAccount(
-                                {
-                                  id: a.id,
-                                  data: {
-                                    name: data.name,
-                                    type: data.type,
-                                    currency: data.currency,
-                                    balance: data.balance,
-                                    institution: data.institution,
-                                    is_active: data.is_active,
-                                    off_budget: data.off_budget,
-                                  },
-                                },
-                                {
-                                  onSuccess: () => toast.success("Updated"),
-                                  onError: (e) => toast.error(e.message),
-                                }
-                              );
-                            }}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={async () => {
-                              try {
-                                const txnsData = await budgetApi.getTransactions({ account_id: a.id, limit: 200 });
-                                const hasTransfers = txnsData.transactions.some((t: any) => t.type === "transfer" || t.transfer_pair_id != null);
-                                if (hasTransfers) {
-                                  alert("This account cannot be deleted because it contains transactions involving transfers. To preserve double-entry integrity, please delete the transfers individually first from their respective accounts.");
-                                  return;
-                                }
-                                if (window.confirm(`Are you sure you want to delete the debt account "${a.name}"? This will permanently delete the account and all associated transactions.`)) {
-                                  deleteAccount(a.id, {
-                                    onSuccess: () => toast.success("Deleted"),
-                                    onError: (e) => toast.error(e.message),
-                                  });
-                                }
-                              } catch (e: any) {
-                                toast.error("Failed to check for associated transfers");
-                              }
-                            }}
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{a.name}</div>
+                          {a.institution && (
+                            <div className="text-xs text-muted-foreground">
+                              {a.institution}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs capitalize"
                           >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t bg-muted/30">
-                  <td colSpan={2} className="px-4 py-3 text-sm font-semibold">
-                    Total
-                  </td>
-                  <td className={`px-4 py-3 text-right font-semibold tabular-nums ${totalDebtInr < 0 ? "text-negative" : "text-positive"}`}>
-                    {totalDebtInr >= 0 ? "+ " : ""}
-                    {fmt(totalDebtInr)}
-                  </td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </CardContent>
-        </Card>
-        <HiddenZeroBalanceNotice count={hiddenZeroCount} />
+                            {a.type}
+                          </Badge>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {a.currency}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div
+                            className={`font-semibold tabular-nums ${a.balance < 0 ? "text-negative" : "text-positive"}`}
+                          >
+                            {a.balance >= 0 ? "+ " : ""}
+                            {formatCurrency(a.balance, a.currency)}
+                          </div>
+                          {showConversion && (
+                            <div className="text-xs text-muted-foreground tabular-nums">
+                              ≈ {a.balance_inr >= 0 ? "+ " : ""}
+                              {fmt(a.balance_inr)}
+                            </div>
+                          )}
+                        </td>
+                        <td
+                          className="px-4 py-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex gap-1.5 justify-end">
+                            <PaymentDialog
+                              debtAccount={a}
+                              trigger={
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                >
+                                  Make Payment
+                                </Button>
+                              }
+                            />
+                            <AccountFormDialog
+                              title="Edit Debt Account"
+                              mode="edit"
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </Button>
+                              }
+                              isPending={updating}
+                              initial={{
+                                name: a.name,
+                                type: a.type,
+                                currency: a.currency,
+                                balance: a.balance,
+                                institution: a.institution ?? "",
+                                is_active: a.is_active ?? true,
+                                // Edit reflects what is stored, not a default.
+                                off_budget: a.off_budget,
+                              }}
+                              onSubmit={(data) => {
+                                // No client-side negation: the server owns the
+                                // liability sign (`-Math.abs(...)` in
+                                // updateAccount), so either sign reconciles to the
+                                // same target.
+                                updateAccount(
+                                  {
+                                    id: a.id,
+                                    data: {
+                                      name: data.name,
+                                      type: data.type,
+                                      currency: data.currency,
+                                      balance: data.balance,
+                                      institution: data.institution,
+                                      is_active: data.is_active,
+                                      off_budget: data.off_budget,
+                                    },
+                                  },
+                                  {
+                                    onSuccess: () => toast.success("Updated"),
+                                    onError: (e) => toast.error(e.message),
+                                  }
+                                );
+                              }}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={async () => {
+                                try {
+                                  const txnsData =
+                                    await budgetApi.getTransactions({
+                                      account_id: a.id,
+                                      limit: 200,
+                                    });
+                                  const hasTransfers =
+                                    txnsData.transactions.some(
+                                      (t: any) =>
+                                        t.type === "transfer" ||
+                                        t.transfer_pair_id != null
+                                    );
+                                  if (hasTransfers) {
+                                    alert(
+                                      "This account cannot be deleted because it contains transactions involving transfers. To preserve double-entry integrity, please delete the transfers individually first from their respective accounts."
+                                    );
+                                    return;
+                                  }
+                                  if (
+                                    window.confirm(
+                                      `Are you sure you want to delete the debt account "${a.name}"? This will permanently delete the account and all associated transactions.`
+                                    )
+                                  ) {
+                                    deleteAccount(a.id, {
+                                      onSuccess: () => toast.success("Deleted"),
+                                      onError: (e) => toast.error(e.message),
+                                    });
+                                  }
+                                } catch (e: any) {
+                                  toast.error(
+                                    "Failed to check for associated transfers"
+                                  );
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/30">
+                    <td colSpan={2} className="px-4 py-3 text-sm font-semibold">
+                      Total
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-semibold tabular-nums ${totalDebtInr < 0 ? "text-negative" : "text-positive"}`}
+                    >
+                      {totalDebtInr >= 0 ? "+ " : ""}
+                      {fmt(totalDebtInr)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </CardContent>
+          </Card>
+          <HiddenZeroBalanceNotice count={hiddenZeroCount} />
         </>
       )}
 
