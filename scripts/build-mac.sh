@@ -11,6 +11,12 @@
 #
 # Node.js and pnpm are still needed at build time, to build the UI with Vite.
 #
+# Optional: CODESIGN_IDENTITY="openFinance Local" ./scripts/build-mac.sh
+# signs the app with that code-signing identity (e.g. a self-signed
+# certificate in your login keychain, see docs/TOUCH-ID.md) so its signature
+# stays the same across rebuilds and macOS stops asking for keychain access to
+# the Touch ID passcode after every rebuild. Unset, the build is unchanged.
+#
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -104,6 +110,38 @@ EXECUTABLES="$(find "$APP/Contents/MacOS" -type f)"
 $EXECUTABLES"
 [[ ! -e "$APP/Contents/Resources/binaries" ]] \
   || die "The app bundle still contains the old server sidecar resources."
+
+# ── 4. Optional: sign with a stable identity ──────────────────────────────────
+# Signs the .app with CODESIGN_IDENTITY, then puts the signed app into the DMG
+# Tauri made (keeping its window layout). Only runs when the variable is set.
+
+if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
+  step "Signing the app with \"$CODESIGN_IDENTITY\""
+  [[ -n "$DMG" ]] || die "No .dmg to update — check the output above."
+  security find-identity -v -p codesigning | grep -qF "\"$CODESIGN_IDENTITY\"" \
+    || die "No valid code-signing identity named \"$CODESIGN_IDENTITY\" in your keychain.
+  See docs/TOUCH-ID.md for how to create one, or unset CODESIGN_IDENTITY."
+  codesign --force --deep --sign "$CODESIGN_IDENTITY" "$APP"
+  codesign --verify --deep --strict "$APP" || die "The signed app does not verify."
+
+  RW="$SCRATCH/rw.dmg"
+  MNT="$SCRATCH/mnt"
+  mkdir -p "$MNT"
+  hdiutil convert "$DMG" -format UDRW -o "$RW" -quiet
+  hdiutil resize -size +20m "$RW" -quiet
+  hdiutil attach "$RW" -nobrowse -noverify -noautoopen -mountpoint "$MNT" -quiet
+  detach() { hdiutil detach "$MNT" -quiet || hdiutil detach "$MNT" -force -quiet; }
+  if ! { rm -rf "$MNT/openFinance.app" && ditto "$APP" "$MNT/openFinance.app"; }; then
+    detach
+    die "Could not copy the signed app into the DMG."
+  fi
+  codesign --verify --deep --strict "$MNT/openFinance.app" \
+    || { detach; die "The app in the DMG does not verify."; }
+  detach
+  rm -f "$DMG"
+  hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -o "$DMG" -quiet
+  echo "${DIM}$(codesign -dvv "$APP" 2>&1 | grep -E '^(Authority|Identifier)=' | tr '\n' ' ')${OFF}"
+fi
 
 echo
 if [[ -n "$DMG" ]]; then

@@ -27,6 +27,17 @@ openfinance-core = { path = "crates/openfinance-core" }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
+zeroize = { version = "1", features = ["std"] }
+
+# Touch ID unlock (macOS only): the passcode lives in a login-keychain item and
+# the app checks Touch ID (LocalAuthentication) before reading it.
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "3", default-features = false }
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSError", "NSString"] }
+objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "block2", "LAContext"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

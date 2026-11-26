@@ -269,3 +269,32 @@ pub fn wipe_files(db_path: &Path) {
         let _ = std::fs::remove_dir_all(parent.join("chat-memories"));
     }
 }
+
+/// Whether `passcode` opens the existing database at `db_path`, without
+/// disturbing a backend that may be running: a second, short-lived connection
+/// that never creates the file, changes no setting and writes nothing.
+/// Blocking (key derivation): call it off the async runtime. The passcode is
+/// never logged.
+pub fn verify_passcode(db_path: &Path, passcode: &str) -> Result<bool, String> {
+    use openfinance_core::db::rusqlite::{Connection, OpenFlags};
+
+    if !db_path.exists() {
+        return Err("there is no database yet".into());
+    }
+    // Read-write without CREATE (rather than read-only) so a WAL database can
+    // be read whether or not its -shm file exists.
+    let flags = OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let conn = Connection::open_with_flags(db_path, flags).map_err(|e| e.to_string())?;
+    // The same keying as `openfinance_core::db::open`.
+    conn.pragma_update(None, "key", passcode)
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "cipher_compatibility", 4)
+        .map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "busy_timeout", 5000)
+        .map_err(|e| e.to_string())?;
+    Ok(conn
+        .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+            r.get::<_, i64>(0)
+        })
+        .is_ok())
+}

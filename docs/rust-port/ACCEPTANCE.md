@@ -128,7 +128,13 @@ du -sh /Applications/openFinance.app
 restarts the app. It is covered by automated tests on a temp folder
 (`apps/desktop/src-tauri/tests/lifecycle.rs`). Do **not** try it on your real
 data. If you want to see it work, do it only after step 8's restore is
-rehearsed and you have the backup from step 0.
+rehearsed and you have the backup from step 0. With Touch ID on, it also
+deletes the saved keychain item and `touch-id.json`.
+
+## Touch ID (5.1.0)
+
+Unlock with Touch ID has its own checklist: see the "Manual test checklist"
+section of [`docs/TOUCH-ID.md`](../TOUCH-ID.md).
 
 ## If something is wrong: diagnose
 

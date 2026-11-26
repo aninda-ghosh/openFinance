@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased] — 5.1.0
+
+### Added
+
+- **Unlock with Touch ID.** After a password unlock, a small prompt offers to unlock with Touch ID next time ("Not now" is remembered). Settings → Session Security has an on/off switch, which asks for the password before turning it on. When on, the unlock screen asks for a fingerprint by itself at launch and after every lock, and has an "Unlock with Touch ID" button; cancelling leaves the password field ready.
+  - The password is saved in the login keychain (service `com.anindaghosh.openfinance`, account `db-passcode`) and the app requires a Touch ID match before reading it. Because the app is not signed with an Apple Developer ID, this check is enforced by the app, not by the Keychain. See `docs/TOUCH-ID.md`.
+  - Adding or removing fingerprints, a missing keychain item, or a saved password that no longer opens the database deletes the saved password and turns Touch ID off.
+  - The password never reaches the UI: it is stored, read and used only by the Rust side, and wiped from memory after use.
+  - Reset App / Wipe Database also deletes the keychain item and the Touch ID settings.
+- **Stable local signing (optional).** `CODESIGN_IDENTITY="…" ./scripts/build-mac.sh` signs the app with a code-signing identity of your choice (e.g. a self-signed "openFinance Local" certificate), so macOS stops asking for keychain access after every rebuild. Unset, the build is unchanged.
+
+---
+
 ## [5.0.0] — 2026-11-25
 
 ### Added
